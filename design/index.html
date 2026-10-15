@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bongo Curated — Artisan Crafted. Curated for Australia.</title>
+  <meta name="description" content="Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.">
+  <meta name="keywords" content="artisan lifestyle Australia, handcrafted home decor, jute bags Australia, Nakshi Kantha, handcrafted fashion Australia">
+  <meta name="author" content="Bongo Curated">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Bongo Curated — Artisan Crafted. Curated for Australia.">
+  <meta property="og:description" content="Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_AU">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/logos/logo.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/sections.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       ANNOUNCEMENT BAR
+       ═══════════════════════════════════════════════════════ -->
+  <!-- <div class="announcement-bar" id="announcement-bar">
+    <span>Discover distinctive handcrafted pieces, curated for Australia.</span>
+  </div> -->
+
+  <!-- ═══════════════════════════════════════════════════════
+       NAVBAR
+       ═══════════════════════════════════════════════════════ -->
+  <nav class="navbar" id="navbar">
+    <div class="container navbar-inner">
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" id="hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <!-- Brand -->
+      <a href="index.html" class="navbar-brand" aria-label="Shaotal">
+        <img src="assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+      </a>
+
+      <!-- Desktop Nav -->
+      <ul class="navbar-nav" id="nav-items">
+        <!-- Rendered by JS -->
+      </ul>
+
+      <!-- Actions -->
+      <div class="navbar-actions" id="navbar-actions">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MOBILE NAV PANEL
+       ═══════════════════════════════════════════════════════ -->
+  <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+  <div class="mobile-nav" id="mobile-nav">
+    <div class="mobile-nav-header">
+      <a href="index.html" class="mobile-nav-brand" aria-label="Shaotal">
+        <img src="assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+      </a>
+      <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&times;</button>
+    </div>
+    <div id="mobile-nav-items">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SEARCH MODAL
+       ═══════════════════════════════════════════════════════ -->
+  <div class="search-overlay" id="search-overlay">
+    <div class="search-modal">
+      <div class="search-modal-header">
+        <div class="search-input-wrap">
+          <svg class="search-input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <input type="text" class="search-modal-input" id="search-input" placeholder="Search fashion, home decor, jute, handicrafts..." aria-label="Search catalog" autocomplete="off">
+          <button class="search-clear-btn" id="search-clear-btn" aria-label="Clear search" style="display:none">&times;</button>
+        </div>
+        <button class="search-modal-close" id="search-modal-close" aria-label="Close search">&times;</button>
+      </div>
+
+      <div class="search-modal-body" id="search-modal-body">
+        <!-- Default State (Empty / Short Query) -->
+        <div class="search-default-state" id="search-default-state">
+          <!-- Recent Searches -->
+          <div class="search-section" id="recent-searches-section">
+            <div class="search-section-header">
+              <span class="search-section-title">Recent Searches</span>
+              <button class="search-clear-all-recent" id="clear-recent-searches-btn">Clear All</button>
+            </div>
+            <div class="search-tags-list" id="recent-searches-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Suggested Products -->
+          <div class="search-section">
+            <span class="search-section-title">Suggested Products</span>
+            <div class="search-suggested-list" id="search-suggested-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Results State -->
+        <div class="search-results-state" id="search-results-state" style="display:none">
+          <div class="search-results-count" id="search-results-count"></div>
+          <div class="search-results-list" id="search-results-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- No Results State -->
+        <div class="search-no-results-state" id="search-no-results-state" style="display:none">
+          <div class="no-results-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          </div>
+          <h3>No products found</h3>
+          <p id="no-results-text">We couldn't find any items matching your search.</p>
+          <a href="products.html" class="btn btn-primary btn-sm" id="search-browse-all-btn">Browse All Products</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="main-content">
+
+  <!-- ═══════════════════════════════════════════════════════
+       1. HERO SECTION (2:1 BANNER + LAUNCH OFFER COUNTDOWN)
+       ═══════════════════════════════════════════════════════ -->
+  <section class="hero-section" id="hero-section">
+    <div class="container hero-container">
+      <div class="hero-desktop-grid">
+        <!-- Left Column (~2/3 width): Hero Carousel Banner (2:1) -->
+        <div class="hero" id="hero" role="region" aria-label="Featured Collection Highlights" aria-roledescription="carousel">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Right Column (~1/3 width): Launch Offer Countdown Card -->
+        <div class="launch-offer-strip" id="launch-offer-strip" aria-label="Limited Launch Promotion">
+          <div class="launch-offer-inner fade-up visible">
+            <div class="launch-offer-lead">
+              <div class="launch-offer-badge">INAUGURAL OFFER · 25% OFF</div>
+              <h3 class="launch-offer-title">Celebrate Our Launch</h3>
+              <p class="launch-offer-desc">Enjoy 25% off selected introductory ranges. Applied automatically at checkout.</p>
+            </div>
+
+            <div class="launch-offer-countdown-wrap" id="launch-offer-timer" role="timer" aria-live="polite">
+              <!-- Rendered by JS -->
+            </div>
+
+            <div class="launch-offer-action">
+              <a href="#products-section" class="btn btn-primary launch-cta-btn">Shop Curated Range &rarr;</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       2. POPULAR RIGHT NOW
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section products-section" id="products-section">
+    <div class="container">
+      <div class="section-header fade-up">
+        <div class="section-header-top">
+          <div class="section-header-title">
+            <h2>Popular Right Now</h2>
+          </div>
+          <a href="./products.html" class="section-see-more">Show All &rarr;</a>
+        </div>
+        <p class="section-header-desc">A selection of pieces we're excited to bring to Australia.</p>
+      </div>
+
+      <div class="product-grid product-grid-5" id="product-grid">
+        <!-- Rendered by JS: 5 products -->
+      </div>
+
+      <div class="popular-section-footer fade-up">
+        <a href="./products.html" class="popular-explore-more-link" id="popular-explore-more-link">
+          Explore More Products &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       3. SHOP BY CATEGORY
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section categories-section" id="categories-section">
+    <div class="container">
+      <div class="section-header fade-up">
+        <div class="section-header-top">
+          <div class="section-header-title">
+            <!-- <span class="section-kicker">OUR RANGES</span> -->
+            <h2>Shop by Category</h2>
+          </div>
+          <a href="./products.html" class="section-see-more">View All Products &rarr;</a>
+        </div>
+        <p class="section-header-desc">Explore fashion, home & living, natural jute, handcrafted pieces and thoughtful gifts.</p>
+      </div>
+      <div class="category-grid" id="category-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       4. CATEGORY-WISE PRODUCT SECTIONS (Rendered by JS)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="category-product-sections">
+    <!-- Rendered dynamically for each category with at least 5 products -->
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       5. HOME & LIVING
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section home-living-section" id="home-living-section">
+    <div class="container">
+      <div class="editorial-banner fade-up">
+        <div class="editorial-content">
+          <span class="section-kicker kicker-light">CURATED INTERIORS</span>
+          <h2>Home & Living</h2>
+          <p>Bring warmth and character to your space with thoughtfully handcrafted pieces.</p>
+          <a href="#products-section" class="btn btn-white" data-filter-trigger="home-decor">Shop Home & Living</a>
+        </div>
+        <div class="editorial-image">
+          <img src="assets/images/lifestyle/furnitures.jpg" alt="Australian living room with handcrafted artisan decor" loading="lazy">
+        </div>
+      </div>
+
+      <div class="home-showcase-grid" id="home-showcase-grid" style="margin-top: 2rem;">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       6. JUTE & NATURAL
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section jute-section" id="jute-section">
+    <div class="container">
+      <div class="jute-wrapper">
+        <div class="jute-image-col fade-up">
+          <div class="jute-hero-card">
+            <img src="assets/images/lifestyle/jute-showcase.jpg" alt="Handcrafted Golden Jute Totes and Baskets" loading="lazy">
+          </div>
+        </div>
+        <div class="jute-content-col fade-up">
+          <span class="section-kicker">NATURAL MATERIALS</span>
+          <h2>Jute & Natural</h2>
+          <p class="lead-text">
+            Discover versatile jute pieces crafted from natural golden fiber.
+          </p>
+          <a href="#products-section" class="btn btn-primary" data-filter-trigger="jute">Shop Jute</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       7. ARTISAN STORY
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section bangladesh-made" id="bangladesh-made-section">
+    <div class="container">
+      <div class="bangladesh-made-wrapper" style="grid-template-columns: 1.2fr 1fr; align-items: center;">
+        <div class="bangladesh-made-content fade-up">
+          <span class="section-kicker">OUR STORY</span>
+          <h2>Thoughtfully Crafted. Selected for Australia.</h2>
+          <p class="lead-text" style="font-size: 1rem; font-weight: 400; color: var(--color-grey-700); margin-bottom: 1.5rem;">
+            We discover distinctive South Asian-inspired pieces and curate them for modern Australian lifestyles — from everyday fashion to handcrafted home accents and thoughtful gifts.
+          </p>
+          <a href="#products-section" class="btn btn-primary">Our Story</a>
+        </div>
+
+        <div class="bangladesh-made-visual fade-up">
+          <div class="visual-card-stacked">
+            <img src="assets/images/lifestyle/craft-story.jpg" alt="Artisan craft story" loading="lazy" class="main-visual">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       8. REQUEST & GIFTS (DUAL CARDS)
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section request-gifting-section" id="request-gifting-section" style="padding: 4rem 0; background: var(--color-surface-card); border-top: 1px solid var(--color-grey-200); border-bottom: 1px solid var(--color-grey-200);">
+    <div class="container">
+      <div class="dual-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;">
+        
+        <!-- Card 1: Request Custom Sourcing -->
+        <div class="shop-your-way-card fade-up visible" id="request-section" style="text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; height: 100%;">
+          <div>
+            <span class="section-kicker" style="margin-bottom: 0.5rem;">LOOKING FOR SOMETHING UNIQUE?</span>
+            <h2 style="font-family: var(--font-heading); font-size: clamp(1.3rem, 2vw, 1.6rem); margin-bottom: 0.75rem; color: var(--color-dark);">Request Custom Sourcing</h2>
+            <p style="color: var(--color-grey-700); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem;">
+              Have a custom piece or unlisted item in mind? Tell us what you're looking for and we’ll source it.
+            </p>
+          </div>
+          <div>
+            <a href="request.html" class="btn btn-primary btn-lg" style="width: 100%;">Make a Request</a>
+          </div>
+        </div>
+
+        <!-- Card 2: Bulk & Corporate Orders -->
+        <div class="shop-your-way-card fade-up visible" id="bulk-orders-card" style="text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; height: 100%;">
+          <div>
+            <span class="section-kicker" style="margin-bottom: 0.5rem;">VOLUME & EVENTS</span>
+            <h2 style="font-family: var(--font-heading); font-size: clamp(1.3rem, 2vw, 1.6rem); margin-bottom: 0.75rem; color: var(--color-dark);">Bulk & Corporate Orders</h2>
+            <p style="color: var(--color-grey-700); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem;">
+              Planning a wedding, corporate gift set, or retail order? Request special volume pricing & custom variants.
+            </p>
+          </div>
+          <div>
+            <a href="bulk-order.html" class="btn btn-primary btn-lg" style="width: 100%;">Request Bulk Order</a>
+          </div>
+        </div>
+
+        <!-- Card 3: Thoughtful Gifts -->
+        <!-- <div class="shop-your-way-card fade-up visible" id="gifting-section" style="text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 2.25rem; height: 100%;">
+          <div>
+            <span class="section-kicker" style="margin-bottom: 0.5rem;">SPECIAL GIFTS</span>
+            <h2 style="font-family: var(--font-heading); font-size: clamp(1.3rem, 2vw, 1.6rem); margin-bottom: 0.75rem; color: var(--color-dark);">Thoughtful Gifts, For Someone Special</h2>
+            <p style="color: var(--color-grey-700); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem;">
+              Discover unique artisan pieces, with gift wrapping and personal notes available.
+            </p>
+          </div>
+          <div>
+            <a href="#products-section" class="btn btn-outline btn-lg" data-filter-trigger="lifestyle" style="width: 100%;">Send Gifts</a>
+          </div>
+        </div> -->
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       11. NEWSLETTER
+       ═══════════════════════════════════════════════════════ -->
+  <section class="section newsletter-section" id="newsletter-section">
+    <div class="container">
+      <div class="newsletter-card">
+        <div class="newsletter-content">
+          <span class="section-kicker">STAY IN THE LOOP</span>
+          <h2>Stay in the Loop</h2>
+          <p>Be the first to know about new arrivals, special offers and upcoming collections.</p>
+          <form class="newsletter-form" id="newsletter-form">
+            <input type="email" class="newsletter-input" placeholder="Enter your email address" aria-label="Email address" required>
+            <button type="submit" class="btn btn-primary">Join the List</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid" id="footer-grid">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-bottom-left">
+          &copy; 2026 Bongo Curated. Curated artisan goods for Australia.
+        </div>
+        <div class="footer-payment">
+          <span class="footer-payment-icon">VISA</span>
+          <span class="footer-payment-icon">Mastercard</span>
+          <span class="footer-payment-icon">AMEX</span>
+          <span class="footer-payment-icon">Apple Pay</span>
+          <span class="footer-payment-icon">Google Pay</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════════
+       BOTTOM MOBILE NAV
+       ═══════════════════════════════════════════════════════ -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <div class="bottom-nav-inner" id="bottom-nav-inner">
+      <!-- Rendered by JS -->
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════
+       QUICK VIEW MODAL
+       ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="quick-view-modal">
+      <div class="modal-image" style="position:relative">
+        <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
+        <img src="" alt="" id="modal-product-img">
+      </div>
+      <div class="modal-content">
+        <div>
+          <div class="modal-category-tag" id="modal-category-tag">Fashion</div>
+          <h3 class="modal-title"></h3>
+          <p class="modal-subtitle"></p>
+        </div>
+        <div class="modal-price"></div>
+        
+        <div class="modal-options-section" id="modal-colors-wrap">
+          <p class="modal-option-label">Colour / Finish</p>
+          <div class="modal-colors"></div>
+        </div>
+        
+        <div class="modal-options-section" id="modal-sizes-wrap">
+          <p class="modal-option-label">Size / Dimension</p>
+          <div class="modal-sizes"></div>
+        </div>
+
+        <button class="btn btn-primary btn-lg" id="modal-add-to-cart" style="width:100%; margin-top: 1rem">Add to Cart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       VARIANT SELECTION MODAL (Wishlist Add to Cart)
+       ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="variant-modal-overlay">
+    <div class="modal variant-modal" id="variant-selection-modal">
+      <div class="modal-image" style="position:relative">
+        <button class="modal-close" id="variant-modal-close" aria-label="Close modal">&times;</button>
+        <img src="" alt="" id="variant-modal-img">
+      </div>
+      <div class="modal-content">
+        <div>
+          <div class="modal-category-tag" id="variant-modal-category">Fashion</div>
+          <h3 class="modal-title" id="variant-modal-title">Product Name</h3>
+          <p class="modal-subtitle" id="variant-modal-subtitle">Artisan Crafted · Curated for Australia</p>
+        </div>
+        <div class="modal-price" id="variant-modal-price">
+          <span class="current">A$0.00</span>
+        </div>
+        
+        <div class="modal-options-section" id="variant-modal-colors-wrap">
+          <p class="modal-option-label">Color: <span id="variant-modal-selected-color" style="font-weight:var(--fw-semibold); color:var(--color-dark)"></span></p>
+          <div class="modal-colors" id="variant-modal-colors"></div>
+        </div>
+        
+        <div class="modal-options-section" id="variant-modal-sizes-wrap">
+          <p class="modal-option-label">Size: <span id="variant-modal-selected-size" style="font-weight:var(--fw-semibold); color:var(--color-dark)"></span></p>
+          <div class="modal-sizes" id="variant-modal-sizes"></div>
+        </div>
+
+        <div class="modal-options-section" id="variant-modal-qty-wrap">
+          <p class="modal-option-label">Quantity</p>
+          <div class="cart-quantity-selector" style="height: 38px;">
+            <button class="cart-qty-btn" id="variant-qty-minus" style="width:36px; height:38px;" type="button">&minus;</button>
+            <span class="cart-qty-value" id="variant-qty-value" style="min-width:36px; font-size:1rem;">1</span>
+            <button class="cart-qty-btn" id="variant-qty-plus" style="width:36px; height:38px;" type="button">+</button>
+          </div>
+        </div>
+
+        <div id="variant-modal-error" style="color:var(--color-danger); font-size:var(--fs-xs); display:none; margin-top: -0.5rem;">Please select required options</div>
+
+        <button class="btn btn-primary btn-lg" id="variant-modal-confirm-btn" style="width:100%; margin-top: 0.5rem" type="button">Add to Cart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       CART DRAWER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="cart-drawer-overlay" id="cart-drawer-overlay"></div>
+  <div class="cart-drawer" id="cart-drawer">
+    <div class="cart-drawer-header">
+      <div class="cart-drawer-title-group">
+        <h3>Your Cart</h3>
+        <span class="cart-drawer-count-badge" id="cart-drawer-count">0 Items</span>
+      </div>
+      <button id="cart-drawer-close" aria-label="Close cart">&times;</button>
+    </div>
+    <div class="cart-drawer-body" id="cart-drawer-body">
+      <div class="cart-drawer-empty">
+        <p>Your cart is empty</p>
+      </div>
+    </div>
+    <div class="cart-drawer-footer" id="cart-drawer-footer"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       WISHLIST DRAWER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="wishlist-drawer-overlay" id="wishlist-drawer-overlay"></div>
+  <div class="wishlist-drawer" id="wishlist-drawer">
+    <div class="wishlist-drawer-header">
+      <div class="wishlist-drawer-title-group">
+        <h3>Wishlist</h3>
+        <span class="wishlist-drawer-count-badge" id="wishlist-drawer-count">0 Items</span>
+      </div>
+      <button id="wishlist-drawer-close" aria-label="Close wishlist">&times;</button>
+    </div>
+    <div class="wishlist-drawer-body" id="wishlist-drawer-body">
+      <div class="wishlist-drawer-empty">
+        <p>Your wishlist is empty</p>
+      </div>
+    </div>
+    <div class="wishlist-drawer-footer" id="wishlist-drawer-footer"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TOAST CONTAINER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

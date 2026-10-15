@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Something Aesthetic — Bongo Curated</title>
+  <meta name="description" content="Have a unique handcrafted product in mind? Request custom fashion, home decor, jute items, or artisan pieces and we will source and deliver them directly to your door in Australia.">
+  <meta name="keywords" content="Request custom products, custom product sourcing Australia, artisan sourcing, Bongo Curated request">
+  <meta name="author" content="Bongo Curated">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Find Something Aesthetic — Bongo Curated">
+  <meta property="og:description" content="Have a unique handcrafted product in mind? We will source and deliver it directly to your door in Australia.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_AU">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/logos/logo.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/sections.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       NAVBAR
+       ═══════════════════════════════════════════════════════ -->
+  <nav class="navbar" id="navbar">
+    <div class="container navbar-inner">
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" id="hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <!-- Brand -->
+      <a href="index.html" class="navbar-brand" aria-label="Shaotal">
+        <img src="assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+      </a>
+
+      <!-- Desktop Nav -->
+      <ul class="navbar-nav" id="nav-items">
+        <!-- Rendered by JS -->
+      </ul>
+
+      <!-- Actions -->
+      <div class="navbar-actions" id="navbar-actions">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MOBILE NAV PANEL
+       ═══════════════════════════════════════════════════════ -->
+  <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+  <div class="mobile-nav" id="mobile-nav">
+    <div class="mobile-nav-header">
+      <a href="index.html" class="mobile-nav-brand" aria-label="Shaotal">
+        <img src="assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+      </a>
+      <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&times;</button>
+    </div>
+    <div id="mobile-nav-items">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SEARCH MODAL
+       ═══════════════════════════════════════════════════════ -->
+  <div class="search-overlay" id="search-overlay">
+    <div class="search-modal">
+      <div class="search-modal-header">
+        <div class="search-input-wrap">
+          <svg class="search-input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <input type="text" class="search-modal-input" id="search-input" placeholder="Search fashion, home decor, jute, handicrafts..." aria-label="Search catalog" autocomplete="off">
+          <button class="search-clear-btn" id="search-clear-btn" aria-label="Clear search" style="display:none">&times;</button>
+        </div>
+        <button class="search-modal-close" id="search-modal-close" aria-label="Close search">&times;</button>
+      </div>
+
+      <div class="search-modal-body" id="search-modal-body">
+        <div class="search-default-state" id="search-default-state">
+          <div class="search-section" id="recent-searches-section">
+            <div class="search-section-header">
+              <span class="search-section-title">Recent Searches</span>
+              <button class="search-clear-recent" id="clear-recent-btn">Clear All</button>
+            </div>
+            <div class="search-tags" id="recent-searches-tags"></div>
+          </div>
+
+          <div class="search-section">
+            <div class="search-section-header">
+              <span class="search-section-title">Popular Searches</span>
+            </div>
+            <div class="search-tags">
+              <button class="search-tag" data-query="Heavyweight Tee">Heavyweight Tee</button>
+              <button class="search-tag" data-query="Pure Linen Shirt">Pure Linen Shirt</button>
+              <button class="search-tag" data-query="Nakshi Kantha">Nakshi Kantha</button>
+              <button class="search-tag" data-query="Jute Tote">Jute Tote</button>
+              <button class="search-tag" data-query="Brassware">Brassware</button>
+            </div>
+          </div>
+        </div>
+        <div class="search-results-state" id="search-results-state" style="display:none">
+          <div class="search-results-grid" id="search-results-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MAIN CONTENT: REQUEST PAGE
+       ═══════════════════════════════════════════════════════ -->
+  <main style="padding: 2.5rem 0 5rem 0; background: var(--color-surface); min-height: 80vh;">
+    <div class="container">
+      
+      <!-- Breadcrumb -->
+      <nav aria-label="Breadcrumb" style="margin-bottom: 1.5rem;">
+        <ol style="display: flex; gap: 0.5rem; align-items: center; list-style: none; padding: 0; margin: 0; font-size: var(--fs-small); color: var(--color-grey-500);">
+          <li><a href="index.html" style="color: var(--color-grey-600); text-decoration: underline;">Home</a></li>
+          <li>/</li>
+          <li style="color: var(--color-dark); font-weight: var(--fw-semibold);">Request Sourcing</li>
+        </ol>
+      </nav>
+
+      <!-- Intro Banner -->
+      <div style="text-align: center; max-width: 720px; margin: 0 auto 3rem auto;">
+        <span class="section-kicker" style="margin-bottom: 0.5rem; display: inline-block;">SPECIAL SOURCING SERVICE</span>
+        <h1 style="font-family: var(--font-heading); font-size: clamp(2rem, 3.5vw, 2.75rem); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 1rem; line-height: 1.2;">
+          Find Something Aesthetic
+        </h1>
+        <p style="font-size: var(--fs-body-lg); color: var(--color-grey-700); line-height: 1.6; margin: 0;">
+          Have something unique in mind? Whether it's custom flax linen apparel, heirloom Nakshi Kantha textiles, handcrafted brassware, or natural jute goods — tell us what you're looking for. Our dedicated sourcing team will inspect, verify quality, and deliver it directly to your doorstep anywhere in Australia.
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 340px; gap: 2rem; align-items: start;" class="request-layout-grid">
+        
+        <!-- Form Container -->
+        <div class="shop-your-way-card" style="padding: 2.5rem; background: var(--color-surface-card); border-radius: var(--radius-lg); border: 1px solid var(--color-grey-200); box-shadow: var(--shadow-sm);">
+          
+          <div id="request-form-wrapper">
+            <h2 style="font-family: var(--font-heading); font-size: var(--fs-h3); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 1.5rem; border-bottom: 1px solid var(--color-grey-200); padding-bottom: 0.75rem;">
+              Product Request Details
+            </h2>
+
+            <form id="sourcing-request-form" novalidate>
+              
+              <!-- Field 1: What are you looking for? -->
+              <div style="margin-bottom: 1.5rem;">
+                <label for="request-item-name" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                  What are you looking for? <span style="color: var(--color-danger)">*</span>
+                </label>
+                <textarea id="request-item-name" rows="3" placeholder="e.g. Traditional Jamdani saree, Nakshi Kantha cushion set, custom linen shirt, hammered brass vase..." style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card); resize: vertical;" required></textarea>
+                <div class="field-error-msg" id="error-item-name" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.25rem; display: none;">Please describe the item you are looking for.</div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;" class="form-row-2col">
+                <!-- Field 2: Product Link -->
+                <div>
+                  <label for="request-product-link" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Product Link <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
+                  </label>
+                  <input type="url" id="request-product-link" placeholder="https://instagram.com/p/... or website link" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);">
+                </div>
+
+                <!-- Field 4: Preferred Color / Size -->
+                <div>
+                  <label for="request-variant" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Preferred Color / Size <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
+                  </label>
+                  <input type="text" id="request-variant" placeholder="e.g. Size L, Terracotta / Olive" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);">
+                </div>
+              </div>
+
+              <!-- Field 3: File Upload -->
+              <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                  Upload Image / Screenshot <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
+                </label>
+                
+                <div class="file-upload-zone" id="file-upload-zone">
+                  <div class="file-upload-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                  </div>
+                  <span class="file-upload-text">Drag & drop image here or click to browse</span>
+                  <span class="file-upload-subtext">Supports JPG, PNG, WEBP (Max 10MB per file)</span>
+                  <input type="file" id="request-file-input" accept="image/*" multiple style="display: none;">
+                </div>
+
+                <!-- Image Previews Container -->
+                <div class="file-preview-list" id="file-preview-list"></div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.25rem; margin-bottom: 1.5rem;" class="form-row-qty-details">
+                <!-- Field 5: Quantity -->
+                <div>
+                  <label for="request-quantity" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Quantity <span style="color: var(--color-danger)">*</span>
+                  </label>
+                  <input type="number" id="request-quantity" min="1" value="1" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);" required>
+                  <div class="field-error-msg" id="error-quantity" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.25rem; display: none;">Quantity must be at least 1.</div>
+                </div>
+
+                <!-- Field 6: Additional Details -->
+                <div>
+                  <label for="request-details" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Additional Details <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
+                  </label>
+                  <input type="text" id="request-details" placeholder="Any specific materials, deadline, or notes..." style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);">
+                </div>
+              </div>
+
+              <!-- Contact & Delivery Heading -->
+              <h2 style="font-family: var(--font-heading); font-size: var(--fs-h3); font-weight: var(--fw-bold); color: var(--color-dark); margin: 2rem 0 1.25rem 0; border-bottom: 1px solid var(--color-grey-200); padding-bottom: 0.75rem;">
+                Contact & Delivery Info
+              </h2>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; margin-bottom: 2rem;" class="form-row-3col">
+                <!-- Field 7: Name -->
+                <div>
+                  <label for="request-name" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Your Name <span style="color: var(--color-danger)">*</span>
+                  </label>
+                  <input type="text" id="request-name" placeholder="Full Name" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);" required>
+                  <div class="field-error-msg" id="error-name" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.25rem; display: none;">Please enter your name.</div>
+                </div>
+
+                <!-- Field 8: Email / Phone -->
+                <div>
+                  <label for="request-contact" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    Email or Phone Number <span style="color: var(--color-danger)">*</span>
+                  </label>
+                  <input type="text" id="request-contact" placeholder="name@example.com.au or 0400 000 000" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);" required>
+                  <div class="field-error-msg" id="error-contact" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.25rem; display: none;">Please enter your email or phone number.</div>
+                </div>
+
+                <!-- Field 9: Postcode -->
+                <div>
+                  <label for="request-postcode" style="display: block; font-size: var(--fs-small); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 0.5rem;">
+                    AU Delivery Postcode <span style="color: var(--color-danger)">*</span>
+                  </label>
+                  <input type="text" id="request-postcode" placeholder="e.g. 2000, 3000, 4000" maxlength="4" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-md); font-family: var(--font-body); font-size: var(--fs-body); color: var(--color-dark); background: var(--color-surface-card);" required>
+                  <div class="field-error-msg" id="error-postcode" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.25rem; display: none;">Please enter a valid 4-digit Australian postcode.</div>
+                </div>
+              </div>
+
+              <!-- CTA Button -->
+              <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; padding: 0.95rem; font-size: 1.05rem; font-weight: var(--fw-bold);">
+                Submit Request
+              </button>
+
+            </form>
+          </div>
+
+          <!-- Success State Container (Hidden by default) -->
+          <div id="request-success-wrapper" style="display: none; text-align: center; padding: 2rem 1rem;">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: hsl(120, 35%, 92%); color: var(--color-success); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem auto;">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            </div>
+            
+            <h2 style="font-family: var(--font-heading); font-size: var(--fs-h2); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.75rem;">
+              Request Submitted Successfully!
+            </h2>
+            
+            <p style="color: var(--color-grey-700); font-size: var(--fs-body-lg); max-width: 540px; margin: 0 auto 2rem auto; line-height: 1.6;">
+              Thank you, <strong id="submitted-user-name">Customer</strong>! We have received your sourcing request for <strong id="submitted-item-name">your requested item</strong>. Our sourcing team will review your specifications and contact you at <strong id="submitted-contact">your contact info</strong> within 24–48 hours with pricing and availability.
+            </p>
+
+            <div style="background: var(--color-surface-alt); border-radius: var(--radius-md); padding: 1.25rem; max-width: 480px; margin: 0 auto 2rem auto; text-align: left; border: 1px solid var(--color-grey-200); font-size: var(--fs-small);">
+              <div style="font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.5rem;">Request Summary:</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="color: var(--color-grey-600)">Requested Item:</span>
+                <span style="font-weight: var(--fw-semibold); color: var(--color-dark)" id="summary-item-name">-</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="color: var(--color-grey-600)">Quantity:</span>
+                <span style="font-weight: var(--fw-semibold); color: var(--color-dark)" id="summary-quantity">-</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--color-grey-600)">AU Delivery Postcode:</span>
+                <span style="font-weight: var(--fw-semibold); color: var(--color-dark)" id="summary-postcode">-</span>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+              <button type="button" class="btn btn-outline" id="btn-submit-another" style="min-width: 200px;">Submit Another Request</button>
+              <a href="products.html" class="btn btn-primary" style="min-width: 200px;">Explore Our Collection</a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sidebar / Trust Cards -->
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+          
+          <div style="background: var(--color-surface-card); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-grey-200);">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-surface-alt); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--color-brand);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width:22px; height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751A11.959 11.959 0 0112 2.714z"/></svg>
+              </div>
+              <div>
+                <h4 style="font-family: var(--font-heading); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">Authentic Sourcing</h4>
+                <p style="font-size: var(--fs-xs); color: var(--color-grey-600); line-height: 1.5; margin: 0;">Direct partnership with master weavers, ceramicists, brassware artisans, and certified apparel makers.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: var(--color-surface-card); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-grey-200);">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-surface-alt); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--color-brand);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width:22px; height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5"/></svg>
+              </div>
+              <div>
+                <h4 style="font-family: var(--font-heading); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">Australia Express Shipping</h4>
+                <p style="font-size: var(--fs-xs); color: var(--color-grey-600); line-height: 1.5; margin: 0;">Full door-to-door tracking with Australian customs clearance handled seamlessly for you.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: var(--color-surface-card); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--color-grey-200);">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-surface-alt); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--color-brand);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width:22px; height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <div>
+                <h4 style="font-family: var(--font-heading); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">Transparent Pricing</h4>
+                <p style="font-size: var(--fs-xs); color: var(--color-grey-600); line-height: 1.5; margin: 0;">Clear upfront itemized quotes including sourcing, quality check, and shipping — zero hidden charges.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="container footer-grid" id="footer-grid">
+      <!-- Rendered by JS -->
+    </div>
+    <div class="container footer-bottom">
+      <span>&copy; 2026 Bongo Curated. All rights reserved. Artisan Crafted · Curated for Australia.</span>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════════
+       BOTTOM NAV (MOBILE)
+       ═══════════════════════════════════════════════════════ -->
+  <div class="bottom-nav" id="bottom-nav">
+    <div class="bottom-nav-inner" id="bottom-nav-inner">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       VARIANT SELECTION MODAL (Wishlist Add to Cart)
+       ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="variant-modal-overlay">
+    <div class="modal variant-modal" id="variant-selection-modal">
+      <div class="modal-image" style="position:relative">
+        <button class="modal-close" id="variant-modal-close" aria-label="Close modal">&times;</button>
+        <img src="" alt="" id="variant-modal-img">
+      </div>
+      <div class="modal-content">
+        <div>
+          <div class="modal-category-tag" id="variant-modal-category">Fashion</div>
+          <h3 class="modal-title" id="variant-modal-title">Product Name</h3>
+          <p class="modal-subtitle" id="variant-modal-subtitle">Artisan Crafted · Curated for Australia</p>
+        </div>
+        <div class="modal-price" id="variant-modal-price">
+          <span class="current">A$0.00</span>
+        </div>
+        
+        <div class="modal-options-section" id="variant-modal-colors-wrap">
+          <p class="modal-option-label">Color: <span id="variant-modal-selected-color" style="font-weight:var(--fw-semibold); color:var(--color-dark)"></span></p>
+          <div class="modal-colors" id="variant-modal-colors"></div>
+        </div>
+        
+        <div class="modal-options-section" id="variant-modal-sizes-wrap">
+          <p class="modal-option-label">Size: <span id="variant-modal-selected-size" style="font-weight:var(--fw-semibold); color:var(--color-dark)"></span></p>
+          <div class="modal-sizes" id="variant-modal-sizes"></div>
+        </div>
+
+        <div class="modal-options-section" id="variant-modal-qty-wrap">
+          <p class="modal-option-label">Quantity</p>
+          <div class="cart-quantity-selector" style="height: 38px;">
+            <button class="cart-qty-btn" id="variant-qty-minus" style="width:36px; height:38px;" type="button">&minus;</button>
+            <span class="cart-qty-value" id="variant-qty-value" style="min-width:36px; font-size:1rem;">1</span>
+            <button class="cart-qty-btn" id="variant-qty-plus" style="width:36px; height:38px;" type="button">+</button>
+          </div>
+        </div>
+
+        <div id="variant-modal-error" style="color:var(--color-danger); font-size:var(--fs-xs); display:none; margin-top: -0.5rem;">Please select required options</div>
+
+        <button class="btn btn-primary btn-lg" id="variant-modal-confirm-btn" style="width:100%; margin-top: 0.5rem" type="button">Add to Cart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       CART DRAWER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="cart-drawer-overlay" id="cart-drawer-overlay"></div>
+  <div class="cart-drawer" id="cart-drawer">
+    <div class="cart-drawer-header">
+      <div class="cart-drawer-title-group">
+        <h3>Your Cart</h3>
+        <span class="cart-drawer-count-badge" id="cart-drawer-count">0 Items</span>
+      </div>
+      <button id="cart-drawer-close" aria-label="Close cart">&times;</button>
+    </div>
+    <div class="cart-drawer-body" id="cart-drawer-body">
+      <div class="cart-drawer-empty">
+        <p>Your cart is empty</p>
+      </div>
+    </div>
+    <div class="cart-drawer-footer" id="cart-drawer-footer"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       WISHLIST DRAWER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="wishlist-drawer-overlay" id="wishlist-drawer-overlay"></div>
+  <div class="wishlist-drawer" id="wishlist-drawer">
+    <div class="wishlist-drawer-header">
+      <div class="wishlist-drawer-title-group">
+        <h3>Wishlist</h3>
+        <span class="wishlist-drawer-count-badge" id="wishlist-drawer-count">0 Items</span>
+      </div>
+      <button id="wishlist-drawer-close" aria-label="Close wishlist">&times;</button>
+    </div>
+    <div class="wishlist-drawer-body" id="wishlist-drawer-body">
+      <div class="wishlist-drawer-empty">
+        <p>Your wishlist is empty</p>
+      </div>
+    </div>
+    <div class="wishlist-drawer-footer" id="wishlist-drawer-footer"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TOAST CONTAINER
+       ═══════════════════════════════════════════════════════ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('sourcing-request-form');
+      const uploadZone = document.getElementById('file-upload-zone');
+      const fileInput = document.getElementById('request-file-input');
+      const previewList = document.getElementById('file-preview-list');
+      const formWrapper = document.getElementById('request-form-wrapper');
+      const successWrapper = document.getElementById('request-success-wrapper');
+      const btnSubmitAnother = document.getElementById('btn-submit-another');
+
+      let selectedFiles = [];
+
+      // File Drag and Drop Handlers
+      if (uploadZone && fileInput) {
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+          uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadZone.classList.remove('dragover');
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFilesAdded(Array.from(e.dataTransfer.files));
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleFilesAdded(Array.from(e.target.files));
+          }
+        });
+      }
+
+      function handleFilesAdded(files) {
+        files.forEach(file => {
+          if (!file.type.startsWith('image/')) return;
+          // Avoid duplicates by name
+          if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) return;
+          selectedFiles.push(file);
+        });
+        renderFilePreviews();
+      }
+
+      function renderFilePreviews() {
+        if (!previewList) return;
+        previewList.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+          const itemEl = document.createElement('div');
+          itemEl.className = 'file-preview-item';
+          
+          const imgEl = document.createElement('img');
+          imgEl.alt = file.name;
+          
+          const reader = new FileReader();
+          reader.onload = (e) => { imgEl.src = e.target.result; };
+          reader.readAsDataURL(file);
+
+          const nameEl = document.createElement('span');
+          nameEl.className = 'file-preview-name';
+          nameEl.textContent = file.name;
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'file-preview-remove';
+          removeBtn.innerHTML = '&times;';
+          removeBtn.title = 'Remove image';
+          removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedFiles.splice(index, 1);
+            renderFilePreviews();
+          });
+
+          itemEl.appendChild(imgEl);
+          itemEl.appendChild(nameEl);
+          itemEl.appendChild(removeBtn);
+          previewList.appendChild(itemEl);
+        });
+      }
+
+      // Form Validation & Submission
+      if (form) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+
+          const itemNameInput = document.getElementById('request-item-name');
+          const quantityInput = document.getElementById('request-quantity');
+          const nameInput = document.getElementById('request-name');
+          const contactInput = document.getElementById('request-contact');
+          const postcodeInput = document.getElementById('request-postcode');
+
+          let isValid = true;
+
+          // Clear previous errors
+          document.querySelectorAll('.field-error-msg').forEach(msg => msg.style.display = 'none');
+
+          if (!itemNameInput.value.trim()) {
+            document.getElementById('error-item-name').style.display = 'block';
+            isValid = false;
+          }
+
+          if (!quantityInput.value || parseInt(quantityInput.value, 10) < 1) {
+            document.getElementById('error-quantity').style.display = 'block';
+            isValid = false;
+          }
+
+          if (!nameInput.value.trim()) {
+            document.getElementById('error-name').style.display = 'block';
+            isValid = false;
+          }
+
+          if (!contactInput.value.trim()) {
+            document.getElementById('error-contact').style.display = 'block';
+            isValid = false;
+          }
+
+          const postcodeVal = postcodeInput.value.trim();
+          if (!postcodeVal || !/^\d{4}$/.test(postcodeVal)) {
+            document.getElementById('error-postcode').style.display = 'block';
+            isValid = false;
+          }
+
+          if (!isValid) return;
+
+          // Save request to global BongoSourcingRequests store
+          let createdReq = null;
+          if (window.BongoSourcingRequests && typeof window.BongoSourcingRequests.create === 'function') {
+            createdReq = window.BongoSourcingRequests.create({
+              customerName: nameInput.value.trim(),
+              contactInfo: contactInput.value.trim(),
+              postcode: postcodeVal,
+              itemName: itemNameInput.value.trim(),
+              productLink: document.getElementById('request-product-link') ? document.getElementById('request-product-link').value.trim() : '',
+              colorSize: document.getElementById('request-variant') ? document.getElementById('request-variant').value.trim() : '',
+              qty: parseInt(quantityInput.value, 10),
+              details: document.getElementById('request-details') ? document.getElementById('request-details').value.trim() : ''
+            });
+          }
+
+          // Save request to current user account if logged in
+          const currUser = typeof window.getStoredCurrentUser === 'function' ? window.getStoredCurrentUser() : null;
+          if (currUser) {
+            const newReq = {
+              id: createdReq ? createdReq.requestNumber : ('REQ-' + Math.floor(1000 + Math.random() * 9000)),
+              title: itemNameInput.value.trim(),
+              link: document.getElementById('request-product-link') ? document.getElementById('request-product-link').value.trim() : '',
+              colorSize: document.getElementById('request-variant') ? document.getElementById('request-variant').value.trim() : '',
+              qty: parseInt(quantityInput.value, 10),
+              details: document.getElementById('request-details') ? document.getElementById('request-details').value.trim() : '',
+              postcode: postcodeVal,
+              status: 'Pending',
+              date: new Date().toISOString().split('T')[0]
+            };
+            currUser.requests = currUser.requests || [];
+            currUser.requests.unshift(newReq);
+            if (typeof window.saveCurrentUser === 'function') window.saveCurrentUser(currUser);
+            if (typeof window.updateUserInUsersList === 'function') window.updateUserInUsersList(currUser);
+          }
+
+          // Show Success State
+          document.getElementById('submitted-user-name').textContent = nameInput.value.trim();
+          document.getElementById('submitted-item-name').textContent = itemNameInput.value.trim().slice(0, 45) + (itemNameInput.value.trim().length > 45 ? '...' : '');
+          document.getElementById('submitted-contact').textContent = contactInput.value.trim();
+          
+          document.getElementById('summary-item-name').textContent = itemNameInput.value.trim().slice(0, 35) + (itemNameInput.value.trim().length > 35 ? '...' : '');
+          document.getElementById('summary-quantity').textContent = quantityInput.value;
+          document.getElementById('summary-postcode').textContent = postcodeVal;
+
+          formWrapper.style.display = 'none';
+          successWrapper.style.display = 'block';
+
+          if (typeof showToast === 'function') {
+            showToast('Sourcing request submitted & saved to account!');
+          }
+
+          window.scrollTo({ top: formWrapper.offsetTop - 100, behavior: 'smooth' });
+        });
+      }
+
+      // Pre-fill user data if logged in
+      const currUser = typeof window.getStoredCurrentUser === 'function' ? window.getStoredCurrentUser() : null;
+      if (currUser) {
+        if (nameInput && !nameInput.value) nameInput.value = currUser.name || '';
+        if (contactInput && !contactInput.value) contactInput.value = currUser.email || currUser.phone || '';
+        if (postcodeInput && !postcodeInput.value) postcodeInput.value = currUser.postcode || '';
+      }
+
+      if (btnSubmitAnother) {
+        btnSubmitAnother.addEventListener('click', () => {
+          form.reset();
+          selectedFiles = [];
+          renderFilePreviews();
+          successWrapper.style.display = 'none';
+          formWrapper.style.display = 'block';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
