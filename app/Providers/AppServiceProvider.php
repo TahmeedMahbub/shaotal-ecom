@@ -24,7 +24,8 @@ class AppServiceProvider extends ServiceProvider
         // One boot payload per request, shared by the layout and the page views.
         $boot = null;
         View::composer(['layouts.store', 'pages.*'], function ($view) use (&$boot) {
-            $boot ??= Storefront::boot(session('customer_id') ? (int) session('customer_id') : null);
+            $page = $view->getData()['page'] ?? [];
+            $boot ??= Storefront::boot(session('customer_id') ? (int) session('customer_id') : null, $page['slug'] ?? null);
             $view->with('boot', $boot);
         });
     }

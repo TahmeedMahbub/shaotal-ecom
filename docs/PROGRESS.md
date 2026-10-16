@@ -24,3 +24,6 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 8. Footer links Shipping/Returns/FAQ/Size Guide and the launch-offer strip (ends 2026-10-15, static in design) have no designed pages/data; omitted or left as design.
 9. Brand name is "Shaotal" in logo alt text but "Bongo Curated" elsewhere — left as designed.
 10. Category slugs `home-decor` and `preorder`-availability are used by home sections as in the design.
+
+## Performance (2026-10-16)
+Image optimization (Cloudinary/Unsplash), hero/product preload, reserved heights, smaller boot payload, `Cache::flexible` catalog cache, fewer queries, versioned assets. Details, before/after numbers, stale-data behaviour and the production deployment checklist: [docs/performance.md](performance.md). Not done: Apache/Nginx cache headers (host unconfirmed), server-side rendering of the hero/product core, minification, catalog pagination.

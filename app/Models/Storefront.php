@@ -9,10 +9,15 @@ use Illuminate\Support\Facades\DB;
 /** Data injected into every storefront page (window.__BOOT__) plus customer cart/wishlist helpers. */
 class Storefront
 {
-    /** Catalog data shared by all visitors; cached briefly on the file store to avoid ~10 queries per page view. */
+    /**
+     * Catalog data shared by all visitors (never user-specific). Cached on the file store: fresh for 60 s, then the
+     * previous copy keeps being served for up to 5 more minutes while ONE request rebuilds it after its response is
+     * sent (Cache::flexible). The admin is a separate app, so edits appear within ~1–6 minutes; to force a refresh
+     * delete the key: php artisan tinker --execute="Cache::store('file')->forget('storefront.catalog.v2')".
+     */
     public static function catalog(): array
     {
-        return Cache::store('file')->remember('storefront.catalog.v1', 60, function () {
+        return Cache::store('file')->flexible('storefront.catalog.v2', [60, 300], function () {
             $images = Catalog::settings(array_merge(array_keys(config('storefront.home_images')), ['social_facebook', 'social_instagram', 'social_tiktok']));
             $home = [];
             foreach (config('storefront.home_images') as $key => $name) {
@@ -35,7 +40,7 @@ class Storefront
         });
     }
 
-    public static function boot(?int $customerId): array
+    public static function boot(?int $customerId, ?string $productSlug = null): array
     {
         $cat = self::catalog();
         $user = $customerId ? self::customer($customerId) : null;
@@ -43,6 +48,15 @@ class Storefront
         foreach ($cat['products'] as $p) {
             $byId[$p['id']] = $p;
         }
+
+        // Long text and specs are only needed on the product page of the product being viewed.
+        $cat['products'] = array_map(function ($p) use ($productSlug) {
+            if ($p['slug'] !== $productSlug) {
+                unset($p['fullDesc'], $p['specs']);
+            }
+
+            return $p;
+        }, $cat['products']);
 
         return $cat + [
             'site' => [
@@ -62,13 +76,15 @@ class Storefront
 
     public static function customer(int $id): ?array
     {
-        $c = DB::table('customers')->where('id', $id)->where('status', 'active')
-            ->first(['id', 'first_name', 'last_name', 'email', 'phone', 'created_at']);
+        // Customer + default (else oldest) saved address in one query.
+        $c = DB::table('customers as c')
+            ->leftJoin('customer_addresses as a', 'a.id', '=', DB::raw('(select id from customer_addresses where customer_id = c.id order by is_default desc, id asc limit 1)'))
+            ->where('c.id', $id)->where('c.status', 'active')
+            ->first(['c.id', 'c.first_name', 'c.last_name', 'c.email', 'c.phone', 'c.created_at', 'a.street_address', 'a.suburb', 'a.state', 'a.postcode']);
         if (! $c) {
             return null;
         }
-        $addr = DB::table('customer_addresses')->where('customer_id', $id)->orderByDesc('is_default')->orderBy('id')
-            ->first(['street_address', 'suburb', 'state', 'postcode']);
+        $addr = $c->street_address !== null || $c->postcode !== null ? $c : null;
 
         return [
             'id' => (int) $c->id,
@@ -84,15 +100,13 @@ class Storefront
     /** Customer's saved cart converted to the storefront cart-item shape. */
     public static function cart(int $customerId, array $productsById): array
     {
-        $cart = DB::table('carts')->where('customer_id', $customerId)->where('status', 'active')->orderByDesc('id')->first(['id']);
-        if (! $cart) {
-            return [];
-        }
+        // Latest active cart's items in one query (no separate lookup of the cart row).
         $rows = DB::table('cart_items as ci')
             ->leftJoin('product_variants as v', 'v.id', '=', 'ci.variant_id')
             ->leftJoin('product_colors as c', 'c.id', '=', 'v.color_id')
             ->leftJoin('product_sizes as s', 's.id', '=', 'v.size_id')
-            ->where('ci.cart_id', $cart->id)->orderBy('ci.id')
+            ->whereRaw("ci.cart_id = (select id from carts where customer_id = ? and status = 'active' order by id desc limit 1)", [$customerId])
+            ->orderBy('ci.id')
             ->get(['ci.product_id', 'ci.quantity', 'c.name as color_name', 'c.hex_code', 's.size_label']);
         $items = [];
         foreach ($rows as $r) {

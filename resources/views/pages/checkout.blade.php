@@ -902,5 +902,5 @@
   </div>
 @endsection
 @push('scripts')
-<script src="{{ asset('assets/js/pages/checkout.js') }}"></script>
+<script src="{{ \App\Support\Assets::url('assets/js/pages/checkout.js') }}"></script>
 @endpush

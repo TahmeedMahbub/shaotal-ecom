@@ -181,7 +181,7 @@
     if (emptyEl) emptyEl.style.display = 'none';
     if (sentinelEl) sentinelEl.style.display = 'flex';
 
-    gridEl.innerHTML = itemsToDisplay.map(product => createProductCardHTML(product)).join('');
+    gridEl.innerHTML = itemsToDisplay.map((product, i) => createProductCardHTML(product, { eager: i < 4 })).join('');
     bindProductCardEvents(gridEl);
 
     // Update sentinel loading indicator state

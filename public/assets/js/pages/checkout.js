@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const variantText = [l.size ? `Size: ${esc(l.size)}` : '', l.color ? `Color: ${esc(l.color)}` : ''].filter(Boolean).join(' | ');
       return `
         <div class="summary-item-row">
-          <img src="${esc(l.image || window.PLACEHOLDER_IMG)}" alt="${esc(l.name)}" class="summary-item-img" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+          <img src="${esc(window.imgUrl(l.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(l.name)}" class="summary-item-img" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
           <div class="summary-item-info">
             <div class="summary-item-title">${esc(l.name)}</div>
             <div class="summary-item-meta">${variantText ? `${variantText} • ` : ''}Qty: ${l.quantity}</div>

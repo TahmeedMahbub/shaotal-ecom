@@ -3894,3 +3894,23 @@ textarea.form-control {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT RESERVATION — home sections filled by JavaScript.
+   Reserves roughly the rendered height (slightly under) so the page below does not jump when the cards appear.
+   Only applied when the server confirms there is content (data-reserve + row counts set in index.blade.php).
+   ═══════════════════════════════════════════════════════════ */
+#product-grid[data-reserve] { min-height: 400px; }
+#category-grid[data-reserve] { min-height: calc(var(--rows-lg) * 290px + (var(--rows-lg) - 1) * var(--space-lg)); }
+
+@media (min-width: 769px) and (max-width: 992px) {
+  #product-grid[data-reserve] { min-height: calc(var(--prows-md) * 360px); }
+}
+
+@media (max-width: 992px) {
+  #category-grid[data-reserve] { min-height: calc(var(--rows-md) * 290px + (var(--rows-md) - 1) * var(--space-lg)); }
+}
+
+@media (max-width: 480px) {
+  #product-grid[data-reserve] { min-height: 270px; }
+  #category-grid[data-reserve] { min-height: calc(var(--rows-md) * 220px + (var(--rows-md) - 1) * var(--space-sm)); }
+}

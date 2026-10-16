@@ -198,5 +198,5 @@
   </div>
 @endsection
 @push('scripts')
-<script src="{{ asset('assets/js/products.js') }}"></script>
+<script src="{{ \App\Support\Assets::url('assets/js/products.js') }}"></script>
 @endpush

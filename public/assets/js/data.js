@@ -5,7 +5,42 @@
    ============================================================ */
 
 (function () {
+  // Boot data is an application/json element (smaller than a JS string literal and not executed).
+  const bootTag = document.getElementById('boot-data');
+  if (!window.__BOOT__ && bootTag) {
+    try { window.__BOOT__ = JSON.parse(bootTag.textContent); } catch (e) { window.__BOOT__ = {}; }
+  }
   const BOOT = window.__BOOT__ || {};
+
+  /* ── Image URL helper (mirrors App\Support\Img in PHP — keep in sync) ──
+     Adds responsive sizing to Cloudinary and Unsplash URLs only; stored URLs are never altered,
+     and any other host (or a Cloudinary URL that already has a transformation) is returned as-is. */
+  const CLD_TRANSFORM = /^(?:ar|a|b|bo|c|co|d|dl|dpr|e|f|fl|g|h|l|o|pg|q|r|t|u|w|x|y|z)_[^/]+$/i;
+  window.imgUrl = function (url, width) {
+    if (!url || typeof url !== 'string') return url;
+    let u;
+    try { u = new URL(url); } catch (e) { return url; }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return url;
+    if (u.hostname === 'res.cloudinary.com') {
+      const m = u.pathname.match(/^(\/[^/]+\/image\/upload\/)(.+)$/);
+      if (!m || CLD_TRANSFORM.test(m[2].split('/')[0])) return url;
+      return u.origin + m[1] + 'f_auto,q_auto,c_limit,w_' + width + '/' + m[2] + u.search;
+    }
+    if (u.hostname === 'images.unsplash.com') {
+      u.searchParams.set('w', width);
+      if (!u.searchParams.has('q')) u.searchParams.set('q', '75');
+      if (!u.searchParams.has('auto')) u.searchParams.set('auto', 'format');
+      u.searchParams.delete('h');
+      u.searchParams.delete('ar');
+      return u.toString();
+    }
+    return url;
+  };
+  // "url 320w, url 640w" or '' when the URL cannot be transformed.
+  window.imgSrcset = function (url, widths) {
+    if (!url || window.imgUrl(url, widths[0]) === url) return '';
+    return widths.map(w => window.imgUrl(url, w) + ' ' + w + 'w').join(', ');
+  };
 
   window.SITE = Object.assign({
     brandName: 'Bongo Curated',
@@ -58,7 +93,7 @@
   /* ── Hero ── */
   window.HERO_SLIDES = (BOOT.hero || []).map(h => ({
     id: h.id, label: '', headline: h.headline, subtext: h.subtext, cta: h.cta, ctaLink: h.ctaLink,
-    secondaryCta: '', secondaryCtaLink: '', image: h.image,
+    secondaryCta: '', secondaryCtaLink: '', image: h.image, imageSrc: h.imageSrc || h.image,
   }));
 
   /* ── Navigation (categories + sub-categories from the database) ── */

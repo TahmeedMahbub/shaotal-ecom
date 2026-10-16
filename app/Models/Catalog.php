@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Img;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -49,7 +50,7 @@ class Catalog
             ->map(fn ($h) => [
                 'id' => (int) $h->id, 'headline' => $h->title ?? '', 'subtext' => $h->subtitle ?? '',
                 'cta' => $h->button_text ?? '', 'ctaLink' => $h->button_url ?: '/products',
-                'image' => $h->image_url, 'mobileImage' => $h->mobile_image_url,
+                'image' => $h->image_url, 'imageSrc' => Img::url($h->image_url, 1280), 'mobileImage' => $h->mobile_image_url,
             ])->all();
     }
 
@@ -173,8 +174,6 @@ class Catalog
                 }
             }
         }
-        $mappedUrls = array_unique(array_merge(...array_values($colorImages ?: [[]])));
-        $generalImages = array_values(array_diff($imgUrls, $mappedUrls));
 
         return [
             'id' => (int) $r->id,
@@ -187,15 +186,15 @@ class Catalog
             'originalPrice' => $selling < $price ? $price : null,
             'image' => $imgUrls[0] ?? null,
             'images' => $imgUrls,
-            'generalImages' => $generalImages,
-            'colorImages' => (object) $colorImages,
+            // plain arrays only: the cache (serializable_classes=false) turns stdClass into __PHP_Incomplete_Class
+            'colorImages' => $colorImages,
             'badge' => $badge,
             'category' => $r->category,
             'categoryName' => $r->category_name,
             'subcategory' => $r->subcategory,
             'brand' => $r->brand,
             'colors' => $colorKeys,
-            'colorNames' => $colors->mapWithKeys(fn ($c) => [self::colorKey($c) => $c->name])->all() ?: (object) [],
+            'colorNames' => $colors->mapWithKeys(fn ($c) => [self::colorKey($c) => $c->name])->all(),
             'sizes' => $sizes->pluck('size_label')->values()->all(),
             'outOfStockSizes' => $hasVariants ? array_values(array_filter($sizes->pluck('size_label')->all(), fn ($s) => ($stockBySize[$s] ?? 0) <= 0)) : [],
             'outOfStockColors' => $hasVariants ? array_values(array_filter($colorKeys, fn ($c) => ($stockByColor[$c] ?? 0) <= 0)) : [],
@@ -209,7 +208,7 @@ class Catalog
             'specs' => array_filter([
                 'material' => $r->material, 'fabric' => $r->fabric, 'dimensions' => $r->dimensions,
                 'fit' => $r->fit, 'pattern' => $r->pattern, 'care' => $r->care_instructions,
-            ]) ?: (object) [],
+            ]),
             'rating' => $rating ? round((float) $rating->avg_rating, 1) : null,
             'reviewCount' => $rating ? (int) $rating->review_count : 0,
             'isDisabled' => false,

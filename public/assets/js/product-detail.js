@@ -63,7 +63,8 @@ function generateGalleryImages(product, color) {
   let list = [];
   const byColor = (product.colorImages || {})[color];
   if (byColor && byColor.length) {
-    list = (product.generalImages || []).concat(byColor);
+    const colourSpecific = new Set([].concat(...Object.values(product.colorImages || {})));
+    list = (product.images || []).filter(u => !colourSpecific.has(u)).concat(byColor);
   } else if (Array.isArray(product.images) && product.images.length > 0) {
     list = product.images.slice();
   }
@@ -95,7 +96,10 @@ function renderProductGallery(detailState) {
 
   if (mainImg) {
     const imgUrl = fixImgPath(detailState.images[detailState.activeImgIndex]);
-    mainImg.src = imgUrl;
+    mainImg.fetchPriority = 'high';
+    mainImg.src = window.imgUrl(imgUrl, 800);
+    const srcset = window.imgSrcset(imgUrl, [480, 800, 1200]);
+    if (srcset) { mainImg.srcset = srcset; mainImg.sizes = '(max-width: 768px) 100vw, 430px'; } else { mainImg.removeAttribute('srcset'); }
     mainImg.alt = detailState.product.name || 'Product Image';
     mainImg.onerror = function() { this.onerror = null; this.src = window.PLACEHOLDER_IMG; };
     mainImg.style.transform = 'scale(1)';
@@ -115,7 +119,7 @@ function renderProductGallery(detailState) {
   if (thumbnailsContainer) {
     thumbnailsContainer.innerHTML = detailState.images.map((imgUrl, idx) => `
       <div class="gallery-thumb-item ${idx === detailState.activeImgIndex ? 'active' : ''}" data-thumb-index="${idx}">
-        <img src="${fixImgPath(imgUrl)}" alt="Product View ${idx + 1}" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+        <img src="${window.imgUrl(fixImgPath(imgUrl), 160)}" alt="Product View ${idx + 1}" width="84" height="84" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
       </div>
     `).join('');
 

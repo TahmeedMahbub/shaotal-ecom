@@ -1,6 +1,11 @@
 @extends('layouts.store')
 @section('title', "Bongo Curated \u2014 Artisan Crafted. Curated for Australia.")
 @section('description', "Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.")
+@if (! empty($boot['hero'][0]['imageSrc']))
+@push('preload')
+<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrc'] }}" fetchpriority="high">
+@endpush
+@endif
 @section('content')
 <main class="main-content">
 
@@ -43,17 +48,17 @@
           <div class="section-header-title">
             <h2>Popular Right Now</h2>
           </div>
-          <a href=".//products" class="section-see-more">Show All &rarr;</a>
+          <a href="/products" class="section-see-more">Show All &rarr;</a>
         </div>
         <p class="section-header-desc">A selection of pieces we're excited to bring to Australia.</p>
       </div>
 
-      <div class="product-grid product-grid-5" id="product-grid">
+      <div class="product-grid product-grid-5" id="product-grid" @if (count($boot['products'])) data-reserve style="--prows-md: {{ (int) ceil(min(count($boot['products']), 5) / 3) }}" @endif>
         
       </div>
 
       <div class="popular-section-footer fade-up">
-        <a href=".//products" class="popular-explore-more-link" id="popular-explore-more-link">
+        <a href="/products" class="popular-explore-more-link" id="popular-explore-more-link">
           Explore More Products &rarr;
         </a>
       </div>
@@ -69,11 +74,11 @@
             
             <h2>Shop by Category</h2>
           </div>
-          <a href=".//products" class="section-see-more">View All Products &rarr;</a>
+          <a href="/products" class="section-see-more">View All Products &rarr;</a>
         </div>
         <p class="section-header-desc">Explore fashion, home & living, natural jute, handcrafted pieces and thoughtful gifts.</p>
       </div>
-      <div class="category-grid" id="category-grid">
+      <div class="category-grid" id="category-grid" @if (count($boot['categories'])) data-reserve style="--rows-lg: {{ (int) ceil(count($boot['categories']) / 4) }}; --rows-md: {{ (int) ceil(count($boot['categories']) / 2) }}" @endif>
         
       </div>
     </div>
@@ -95,7 +100,7 @@
           <a href="#products-section" class="btn btn-white" data-filter-trigger="home-decor">Shop Home & Living</a>
         </div>
         <div class="editorial-image">
-          @if (!empty($boot['homeImages']['living']))<img src="{{ $boot['homeImages']['living'] }}" alt="Australian living room with handcrafted artisan decor" loading="lazy">@endif
+          @if (!empty($boot['homeImages']['living']))<img src="{{ \App\Support\Img::url($boot['homeImages']['living'], 800) }}" @if ($set = \App\Support\Img::srcset($boot['homeImages']['living'], [480, 800, 1200])) srcset="{{ $set }}" sizes="(max-width: 900px) 100vw, 650px" @endif decoding="async" alt="Australian living room with handcrafted artisan decor" loading="lazy">@endif
         </div>
       </div>
 
@@ -111,7 +116,7 @@
       <div class="jute-wrapper">
         <div class="jute-image-col fade-up">
           <div class="jute-hero-card">
-            @if (!empty($boot['homeImages']['jute']))<img src="{{ $boot['homeImages']['jute'] }}" alt="Handcrafted Golden Jute Totes and Baskets" loading="lazy">@endif
+            @if (!empty($boot['homeImages']['jute']))<img src="{{ \App\Support\Img::url($boot['homeImages']['jute'], 800) }}" @if ($set = \App\Support\Img::srcset($boot['homeImages']['jute'], [480, 800, 1200])) srcset="{{ $set }}" sizes="(max-width: 900px) 100vw, 580px" @endif decoding="async" alt="Handcrafted Golden Jute Totes and Baskets" loading="lazy">@endif
           </div>
         </div>
         <div class="jute-content-col fade-up">
@@ -141,7 +146,7 @@
 
         <div class="bangladesh-made-visual fade-up">
           <div class="visual-card-stacked">
-            @if (!empty($boot['homeImages']['story']))<img src="{{ $boot['homeImages']['story'] }}" alt="Artisan craft story" loading="lazy" class="main-visual">@endif
+            @if (!empty($boot['homeImages']['story']))<img src="{{ \App\Support\Img::url($boot['homeImages']['story'], 800) }}" @if ($set = \App\Support\Img::srcset($boot['homeImages']['story'], [480, 800, 1200])) srcset="{{ $set }}" sizes="(max-width: 900px) 100vw, 550px" @endif decoding="async" alt="Artisan craft story" loading="lazy" class="main-visual">@endif
           </div>
         </div>
       </div>

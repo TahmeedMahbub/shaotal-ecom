@@ -111,7 +111,7 @@ function renderAccountPage() {
         <div class="order-items-body">
           ${ord.items.map(item => `
             <div class="order-item-row">
-              <img class="order-item-thumb" src="${accountEsc(item.image || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+              <img class="order-item-thumb" src="${accountEsc(window.imgUrl(item.image, 160) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
               <div class="order-item-info">
                 <div class="order-item-title">${accountEsc(item.name)}</div>
                 <div class="order-item-variant">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(item.color || 'Default')} · Qty: ${item.quantity}</div>
@@ -141,7 +141,7 @@ function renderAccountPage() {
       wProducts.map(product => `
         <div class="product-card" style="box-shadow:none; border:1px solid var(--color-grey-200);">
           <div class="product-card-image">
-            <img src="${accountEsc(product.image || window.PLACEHOLDER_IMG)}" alt="${accountEsc(product.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+            <img src="${accountEsc(window.imgUrl(product.image, 480) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(product.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
           </div>
           <div class="product-card-content" style="padding:var(--space-sm);">
             <h4 class="product-card-title">${accountEsc(product.name)}</h4>

@@ -161,7 +161,7 @@
 
     let slidesHTML = HERO_SLIDES.map((slide, i) => `
       <a href="${slide.ctaLink}" class="hero-slide ${i === 0 ? 'active' : ''}" data-slide="${i}" role="group" aria-roledescription="slide" aria-label="Slide ${i + 1} of ${HERO_SLIDES.length}: ${slide.headline}" aria-hidden="${i === 0 ? 'false' : 'true'}">
-        <div class="hero-slide-bg" style="background-image: url('${slide.image || ''}')"></div>
+        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${slide.imageSrc || slide.image || ''}')"` : `data-bg="${slide.imageSrc || slide.image || ''}"`}></div>
         <div class="hero-slide-overlay"></div>
         <div class="hero-content">
           <div class="hero-text">
@@ -196,6 +196,14 @@
     `;
 
     heroEl.innerHTML = slidesHTML + indicatorsHTML + arrowsHTML;
+
+    // Load the remaining slide backgrounds once the page (and the first, LCP image) has finished loading.
+    const loadHeroBackgrounds = () => heroEl.querySelectorAll('.hero-slide-bg[data-bg]').forEach(el => {
+      el.style.backgroundImage = `url('${el.dataset.bg}')`;
+      el.removeAttribute('data-bg');
+    });
+    if (document.readyState === 'complete') setTimeout(loadHeroBackgrounds, 300);
+    else window.addEventListener('load', () => setTimeout(loadHeroBackgrounds, 300), { once: true });
 
     bindHeroEvents(heroEl);
     startHeroAutoRotation();
@@ -367,7 +375,7 @@
 
     grid.innerHTML = CATEGORIES.map(cat => `
       <a href="#products-section" class="category-card fade-up visible" data-filter-trigger="${cat.slug}">
-        <div class="category-card-bg" style="background-image: url('${cat.image}'); background-color: ${cat.gradient.split(',')[0].replace('linear-gradient(135deg', '').trim()}"></div>
+        <div class="category-card-bg" style="background-image: url('${imgUrl(cat.image, 640)}'); background-color: ${cat.gradient.split(',')[0].replace('linear-gradient(135deg', '').trim()}"></div>
         <div class="category-card-overlay"></div>
         <div class="category-card-content">
           <h3 class="category-card-title">${cat.name}</h3>
@@ -391,7 +399,8 @@
     return src || window.PLACEHOLDER_IMG;
   }
 
-  function createProductCardHTML(product) {
+  function createProductCardHTML(product, opts) {
+    const eager = !!(opts && opts.eager);
     const numPrice = parseFloat(product.price) || 0;
     const numOrigPrice = product.originalPrice ? parseFloat(product.originalPrice) : null;
 
@@ -404,7 +413,7 @@
     return `
       <div class="product-card fade-up visible" data-product-id="${product.id}">
         <div class="product-card-image">
-          <img src="${imgPath}" alt="${product.name || 'Product'}" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+          <img src="${imgUrl(imgPath, 480)}" ${imgSrcset(imgPath, [320, 480, 640, 800]) ? `srcset="${imgSrcset(imgPath, [320, 480, 640, 800])}" sizes="(max-width: 640px) 50vw, (max-width: 1100px) 40vw, 260px"` : ''} width="400" height="450" alt="${product.name || 'Product'}" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src=window.PLACEHOLDER_IMG;">
           <div class="product-card-badge">${product.soldOut ? '<span class="badge badge-limited">Sold Out</span>' : (BADGE_MAP[product.badge] || '')}</div>
           <button class="product-card-wishlist ${state.wishlist.includes(product.id) ? 'active' : ''}" data-wishlist-id="${product.id}" aria-label="Add to wishlist">
             ${state.wishlist.includes(product.id) ? ICONS.heartFill : ICONS.heart}
@@ -1639,7 +1648,7 @@
       return `
         <div class="wishlist-item" data-index="${i}">
           <div class="wishlist-item-image">
-            <img src="${product.image}" alt="${product.name}" loading="lazy">
+            <img src="${imgUrl(product.image, 160)}" alt="${product.name}" width="80" height="80" loading="lazy" decoding="async">
           </div>
           <div class="wishlist-item-details">
             <div class="wishlist-item-top">
@@ -1789,7 +1798,7 @@
 
     if (errorEl) errorEl.style.display = 'none';
 
-    if (img) { img.src = product.image; img.alt = product.name; }
+    if (img) { img.src = imgUrl(product.image, 480); img.alt = product.name; }
     if (cat) cat.textContent = CATEGORY_NAME_MAP[product.category] || product.category;
     if (title) title.textContent = product.name;
     if (price) {
@@ -2103,7 +2112,7 @@
       return `
         <div class="cart-item" data-index="${i}">
           <div class="cart-item-image">
-            <img src="${item.image}" alt="${item.name}" loading="lazy">
+            <img src="${imgUrl(item.image, 160)}" alt="${item.name}" width="80" height="80" loading="lazy" decoding="async">
           </div>
           <div class="cart-item-details">
             <div class="cart-item-top">
@@ -2236,7 +2245,7 @@
     const modal = document.getElementById('quick-view-modal');
     const overlay = document.getElementById('modal-overlay');
 
-    document.getElementById('modal-product-img').src = product.image;
+    document.getElementById('modal-product-img').src = imgUrl(product.image, 640);
     document.getElementById('modal-product-img').alt = product.name;
     document.getElementById('modal-category-tag').textContent = CATEGORY_NAME_MAP[product.category] || product.category;
     modal.querySelector('.modal-title').textContent = product.name;
@@ -2431,7 +2440,7 @@
     const suggested = PRODUCTS.slice(0, 4);
     container.innerHTML = suggested.map(p => `
       <div class="search-result-item" data-search-product-id="${p.id}">
-        <img src="${p.image}" alt="${p.name}" class="search-result-thumb" loading="lazy">
+        <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
         <div class="search-result-info">
           <div class="search-result-name">${p.name}</div>
           <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || 'Bongo Curated'}</div>
@@ -2501,7 +2510,7 @@
       if (listEl) {
         listEl.innerHTML = matches.map(p => `
           <div class="search-result-item" data-search-product-id="${p.id}">
-            <img src="${p.image}" alt="${p.name}" class="search-result-thumb" loading="lazy">
+            <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
             <div class="search-result-info">
               <div class="search-result-name">${p.name}</div>
               <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || 'Bongo Curated'}</div>

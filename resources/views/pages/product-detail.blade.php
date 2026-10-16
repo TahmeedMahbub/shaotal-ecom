@@ -2,8 +2,13 @@
 @section('title', "Product Details \u2014 Bongo Curated | Artisan Crafted, Curated for Australia")
 @section('description', "Explore handcrafted fashion, home decor, natural jute products and artisan pieces curated for Australia.")
 @push('head')
-<link rel="stylesheet" href="/assets/css/product-detail.css">
+<link rel="stylesheet" href="{{ \App\Support\Assets::url('assets/css/product-detail.css') }}">
 @endpush
+@if (! empty($preloadImage))
+@push('preload')
+<link rel="preload" as="image" href="{{ \App\Support\Img::url($preloadImage, 800) }}" @if ($set = \App\Support\Img::srcset($preloadImage, [480, 800, 1200])) imagesrcset="{{ $set }}" imagesizes="(max-width: 768px) 100vw, 430px" @endif fetchpriority="high">
+@endpush
+@endif
 @section('content')
 <main class="main-content">
     <section class="product-detail-page">
@@ -118,15 +123,15 @@
             <div class="detail-trust-features">
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
-                <span>Sydney Dispatch</span>
+                <span>West Croydon Dispatch</span>
               </div>
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>Free AU Shipping over $100</span>
+                <span>Free AU Shipping over A$299</span>
               </div>
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-                <span>30-Day AU Returns</span>
+                <span>30-Day Returns</span>
               </div>
             </div>
 
@@ -286,5 +291,5 @@
   </div>
 @endsection
 @push('scripts')
-<script src="{{ asset('assets/js/product-detail.js') }}"></script>
+<script src="{{ \App\Support\Assets::url('assets/js/product-detail.js') }}"></script>
 @endpush
