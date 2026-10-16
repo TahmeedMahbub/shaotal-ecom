@@ -196,7 +196,7 @@
 
   function mergeGuestDataIntoUser(user) {
     if (!user) return;
-    
+
     // Merge Wishlist
     const guestWishlist = state.wishlist || [];
     let userWishlist = user.wishlist || [];
@@ -216,7 +216,7 @@
 
     guestCart.forEach(gItem => {
       const gId = gItem.productId || gItem.id;
-      const existingIdx = userCart.findIndex(uItem => 
+      const existingIdx = userCart.findIndex(uItem =>
         (uItem.productId || uItem.id) === gId &&
         (uItem.size || null) === (gItem.size || null) &&
         (uItem.color || null) === (gItem.color || null)
@@ -612,7 +612,7 @@
           }
         }
       }
-    } catch(e) {}
+    } catch (e) { }
 
     // Deterministic/Random shuffle that stays stable for the session
     const copy = [...products];
@@ -623,7 +623,7 @@
     const selected = copy.slice(0, count);
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(selected.map(p => p.id)));
-    } catch(e) {}
+    } catch (e) { }
     return selected;
   }
 
@@ -762,8 +762,8 @@
       ? window.BongoCategories.getAll().filter(c => !c.isDisabled)
       : (typeof CATEGORIES !== 'undefined' ? CATEGORIES : []);
 
-    const sourceProducts = window.BongoProducts 
-      ? window.BongoProducts.getAll().filter(p => !p.isDisabled) 
+    const sourceProducts = window.BongoProducts
+      ? window.BongoProducts.getAll().filter(p => !p.isDisabled)
       : (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []);
 
     // Render all available categories that have products dynamically
@@ -890,13 +890,13 @@
 
   function filterProducts(filterCategory) {
     state.currentCategoryFilter = filterCategory;
-    
+
     document.querySelectorAll('#product-filter-tabs .filter-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.filter === filterCategory);
     });
 
-    const categoryUrl = (filterCategory && filterCategory !== 'all') 
-      ? `products.html?category=${filterCategory}` 
+    const categoryUrl = (filterCategory && filterCategory !== 'all')
+      ? `products.html?category=${filterCategory}`
       : 'products.html';
 
     const showMoreLink = document.querySelector('#products-section .section-see-more');
@@ -949,7 +949,7 @@
     const sourceProducts = window.BongoProducts ? window.BongoProducts.getAll().filter(p => !p.isDisabled) : (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []);
     const preorderProducts = sourceProducts.filter(p => p.badge === 'preorder' || p.availability === 'preorder').slice(0, 4);
     if (preorderProducts.length === 0) {
-      previewGrid.innerHTML = sourceProducts.slice(0, 3).map(p => createProductCardHTML({...p, badge: 'preorder'})).join('');
+      previewGrid.innerHTML = sourceProducts.slice(0, 3).map(p => createProductCardHTML({ ...p, badge: 'preorder' })).join('');
     } else {
       previewGrid.innerHTML = preorderProducts.map(p => createProductCardHTML(p)).join('');
     }
@@ -1376,7 +1376,7 @@
         <form id="auth-register-form" novalidate>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-name">Full Name</label>
-            <input type="text" id="reg-name" class="auth-input" placeholder="e.g. Tahmeed Mahbub" required>
+            <input type="text" id="reg-name" class="auth-input" placeholder="Your Name Here" required>
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-email">Email Address</label>
@@ -1528,14 +1528,14 @@
         if (!res.success) {
           if (errEl) { errEl.textContent = res.message; errEl.style.display = 'block'; }
         } else {
-          if (succEl) { 
+          if (succEl) {
             succEl.innerHTML = `
               <div>${res.message}</div>
               <div style="margin-top:8px">
                 <button type="button" class="auth-demo-btn" id="demo-set-new-pass">Demo: Set Password to 'password123'</button>
               </div>
-            `; 
-            succEl.style.display = 'block'; 
+            `;
+            succEl.style.display = 'block';
 
             const setPassBtn = succEl.querySelector('#demo-set-new-pass');
             if (setPassBtn) {
@@ -1642,7 +1642,7 @@
     if (!product) return { cartIndex: -1, cartItem: null, cartQty: 0 };
     let selSize = (typeof item === 'object' && item) ? item.size : null;
     let selColor = (typeof item === 'object' && item) ? item.color : null;
-    
+
     let idx = -1;
     if (selSize || selColor) {
       idx = state.cart.findIndex(c => {
@@ -1707,7 +1707,7 @@
 
   function updateWishlistCount() {
     const totalCount = state.wishlist.length;
-    
+
     const countEl = document.getElementById('wishlist-count');
     if (countEl) {
       countEl.textContent = totalCount;
@@ -2165,7 +2165,7 @@
 
     const isPreorder = targetProduct.badge === 'preorder' || targetProduct.availability === 'preorder';
 
-    const existingIndex = state.cart.findIndex(item => 
+    const existingIndex = state.cart.findIndex(item =>
       (item.productId || item.id) === targetProduct.id &&
       item.size === selectedSize &&
       (item.color || null) === (selectedColor || null)
@@ -2220,7 +2220,7 @@
 
   function updateCartCount() {
     const totalCount = state.cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
-    
+
     const countEl = document.getElementById('cart-count');
     if (countEl) {
       countEl.textContent = totalCount;
@@ -2281,7 +2281,7 @@
       currentSubtotal += price * qty;
 
       const isPreorder = item.isPreorder || item.badge === 'preorder' || item.availability === 'preorder';
-      
+
       const colorName = item.color ? getColorName(item.color) : null;
       let variantText = '';
       if (item.size && colorName) {
@@ -2294,9 +2294,9 @@
         variantText = 'Standard';
       }
 
-      
-              // ${isPreorder ? '<span class="cart-item-badge-preorder">Pre-order</span>' : ''}
-              //   ${originalPrice > price ? `<span class="cart-item-original-price">${SITE.currency}${originalPrice.toFixed(2)}</span>` : ''}
+
+      // ${isPreorder ? '<span class="cart-item-badge-preorder">Pre-order</span>' : ''}
+      //   ${originalPrice > price ? `<span class="cart-item-original-price">${SITE.currency}${originalPrice.toFixed(2)}</span>` : ''}
 
       return `
         <div class="cart-item" data-index="${i}">
@@ -3034,7 +3034,7 @@
         if (e.target === e.currentTarget) closeQuickView();
       });
     }
-    
+
     const modalAddToCart = document.getElementById('modal-add-to-cart');
     if (modalAddToCart) {
       modalAddToCart.addEventListener('click', () => {
