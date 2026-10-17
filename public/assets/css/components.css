@@ -5,6 +5,7 @@
 /* ── Announcement Bar ── */
 .announcement-bar {
   background-color: var(--color-brand-dark);
+  background-image: linear-gradient(90deg, hsl(24, 55%, 22%) 0%, hsl(24, 55%, 30%) 50%, hsl(24, 55%, 22%) 100%);
   color: hsl(35, 30%, 93%);
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
@@ -26,12 +27,32 @@
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background-color: var(--color-surface-card);
+  /* warm ivory sheen instead of flat white */
+  background-color: hsl(36, 38%, 95%);
+  background-image: linear-gradient(180deg, hsl(38, 45%, 97%) 0%, hsl(35, 36%, 93%) 100%);
+  border-bottom: 1px solid hsla(24, 40%, 40%, 0.16);
+  box-shadow: 0 1px 0 hsla(0, 0%, 100%, 0.7) inset, 0 6px 18px -12px hsla(24, 45%, 22%, 0.28);
   transition: box-shadow var(--transition-base), background-color var(--transition-base);
 }
 
+/* fine terracotta accent line along the bottom edge */
+.navbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsla(24, 55%, 48%, 0.55) 50%, transparent);
+  pointer-events: none;
+}
+
 .navbar.scrolled {
-  box-shadow: var(--shadow-sm);
+  background-color: hsla(36, 38%, 95%, 0.92);
+  background-image: linear-gradient(180deg, hsla(38, 45%, 97%, 0.94) 0%, hsla(35, 36%, 93%, 0.94) 100%);
+  -webkit-backdrop-filter: saturate(160%) blur(10px);
+  backdrop-filter: saturate(160%) blur(10px);
+  box-shadow: 0 1px 0 hsla(0, 0%, 100%, 0.7) inset, 0 10px 24px -14px hsla(24, 45%, 22%, 0.4);
 }
 
 .navbar .navbar-inner,
