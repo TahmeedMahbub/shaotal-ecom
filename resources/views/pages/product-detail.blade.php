@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "Product Details \u2014 Bongo Curated | Artisan Crafted, Curated for Australia")
-@section('description', "Explore handcrafted fashion, home decor, natural jute products and artisan pieces curated for Australia.")
+@section('title', $pageTitle ?? 'Product Details')
+@section('description', $pageDescription ?? 'Handcrafted fashion, home decor, natural jute products and artisan pieces curated for Australia.')
 @push('head')
 <link rel="stylesheet" href="{{ \App\Support\Assets::url('assets/css/product-detail.css') }}">
 @endpush
@@ -198,7 +198,7 @@
   <div class="size-guide-modal-overlay" id="size-guide-modal">
     <div class="size-guide-modal-card">
       <div class="size-guide-header">
-        <h3 class="size-guide-title">Bongo Curated — Size & Measurement Guide</h3>
+        <h3 class="size-guide-title">{{ config('storefront.brand') }} — Size & Measurement Guide</h3>
         <button class="size-guide-close" id="size-guide-close" aria-label="Close size guide">&times;</button>
       </div>
       <div class="size-guide-body">

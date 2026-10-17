@@ -1,5 +1,5 @@
 /* ============================================================
-   PRODUCTS.JS — Bongo Curated Product Listing Page Logic
+   PRODUCTS.JS — Shaotal Product Listing Page Logic
    Supports Desktop Sidebar Filters, Mobile Filter Drawer,
    Dynamic Sorting, URL Parameter Parsing & Infinite Scrolling
    ============================================================ */
@@ -234,6 +234,7 @@
     const catDesc = CATEGORY_DESC_MAP[listingState.category] || CATEGORY_DESC_MAP.all;
 
     if (titleEl) titleEl.textContent = catLabel;
+    document.title = `${catLabel} | ${SITE.brandName}`;
     if (descEl) descEl.textContent = catDesc;
     if (breadcrumbCurrent) breadcrumbCurrent.textContent = catLabel;
     if (countEl) {

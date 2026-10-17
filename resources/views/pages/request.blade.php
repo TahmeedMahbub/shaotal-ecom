@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "Find Something Aesthetic \u2014 Bongo Curated")
-@section('description', "Have a unique handcrafted product in mind? Request custom fashion, home decor, jute items, or artisan pieces and we will source and deliver them directly to your door in Australia.")
+@section('title', "Request Product Sourcing")
+@section('description', "Have a unique handcrafted product in mind? Tell us what you are after and Shaotal will source it and deliver it to your door.")
 @section('content')
 <main style="padding: 2.5rem 0 5rem 0; background: var(--color-surface); min-height: 80vh;">
     <div class="container">

@@ -1,5 +1,5 @@
 /* ============================================================
-   APP.JS — Bongo Curated Main Application
+   APP.JS — Shaotal Main Application
    Artisan Lifestyle & Fashion Curated for Australia
    ============================================================ */
 
@@ -1202,7 +1202,7 @@
       body.innerHTML = `
         <div class="auth-header">
           <h3 class="auth-title">Create an Account</h3>
-          <p class="auth-subtitle">Join Bongo Curated for fast checkout and custom sourcing</p>
+          <p class="auth-subtitle">Join Shaotal for fast checkout and custom sourcing</p>
         </div>
         <div class="auth-tabs">
           <button class="auth-tab-btn" data-tab="login">Sign In</button>
@@ -2443,7 +2443,7 @@
         <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
         <div class="search-result-info">
           <div class="search-result-name">${p.name}</div>
-          <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || 'Bongo Curated'}</div>
+          <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || SITE.brandName}</div>
         </div>
         <div class="search-result-price">
           <span class="current">${SITE.currency}${p.price.toFixed(2)}</span>
@@ -2513,7 +2513,7 @@
             <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
             <div class="search-result-info">
               <div class="search-result-name">${p.name}</div>
-              <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || 'Bongo Curated'}</div>
+              <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || SITE.brandName}</div>
             </div>
             <div class="search-result-price">
               <span class="current">${SITE.currency}${p.price.toFixed(2)}</span>

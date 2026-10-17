@@ -5,7 +5,7 @@
 | Anything the design does not define is deliberately left unset.
 */
 return [
-    'brand' => 'Bongo Curated',
+    'brand' => 'Shaotal',
     'tagline' => 'Artisan Crafted. Curated for Australia.',
     'currency_symbol' => 'A$',
     'country_code' => 'AU',

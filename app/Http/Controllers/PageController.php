@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Catalog;
 use App\Models\Storefront;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PageController extends Controller
 {
@@ -13,9 +15,26 @@ class PageController extends Controller
         return view('pages.index');
     }
 
-    public function products()
+    public function products(Request $request)
     {
-        return view('pages.products');
+        // Title reflects the filter in the URL (?category=…&subcategory=…); the page script keeps it in sync afterwards.
+        $title = 'All Products';
+        $desc = 'Browse handcrafted fashion, home decor, natural jute products, artisan pieces and gifts curated for Australia.';
+        $slug = (string) $request->query('category', '');
+        $sub = (string) $request->query('subcategory', '');
+        if ($slug === 'preorder') {
+            $title = 'Pre-order';
+        } elseif ($slug !== '') {
+            $cat = collect(Storefront::catalog()['categories'])->firstWhere('slug', $slug);
+            if ($cat) {
+                $title = $cat['name'];
+                $desc = $cat['desc'] ?: $desc;
+                $subName = $sub !== '' ? collect(Storefront::catalog()['subcategories'])->firstWhere('slug', $sub)['name'] ?? null : null;
+                $title = $subName ? $subName.' — '.$cat['name'] : $title;
+            }
+        }
+
+        return view('pages.products', ['pageTitle' => $title, 'pageDescription' => Str::limit($desc, 155)]);
     }
 
     public function product(string $slug)
@@ -23,7 +42,14 @@ class PageController extends Controller
         $exists = DB::table('products')->where('slug', $slug)->where('status', 'active')->where('visibility', 'visible')->first(['id', 'size_guide_id']);
         abort_unless($exists, 404);
 
-        return view('pages.product-detail', ['page' => ['slug' => $slug], 'preloadImage' => $this->firstGalleryImage($slug)]);
+        $product = collect(Storefront::catalog()['products'])->firstWhere('slug', $slug);
+
+        return view('pages.product-detail', [
+            'page' => ['slug' => $slug],
+            'preloadImage' => $this->firstGalleryImage($slug),
+            'pageTitle' => $product ? $product['name'].' — '.$product['categoryName'] : null,
+            'pageDescription' => $product ? (Str::limit(trim($product['desc'] ?: $product['name'].' — '.$product['categoryName'].' by '.config('storefront.brand')), 155)) : null,
+        ]);
     }
 
     /** First gallery image the detail page will show (same rule as generateGalleryImages() in product-detail.js). */

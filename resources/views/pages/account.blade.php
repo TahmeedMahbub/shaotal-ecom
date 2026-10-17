@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "My Account \u2014 Bongo Curated Australia")
-@section('description', "")
+@section('title', "My Account")
+@section('description', "Manage your Shaotal profile, orders, wishlist, saved bag and sourcing requests.")
 @push('head')
 @endpush
 @section('content')

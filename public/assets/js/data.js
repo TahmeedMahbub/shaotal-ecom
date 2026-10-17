@@ -1,5 +1,5 @@
 /* ============================================================
-   DATA LAYER — Bongo Curated
+   DATA LAYER — Shaotal
    Catalog, categories, hero slides and navigation come from the
    database (server-rendered into window.__BOOT__ by the Blade layout).
    ============================================================ */
@@ -43,7 +43,7 @@
   };
 
   window.SITE = Object.assign({
-    brandName: 'Bongo Curated',
+    brandName: 'Shaotal',
     logo: '/assets/logos/logo.png',
     tagline: 'Artisan Crafted. Curated for Australia.',
     currency: 'A$',

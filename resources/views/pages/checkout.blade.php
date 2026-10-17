@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "Express Checkout \u2014 Bongo Curated Australia")
-@section('description', "Fast and secure Australian checkout. Complete your artisan-crafted order with express delivery nationwide.")
+@section('title', "Checkout")
+@section('description', "Fast and secure Australian checkout. Complete your artisan-crafted order with delivery nationwide.")
 @section('minimal', '1')
 @push('head')
 <style>
@@ -876,7 +876,7 @@
         Order Placed Successfully!
       </h2>
       <p style="color: var(--color-grey-700); font-size: var(--fs-body); margin-bottom: var(--space-lg);">
-        Thank you for shopping with Bongo Curated. Your order reference is <strong id="success-order-ref" style="color: var(--color-brand);">#BNG-2026-8492</strong>.
+        Thank you for shopping with {{ config('storefront.brand') }}. Your order reference is <strong id="success-order-ref" style="color: var(--color-brand);">#BNG-2026-8492</strong>.
       </p>
 
       <div style="background-color: var(--color-surface); border-radius: var(--radius-md); padding: var(--space-md); text-align: left; font-size: var(--fs-small); margin-bottom: var(--space-lg);">

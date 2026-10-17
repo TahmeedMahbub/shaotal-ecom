@@ -1,5 +1,5 @@
 /* ============================================================
-   PRODUCT DETAIL CONTROLLER — Bongo Curated
+   PRODUCT DETAIL CONTROLLER — Shaotal
    Handles dynamic product details rendering, gallery, zoom,
    color/size pickers, accordions, pre-order, and recently viewed.
    ============================================================ */
@@ -169,7 +169,7 @@ function renderProductInfo(detailState) {
   const descEl = document.getElementById('detail-short-desc');
 
   const catName = CATEGORY_NAME_MAP[product.category] || product.category || 'General';
-  const brandName = product.brand || 'Bongo Curated';
+  const brandName = product.brand || SITE.brandName;
 
   if (eyebrowEl) eyebrowEl.textContent = `${catName} · ${brandName}`;
   if (titleEl) titleEl.textContent = product.name || 'Product Details';

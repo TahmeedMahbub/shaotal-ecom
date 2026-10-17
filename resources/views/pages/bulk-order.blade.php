@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "Bulk & Corporate Orders \u2014 Bongo Curated")
-@section('description', "Request bulk volume pricing, corporate gift sets, wedding favors, and custom product orders with Bongo Curated Australia.")
+@section('title', "Bulk & Corporate Orders")
+@section('description', "Request bulk volume pricing, corporate gift sets, wedding favours and custom product orders from Shaotal.")
 @push('head')
 <style>
     /* Select2 Custom Design System Integration */

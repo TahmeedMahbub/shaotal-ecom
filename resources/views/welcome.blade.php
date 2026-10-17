@@ -6,6 +6,9 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
+        <link rel="icon" type="image/x-icon" href="{{ asset('assets/logos/favicon/favicon.ico') }}">
+        <link rel="shortcut icon" href="{{ asset('assets/logos/favicon/favicon.ico') }}">
+
         @fonts
 
         <!-- Styles / Scripts -->

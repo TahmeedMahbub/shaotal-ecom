@@ -22,7 +22,7 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 6. **Sourcing images** are stored on the Laravel `public` disk (`php artisan storage:link`, already run); switch to Cloudinary upload when credentials exist.
 7. `.env`: `CACHE_STORE`/`QUEUE_CONNECTION=database` but no such tables in the SQL; the storefront uses the `file` cache store explicitly and no queues. `sessions` use files.
 8. Footer links Shipping/Returns/FAQ/Size Guide and the launch-offer strip (ends 2026-10-15, static in design) have no designed pages/data; omitted or left as design.
-9. Brand name is "Shaotal" in logo alt text but "Bongo Curated" elsewhere — left as designed.
+9. Brand renamed to "Shaotal" everywhere user-visible (config, titles, footer, JS fallbacks). Internal identifiers keep the old prefix on purpose: localStorage keys `bongo_*` (renaming would empty customers' saved carts/wishlists) and `window.Bongo*` globals. `design/` prototype and `.env` `APP_NAME` (still `Laravel`) were not changed.
 10. Category slugs `home-decor` and `preorder`-availability are used by home sections as in the design.
 
 ## Performance (2026-10-16)

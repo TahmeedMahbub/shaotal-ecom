@@ -5,7 +5,7 @@
       </div>
       <div class="footer-bottom">
         <div class="footer-bottom-left">
-          &copy; 2026 Bongo Curated. Curated artisan goods for Australia.
+          &copy; {{ date('Y') }} {{ config('storefront.brand') }}. Curated artisan goods for Australia.
         </div>
         <div class="footer-payment">
           <span class="footer-payment-icon">VISA</span>

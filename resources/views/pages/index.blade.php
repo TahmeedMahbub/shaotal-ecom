@@ -1,5 +1,5 @@
 @extends('layouts.store')
-@section('title', "Bongo Curated \u2014 Artisan Crafted. Curated for Australia.")
+@section('title', "Shaotal - Crafted for YOU")
 @section('description', "Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.")
 @if (! empty($boot['hero'][0]['imageSrc']))
 @push('preload')

@@ -1,6 +1,6 @@
 @extends('layouts.store')
-@section('title', "All Products \u2014 Bongo Curated | Artisan Crafted, Curated for Australia")
-@section('description', "Discover handcrafted fashion, home decor, natural jute products, artisan pieces and gifts curated for Australia.")
+@section('title', $pageTitle ?? 'All Products')
+@section('description', $pageDescription ?? '')
 @section('content')
 <main class="main-content">
     <section class="listing-page-section">
