@@ -612,6 +612,68 @@
   gap: 0.4rem;
 }
 
+/* Rich-text product descriptions authored in the admin app */
+.accordion-inner-body p {
+  margin: 0 0 0.75rem;
+}
+
+.accordion-inner-body p:last-child {
+  margin-bottom: 0;
+}
+
+.accordion-inner-body ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.accordion-inner-body h1,
+.accordion-inner-body h2,
+.accordion-inner-body h3,
+.accordion-inner-body h4 {
+  font-family: var(--font-heading);
+  color: var(--color-black);
+  font-size: 1rem;
+  font-weight: var(--fw-bold);
+  margin: 1rem 0 0.5rem;
+}
+
+.accordion-inner-body h1:first-child,
+.accordion-inner-body h2:first-child,
+.accordion-inner-body h3:first-child,
+.accordion-inner-body h4:first-child {
+  margin-top: 0;
+}
+
+.accordion-inner-body a {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.accordion-inner-body strong,
+.accordion-inner-body b {
+  font-weight: var(--fw-bold);
+  color: var(--color-black);
+}
+
+.accordion-inner-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: 0.5rem 0;
+}
+
+.accordion-inner-body blockquote {
+  border-left: 2px solid var(--color-brand);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: var(--color-grey-700);
+  font-style: italic;
+}
+
 /* ══════════════════════════════════════════════════════════
    DELIVERY & RETURNS INFO BOX
    ══════════════════════════════════════════════════════════ */

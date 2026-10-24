@@ -339,10 +339,16 @@ function renderAccordions(product) {
 
   const specs = product.specs || {};
   const para = text => `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+  // The full description is authored in the admin app, which may save plain text or
+  // rich-text HTML (bold, lists, links, paragraphs). Render real markup when present;
+  // fall back to the escaped plain-text treatment for legacy/plain descriptions so
+  // nothing that used to render safely starts rendering raw user-typed text as HTML.
+  const isHtml = text => /<[a-z][\s\S]*>/i.test(text);
+  const richText = text => (isHtml(text) ? text : para(text));
   const accordionsData = [];
 
   const description = product.fullDesc || product.desc;
-  if (description) accordionsData.push({ title: 'Description & Craft Story', content: para(description) });
+  if (description) accordionsData.push({ title: 'Description & Craft Story', content: richText(description) });
 
   const materials = [specs.material, specs.fabric, specs.pattern ? `Pattern: ${specs.pattern}` : ''].filter(Boolean).join(' · ');
   if (materials) accordionsData.push({ title: 'Materials & Fabric', content: para(materials) });

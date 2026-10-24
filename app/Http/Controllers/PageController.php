@@ -34,7 +34,7 @@ class PageController extends Controller
             }
         }
 
-        return view('pages.products', ['pageTitle' => $title, 'pageDescription' => Str::limit($desc, 155)]);
+        return view('pages.products', ['pageTitle' => $title, 'pageDescription' => Str::limit(strip_tags($desc), 155)]);
     }
 
     public function product(string $slug)
@@ -48,7 +48,8 @@ class PageController extends Controller
             'page' => ['slug' => $slug],
             'preloadImage' => $this->firstGalleryImage($slug),
             'pageTitle' => $product ? $product['name'].' — '.$product['categoryName'] : null,
-            'pageDescription' => $product ? (Str::limit(trim($product['desc'] ?: $product['name'].' — '.$product['categoryName'].' by '.config('storefront.brand')), 155)) : null,
+            // product descriptions may contain admin-authored HTML; meta tags must stay plain text.
+            'pageDescription' => $product ? (Str::limit(trim(strip_tags($product['desc'] ?: '')) ?: $product['name'].' — '.$product['categoryName'].' by '.config('storefront.brand'), 155)) : null,
         ]);
     }
 
