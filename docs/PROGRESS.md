@@ -24,6 +24,7 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 8. Footer links Shipping/Returns/FAQ/Size Guide and the launch-offer strip (ends 2026-10-15, static in design) have no designed pages/data; omitted or left as design.
 9. Brand renamed to "Shaotal" everywhere user-visible (config, titles, footer, JS fallbacks). Internal identifiers keep the old prefix on purpose: localStorage keys `bongo_*` (renaming would empty customers' saved carts/wishlists) and `window.Bongo*` globals. `design/` prototype and `.env` `APP_NAME` (still `Laravel`) were not changed.
 10. Category slugs `home-decor` and `preorder`-availability are used by home sections as in the design.
+11. Topbar mega menu now groups subcategories into separate columns by `subcategories.section` (confirmed live column, not yet in `sql/ecom.sql` — see docs/database.md). A subcategory with no section falls back into a column headed by the category name, so categories that never set `section` render exactly as before. `app/Models/Catalog.php::subcategories()`, `public/assets/js/data.js` (nav building).
 
 ## Performance (2026-10-16)
 Image optimization (Cloudinary/Unsplash), hero/product preload, reserved heights, smaller boot payload, `Cache::flexible` catalog cache, fewer queries, versioned assets. Details, before/after numbers, stale-data behaviour and the production deployment checklist: [docs/performance.md](performance.md). Not done: Apache/Nginx cache headers (host unconfirmed), server-side rendering of the hero/product core, minification, catalog pagination.

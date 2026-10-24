@@ -100,15 +100,22 @@
   const nav = [{ name: 'New Arrivals', slug: 'new-arrivals', filterCategory: 'all', customUrl: '/products?sort=newest', megaMenu: null }];
   categories.forEach(c => {
     const subs = subcategories.filter(s => s.category === c.slug);
+    // Group subcategories into mega-menu columns by their "section" (subcategories.section);
+    // subcategories with no section fall back to a column headed by the category name.
+    // Column order follows the order sections first appear in (i.e. subcategory sort_order).
+    const sections = [];
+    const bySection = new Map();
+    subs.forEach(s => {
+      const key = s.section || c.name;
+      if (!bySection.has(key)) { bySection.set(key, []); sections.push(key); }
+      bySection.get(key).push({ label: s.name, slug: c.slug, sub: s.slug });
+    });
     nav.push({
       name: c.name, slug: c.slug, filterCategory: c.slug,
-      megaMenu: subs.length ? [{
-        heading: c.name,
-        links: subs.map(s => ({ label: s.name, slug: c.slug, sub: s.slug })),
-      }] : null,
+      megaMenu: subs.length ? sections.map(heading => ({ heading, links: bySection.get(heading) })) : null,
     });
   });
-  nav.push({ name: 'Pre-order', slug: 'preorder', filterCategory: 'preorder', megaMenu: null });
+//   nav.push({ name: 'Pre-order', slug: 'preorder', filterCategory: 'preorder', megaMenu: null });
   nav.push({ name: 'Bulk Orders', slug: 'bulk-orders', filterCategory: 'bulk', customUrl: '/bulk-order', megaMenu: null });
   window.NAV_CATEGORIES = nav;
 

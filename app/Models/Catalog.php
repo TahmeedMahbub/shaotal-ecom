@@ -28,8 +28,11 @@ class Catalog
         return DB::table('subcategories as s')->join('categories as c', 'c.id', '=', 's.category_id')
             ->where('s.status', 'active')->where('c.status', 'active')
             ->orderBy('s.sort_order')->orderBy('s.id')
-            ->get(['s.id', 's.name', 's.slug', 'c.slug as category'])
-            ->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name, 'slug' => $s->slug, 'category' => $s->category])->all();
+            ->get(['s.id', 's.name', 's.slug', 'c.slug as category', 's.section'])
+            ->map(fn ($s) => [
+                'id' => (int) $s->id, 'name' => $s->name, 'slug' => $s->slug, 'category' => $s->category,
+                'section' => $s->section ?: null,
+            ])->all();
     }
 
     public static function brands(): array

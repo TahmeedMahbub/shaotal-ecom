@@ -7,7 +7,7 @@ MySQL 8, InnoDB, utf8mb4. 39 tables, shared with a separate admin app. PKs are `
 
 ## Catalog
 - `categories` — name, slug(U), image_url, sort_order, status. Idx (status, sort_order).
-- `subcategories` — category_id→categories (RESTRICT), name, slug(U), sort_order, status. Idx (category_id, status, sort_order).
+- `subcategories` — category_id→categories (RESTRICT), name, slug(U), sort_order, status. Idx (category_id, status, sort_order). Also has `section` (VARCHAR, nullable, groups subcategories into mega-menu columns) — present on the live/admin DB but **not yet added to `sql/ecom.sql`**; confirmed by the user 2026-10-17, not verified against the file.
 - `brands` — name, slug(U), logo_url, origin_country, status.
 - `products` — category_id→categories, subcategory_id→subcategories, brand_id→brands, size_guide_id→size_guides (all nullable except category_id); name, slug(U), sku(U), short_description, description, price, selling_price, has_variants, variant_scenario, stock_qty, availability(in_stock|out_of_stock|preorder|coming_soon), badge(JSON), preorder_release_date, low_stock_threshold, visibility(visible|hidden), status(draft|active|inactive|archived), seo_title/description. Idx (status, visibility, created_at), (category_id, status), (size_guide_id).
 - `product_colors` — product_id (CASCADE), name, hex_code, sort_order, status. U(product_id, name), U(id, product_id).
