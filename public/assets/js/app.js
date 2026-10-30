@@ -374,7 +374,7 @@
     if (!grid) return;
 
     grid.innerHTML = CATEGORIES.map(cat => `
-      <a href="#products-section" class="category-card fade-up visible" data-filter-trigger="${cat.slug}">
+      <a href="/products?category=${encodeURIComponent(cat.slug)}" class="category-card fade-up visible">
         <div class="category-card-bg" style="background-image: url('${imgUrl(cat.image, 640)}'); background-color: ${cat.gradient.split(',')[0].replace('linear-gradient(135deg', '').trim()}"></div>
         <div class="category-card-overlay"></div>
         <div class="category-card-content">
@@ -384,12 +384,6 @@
         </div>
       </a>
     `).join('');
-
-    grid.querySelectorAll('[data-filter-trigger]').forEach(card => {
-      card.addEventListener('click', () => {
-        filterProducts(card.dataset.filterTrigger);
-      });
-    });
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -859,10 +853,14 @@
       mobileNavItems.innerHTML = NAV_CATEGORIES.map(cat => {
         let subHTML = '';
         if (cat.megaMenu) {
-          const allLinks = cat.megaMenu.flatMap(col => col.links);
           subHTML = `
             <div class="mobile-submenu">
-              ${allLinks.map(l => `<a href="/products?category=${l.slug}${l.sub ? '&subcategory=' + l.sub : ''}">${l.label}</a>`).join('')}
+              ${cat.megaMenu.map(col => `
+                <div class="mobile-submenu-group">
+                  <h4>${col.heading}</h4>
+                  ${col.links.map(l => `<a href="/products?category=${l.slug}${l.sub ? '&subcategory=' + l.sub : ''}">${l.label}</a>`).join('')}
+                </div>
+              `).join('')}
             </div>
           `;
         }

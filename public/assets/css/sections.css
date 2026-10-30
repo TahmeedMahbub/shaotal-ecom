@@ -485,7 +485,7 @@
 
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--space-lg);
 }
 
@@ -497,7 +497,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: var(--space-xl);
+  padding: var(--space-lg);
   color: var(--color-white);
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
@@ -812,7 +812,7 @@
 
 .popular-section-footer {
   margin-top: 2rem;
-  display: flex;
+  display: none;
   justify-content: flex-end;
 }
 

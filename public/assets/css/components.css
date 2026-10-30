@@ -475,12 +475,25 @@
 }
 
 .mobile-submenu.open {
-  max-height: 400px;
+  max-height: 2000px;
+}
+
+.mobile-submenu-group {
+  padding: 0.25rem 0 0.5rem var(--space-sm);
+}
+
+.mobile-submenu-group h4 {
+  padding: 0.5rem 0 0.25rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wider);
+  text-transform: uppercase;
+  color: var(--color-brand);
 }
 
 .mobile-submenu a {
   display: block;
-  padding: 0.625rem 0 0.625rem var(--space-md);
+  padding: 0.5rem 0 0.5rem var(--space-md);
   font-size: var(--fs-body);
   color: var(--color-grey-700);
 }

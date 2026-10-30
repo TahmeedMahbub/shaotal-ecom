@@ -57,11 +57,6 @@
         
       </div>
 
-      <div class="popular-section-footer fade-up">
-        <a href="/products" class="popular-explore-more-link" id="popular-explore-more-link">
-          Explore More Products &rarr;
-        </a>
-      </div>
     </div>
   </section>
 
@@ -78,7 +73,7 @@
         </div>
         <p class="section-header-desc">Explore fashion, home & living, natural jute, handcrafted pieces and thoughtful gifts.</p>
       </div>
-      <div class="category-grid" id="category-grid" @if (count($boot['categories'])) data-reserve style="--rows-lg: {{ (int) ceil(count($boot['categories']) / 4) }}; --rows-md: {{ (int) ceil(count($boot['categories']) / 2) }}" @endif>
+      <div class="category-grid" id="category-grid" @if (count($boot['categories'])) data-reserve style="--rows-lg: {{ (int) ceil(count($boot['categories']) / 5) }}; --rows-md: {{ (int) ceil(count($boot['categories']) / 2) }}" @endif>
         
       </div>
     </div>
