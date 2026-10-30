@@ -607,9 +607,7 @@
 .accordion-inner-body ul {
   padding-left: 1.25rem;
   margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  list-style: disc outside;
 }
 
 /* Rich-text product descriptions authored in the admin app */
@@ -624,9 +622,11 @@
 .accordion-inner-body ol {
   padding-left: 1.25rem;
   margin: 0.5rem 0 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  list-style: decimal outside;
+}
+
+.accordion-inner-body li + li {
+  margin-top: 0.4rem;
 }
 
 .accordion-inner-body h1,

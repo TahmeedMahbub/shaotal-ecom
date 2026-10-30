@@ -1966,7 +1966,6 @@
     if (targetProduct.hasVariants) {
       const v = (targetProduct.variants || []).find(x => (x.color === null || x.color === selectedColor) && (x.size === null || x.size === selectedSize));
       if (!v) { showToast('That option is unavailable'); return; }
-      if (v.stock <= 0 && targetProduct.availability !== 'preorder') { showToast('That option is out of stock'); return; }
     }
 
     if (targetProduct.soldOut) {

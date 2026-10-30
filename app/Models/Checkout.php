@@ -41,10 +41,10 @@ class Checkout
             }
 
             $variant = $variantId ? collect($p['variants'])->firstWhere('id', $variantId) : null;
-            $stock = $variant ? $variant['stock'] : $p['stockQty'];
+            // Stock is not enforced for now (orderable at 0 stock); only admin-flagged unavailable products are blocked.
             $preorder = $p['availability'] === 'preorder';
-            if (! $preorder && ($p['soldOut'] || $qty > $stock)) {
-                $errors[] = $p['soldOut'] || $stock <= 0 ? "{$p['name']} is out of stock." : "{$p['name']}: only {$stock} left in stock.";
+            if (! $preorder && $p['soldOut']) {
+                $errors[] = "{$p['name']} is out of stock.";
 
                 continue;
             }

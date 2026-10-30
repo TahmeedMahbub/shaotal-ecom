@@ -202,60 +202,7 @@
         <button class="size-guide-close" id="size-guide-close" aria-label="Close size guide">&times;</button>
       </div>
       <div class="size-guide-body">
-        <p style="font-size: var(--fs-small); color: var(--color-grey-700)">
-          All measurements are taken flat in centimetres (cm). Our apparel is tailored for a relaxed Australian fit. If you prefer a tighter fit, we recommend sizing down.
-        </p>
-
-        <div class="size-table-wrapper">
-          <table class="size-guide-table">
-            <thead>
-              <tr>
-                <th>Size</th>
-                <th>Chest Width</th>
-                <th>Body Length</th>
-                <th>Shoulder Width</th>
-                <th>AU Standard Equivalent</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>S</strong></td>
-                <td>52 cm</td>
-                <td>71 cm</td>
-                <td>46 cm</td>
-                <td>AU 36–38 (Small)</td>
-              </tr>
-              <tr>
-                <td><strong>M</strong></td>
-                <td>55 cm</td>
-                <td>73 cm</td>
-                <td>48 cm</td>
-                <td>AU 38–40 (Medium)</td>
-              </tr>
-              <tr>
-                <td><strong>L</strong></td>
-                <td>58 cm</td>
-                <td>75 cm</td>
-                <td>50 cm</td>
-                <td>AU 40–42 (Large)</td>
-              </tr>
-              <tr>
-                <td><strong>XL</strong></td>
-                <td>61 cm</td>
-                <td>77 cm</td>
-                <td>52 cm</td>
-                <td>AU 42–44 (X-Large)</td>
-              </tr>
-              <tr>
-                <td><strong>2XL</strong></td>
-                <td>64 cm</td>
-                <td>79 cm</td>
-                <td>54 cm</td>
-                <td>AU 44–46 (2X-Large)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <p class="size-guide-status" style="font-size: var(--fs-small); color: var(--color-grey-700)">Loading size guide…</p>
       </div>
     </div>
   </div>

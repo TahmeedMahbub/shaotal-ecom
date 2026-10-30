@@ -50,7 +50,7 @@ function fixImgPath(src) {
 function sizeUnavailable(product, color, size) {
   if (!product.hasVariants) return false;
   const matches = (product.variants || []).filter(v => v.size === size && (v.color === null || v.color === color));
-  return matches.length === 0 || matches.every(v => v.stock <= 0);
+  return matches.length === 0; // stock not enforced for now
 }
 
 function getInitialSize(product, color) {
@@ -594,14 +594,39 @@ function setupSizeGuideModal() {
     return;
   }
 
+  // The guide is secondary content: fetch it once, in the background after the page has loaded
+  // (idle time), or immediately if the shopper opens the modal first. Never shows placeholder data.
+  const body = modalOverlay.querySelector('.size-guide-body');
+  let pending = null;
   let loaded = false;
-  openBtn.addEventListener('click', async () => {
+  const loadGuide = () => {
+    if (loaded) return Promise.resolve();
+    if (pending) return pending;
+    pending = (async () => {
+      const res = await window.bongoApi('GET', '/size-guides/' + encodeURIComponent(product.sizeGuideKey));
+      if (!res.ok) {
+        body.innerHTML = '<p style="font-size: var(--fs-small); color: var(--color-grey-700)">Size guide is unavailable right now. Please try again.</p>';
+        return;
+      }
+      loaded = true;
+      renderGuide(res.data);
+    })().finally(() => { pending = null; });
+    return pending;
+  };
+
+  const prefetch = () => {
+    if ('requestIdleCallback' in window) requestIdleCallback(loadGuide, { timeout: 4000 });
+    else setTimeout(loadGuide, 2000);
+  };
+  if (document.readyState === 'complete') prefetch();
+  else window.addEventListener('load', prefetch, { once: true });
+
+  openBtn.addEventListener('click', () => {
     modalOverlay.classList.add('open');
-    if (loaded) return;
-    const res = await window.bongoApi('GET', '/size-guides/' + encodeURIComponent(product.sizeGuideKey));
-    if (!res.ok) return;
-    loaded = true;
-    const g = res.data;
+    loadGuide();
+  });
+
+  function renderGuide(g) {
     const head = g.attributes.map(a => `<th>${escapeHtml(a.name)}${a.unit ? ` (${escapeHtml(a.unit)})` : ''}</th>`).join('');
     const rows = Object.entries(g.rows).map(([size, vals]) =>
       `<tr><td><strong>${escapeHtml(size)}</strong></td>${g.attributes.map(a => `<td>${vals[a.id] ?? '—'}</td>`).join('')}</tr>`).join('');
@@ -609,7 +634,7 @@ function setupSizeGuideModal() {
     modalOverlay.querySelector('.size-guide-body').innerHTML =
       (g.details ? `<p style="font-size: var(--fs-small); color: var(--color-grey-700)">${escapeHtml(g.details)}</p>` : '') +
       `<div class="size-table-wrapper"><table class="size-guide-table"><thead><tr><th>Size</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
-  });
+  }
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => modalOverlay.classList.remove('open'));

@@ -150,7 +150,8 @@ class Catalog
 
         $stock = $hasVariants ? array_sum(array_column($variantRows, 'stock')) : (int) $r->stock_qty;
         $preorder = $r->availability === 'preorder';
-        $soldOut = ! $preorder && ($r->availability === 'out_of_stock' || $r->availability === 'coming_soon' || $stock <= 0);
+        // Stock is not enforced for now: every colour/size stays orderable at 0 stock.
+        $soldOut = ! $preorder && ($r->availability === 'out_of_stock' || $r->availability === 'coming_soon');
 
         $badge = '';
         $raw = json_decode($r->badge ?? 'null', true);
@@ -162,7 +163,7 @@ class Catalog
         }
         if ($preorder) {
             $badge = 'preorder';
-        } elseif ($badge === '' && ! $soldOut && $r->low_stock_threshold !== null && $stock <= (int) $r->low_stock_threshold) {
+        } elseif ($badge === '' && ! $soldOut && $stock > 0 && $r->low_stock_threshold !== null && $stock <= (int) $r->low_stock_threshold) {
             $badge = 'lowstock';
         }
 
@@ -199,8 +200,8 @@ class Catalog
             'colors' => $colorKeys,
             'colorNames' => $colors->mapWithKeys(fn ($c) => [self::colorKey($c) => $c->name])->all(),
             'sizes' => $sizes->pluck('size_label')->values()->all(),
-            'outOfStockSizes' => $hasVariants ? array_values(array_filter($sizes->pluck('size_label')->all(), fn ($s) => ($stockBySize[$s] ?? 0) <= 0)) : [],
-            'outOfStockColors' => $hasVariants ? array_values(array_filter($colorKeys, fn ($c) => ($stockByColor[$c] ?? 0) <= 0)) : [],
+            'outOfStockSizes' => [],
+            'outOfStockColors' => [],
             'variants' => $variantRows,
             'hasVariants' => $hasVariants,
             'availability' => $preorder ? 'preorder' : ($soldOut ? 'soldout' : ($badge === 'lowstock' ? 'lowstock' : 'instock')),
