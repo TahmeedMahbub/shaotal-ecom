@@ -378,9 +378,9 @@
         <div class="category-card-bg" style="background-image: url('${imgUrl(cat.image, 640)}'); background-color: ${cat.gradient.split(',')[0].replace('linear-gradient(135deg', '').trim()}"></div>
         <div class="category-card-overlay"></div>
         <div class="category-card-content">
-          <h3 class="category-card-title">${cat.name}</h3>
-          <p class="category-card-desc">${cat.desc}</p>
-          <span class="category-card-link">Explore ${cat.name} ${ICONS.arrowRight}</span>
+          <h3 class="category-card-title">${cat.name} ${ICONS.arrowRight}</h3>
+          ${'' /* <p class="category-card-desc">${cat.desc}</p> */}
+          ${'' /* <span class="category-card-link">Explore ${cat.name} ${ICONS.arrowRight}</span> */}
         </div>
       </a>
     `).join('');

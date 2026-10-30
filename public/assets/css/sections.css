@@ -555,6 +555,19 @@
   color: var(--color-white);
 }
 
+.category-card-title svg {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 0.2em;
+  vertical-align: -0.1em;
+  transition: transform var(--transition-fast);
+}
+
+.category-card:hover .category-card-title svg {
+  transform: translateX(4px);
+}
+
 .category-card-desc {
   font-size: var(--fs-small);
   color: hsla(0, 0%, 100%, 0.85);
