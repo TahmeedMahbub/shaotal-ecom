@@ -25,6 +25,7 @@ class CheckoutController extends Controller
     /** Authoritative prices and totals for the checkout summary. */
     public function quote(Request $request): JsonResponse
     {
+        abort_unless($this->customerId(), 401, 'Please sign in to checkout.');
         $data = $request->validate($this->itemRules());
         $priced = Checkout::priceLines($data['items']);
         $totals = Checkout::totals($priced['lines'], $data['coupon'] ?? null, $this->customerId());
@@ -41,6 +42,7 @@ class CheckoutController extends Controller
     public function place(Request $request): JsonResponse
     {
         $customerId = $this->customerId();
+        abort_unless($customerId, 401, 'Please sign in to checkout.');
         $rules = $this->itemRules() + [
             'paymentMethod' => ['required', Rule::in(config('storefront.payment_methods'))],
             'note' => ['nullable', 'string', 'max:1000'],

@@ -1138,6 +1138,17 @@
   let currentAuthTab = 'login'; // 'login', 'register', 'forgot', 'reset'
   let resetEmail = '';
 
+  // Same-site path to go to once the shopper has signed in (set when a page needs an account, e.g. checkout).
+  let authReturn = null;
+
+  /** True when signed in; otherwise opens the sign-in modal that continues to `path` afterwards. */
+  function requireLogin(path) {
+    if (state.currentUser) return true;
+    authReturn = path;
+    openAuthModal('login');
+    return false;
+  }
+
   function openAuthModal(tab = 'login') {
     currentAuthTab = tab;
     const overlay = ensureAuthModalDOM();
@@ -1147,6 +1158,7 @@
   }
 
   function closeAuthModal() {
+    authReturn = null;
     const overlay = document.getElementById('auth-modal-overlay');
     if (overlay) {
       overlay.classList.remove('open');
@@ -1279,8 +1291,10 @@
       if (errEl) errEl.style.display = 'none';
     };
     const afterAuth = (message) => {
+      const dest = authReturn;
       showToast(message);
       closeAuthModal();
+      if (dest) { window.location.href = dest; return; }
       if (window.location.pathname === '/account' || window.location.pathname === '/checkout') window.location.reload();
     };
     const busy = (form, isBusy) => {
@@ -1300,7 +1314,7 @@
       googleBtn.addEventListener('click', () => {
         // Keep the guest cart/wishlist so it can be merged into the account after the Google round trip.
         try { localStorage.setItem('bongo_pending_merge', JSON.stringify(guestPayload())); } catch (e) { /* storage unavailable */ }
-        window.location.href = '/auth/google?return=' + encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/auth/google?return=' + encodeURIComponent(authReturn || (window.location.pathname + window.location.search));
       });
     }
 
@@ -1385,6 +1399,7 @@
 
   // Export functions globally
   window.openAuthModal = openAuthModal;
+  window.requireLogin = requireLogin;
   window.closeAuthModal = closeAuthModal;
   window.loginUser = loginUser;
   window.registerUser = registerUser;
@@ -2191,6 +2206,7 @@
     const checkoutBtn = document.getElementById('checkout-btn');
     if (checkoutBtn) {
       checkoutBtn.addEventListener('click', () => {
+        if (!requireLogin('/checkout')) { closeCart(); return; }
         window.location.href = '/checkout';
       });
     }
@@ -2803,6 +2819,13 @@
     initStickyNav();
     initNewsletter();
     initSearchSuggestions();
+
+    // Guest sent here from a members-only page (e.g. /checkout): prompt sign-in, then continue there.
+    const signinPath = new URLSearchParams(location.search).get('signin');
+    if (signinPath) {
+      history.replaceState(null, '', location.pathname);
+      if (signinPath.startsWith('/') && !signinPath.startsWith('//')) requireLogin(signinPath);
+    }
 
     // Event bindings
     const hamburger = document.getElementById('hamburger');

@@ -83,6 +83,11 @@ class PageController extends Controller
 
     public function checkout()
     {
+        // Checkout is for signed-in customers only; guests are sent to the sign-in prompt and brought back.
+        if (! session('customer_id')) {
+            return redirect('/?signin=/checkout');
+        }
+
         return view('pages.checkout', ['methods' => config('storefront.payment_methods')]);
     }
 

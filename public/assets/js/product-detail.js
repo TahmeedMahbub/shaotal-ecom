@@ -513,6 +513,7 @@ function setupCtaButtons(detailState) {
     buyNowBtn.addEventListener('click', () => {
       if (detailState.product.soldOut) return;
       addToCart(detailState.product.id, detailState.selectedColor, detailState.selectedSize, detailState.quantity, false);
+      if (!window.requireLogin('/checkout')) return;
       window.location.href = '/checkout';
     });
   }
