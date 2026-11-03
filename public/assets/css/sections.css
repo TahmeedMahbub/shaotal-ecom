@@ -498,6 +498,8 @@
   flex-direction: column;
   justify-content: flex-end;
   padding: var(--space-lg);
+  padding-left: var(--space-md);
+  padding-bottom: var(--space-md);
   color: var(--color-white);
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
@@ -551,7 +553,7 @@
   font-family: var(--font-heading);
   font-size: 1.4rem;
   font-weight: var(--fw-bold);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0;
   color: var(--color-white);
 }
 
@@ -2548,6 +2550,8 @@
   .category-card {
     height: 220px;
     padding: var(--space-md);
+    padding-left: 0.625rem;
+    padding-bottom: 0.625rem;
   }
 
   .category-card-title {
