@@ -39,13 +39,18 @@ class PageController extends Controller
 
     public function product(string $slug)
     {
-        $exists = DB::table('products')->where('slug', $slug)->where('status', 'active')->where('visibility', 'visible')->first(['id', 'size_guide_id']);
+        // size guide key comes straight from the DB (not the up-to-6-min-stale catalog cache) so the Size Guide trigger always works.
+        $exists = DB::table('products as p')
+            ->leftJoin('size_guides as g', fn ($j) => $j->on('g.id', '=', 'p.size_guide_id')->where('g.status', 'active'))
+            ->where('p.slug', $slug)->where('p.status', 'active')->where('p.visibility', 'visible')
+            ->first(['p.id', 'p.size_guide_id', 'g.key as size_guide_key']);
         abort_unless($exists, 404);
 
         $product = collect(Storefront::catalog()['products'])->firstWhere('slug', $slug);
 
         return view('pages.product-detail', [
             'page' => ['slug' => $slug],
+            'sizeGuideKey' => $exists->size_guide_key,
             'preloadImage' => $this->firstGalleryImage($slug),
             'pageTitle' => $product ? $product['name'].' — '.$product['categoryName'] : null,
             // product descriptions may contain admin-authored HTML; meta tags must stay plain text.

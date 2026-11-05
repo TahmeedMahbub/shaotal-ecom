@@ -331,6 +331,10 @@
   transition: stroke var(--transition-fast);
 }
 
+.size-guide-trigger-btn[hidden] {
+  display: none;
+}
+
 .size-guide-trigger-btn:hover {
   background-color: var(--color-brand);
   color: #ffffff;
@@ -754,11 +758,16 @@
 }
 
 .size-guide-header {
-  padding: 1.25rem 1.5rem;
+  padding: 1.25rem 1.5rem 1rem;
   border-bottom: 1px solid var(--color-grey-200);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.size-guide-heading {
+  min-width: 0;
 }
 
 .size-guide-title {
@@ -766,6 +775,25 @@
   font-size: 1.25rem;
   font-weight: var(--fw-bold);
   color: var(--color-black);
+  line-height: 1.2;
+}
+
+.size-guide-subtitle {
+  margin-top: 0.25rem;
+  font-size: var(--fs-small);
+  color: var(--color-grey-500);
+}
+
+.size-guide-subtitle:empty {
+  display: none;
+}
+
+/* Unit selector + close, pinned to the top-right of the section */
+.size-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .size-guide-close {
@@ -778,39 +806,125 @@
 }
 
 .size-guide-body {
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
+}
+
+.size-guide-note {
+  font-size: var(--fs-small);
+  color: var(--color-grey-700);
+}
+
+/* Inch | CM segmented control: warm track, raised light thumb on the selected unit (display only, nothing is saved) */
+.size-unit-toggle {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-grey-200);
+  border-radius: 999px;
+}
+
+.size-unit-toggle[hidden] {
+  display: none;
+}
+
+.size-unit-btn {
+  min-width: 56px;
+  min-height: 34px;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-grey-500);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.size-unit-btn:hover:not(.active) {
+  color: var(--color-dark);
+}
+
+.size-unit-btn.active {
+  background: var(--color-surface-card);
+  color: var(--color-black);
+  box-shadow: 0 1px 2px rgba(60, 40, 20, 0.12);
+}
+
+.size-unit-btn:focus-visible {
+  outline: 2px solid var(--color-grey-700);
+  outline-offset: 2px;
 }
 
 .size-table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .size-guide-table {
   width: 100%;
+  min-width: 340px;
   border-collapse: collapse;
   font-size: var(--fs-small);
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.size-guide-table th {
+.size-guide-table thead th {
   background: var(--color-surface-alt);
   font-weight: var(--fw-bold);
-  color: var(--color-dark);
-  padding: 0.75rem 0.5rem;
-  border: 1px solid var(--color-grey-200);
+  color: var(--color-grey-700);
+  padding: 0.7rem 0.75rem;
+  white-space: nowrap;
   text-transform: uppercase;
   font-size: var(--fs-xs);
   letter-spacing: var(--ls-wide);
 }
 
+.size-guide-table th:first-child,
+.size-guide-table td:first-child {
+  text-align: left;
+}
+
+/* size label: distinct, and stays visible while the measurements scroll sideways on mobile */
+.size-guide-table tbody th {
+  position: sticky;
+  left: 0;
+  background: var(--color-surface-card);
+  color: var(--color-black);
+  font-weight: var(--fw-bold);
+  padding: 0.8rem 0.75rem;
+  white-space: nowrap;
+}
+
+.size-guide-table thead th:first-child {
+  position: sticky;
+  left: 0;
+}
+
 .size-guide-table td {
-  padding: 0.75rem 0.5rem;
-  border: 1px solid var(--color-grey-200);
+  padding: 0.8rem 0.75rem;
   color: var(--color-grey-700);
+  white-space: nowrap;
+}
+
+.size-guide-table tbody tr + tr th,
+.size-guide-table tbody tr + tr td {
+  border-top: 1px solid var(--color-grey-200);
+}
+
+@media (max-width: 480px) {
+  .size-guide-modal-overlay { padding: 0.75rem; }
+  .size-guide-header { padding: 1rem 1rem 0.85rem; }
+  .size-guide-body { padding: 1rem; }
+  .size-unit-btn { min-width: 48px; padding: 0 0.7rem; }
 }
 
 /* ══════════════════════════════════════════════════════════

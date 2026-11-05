@@ -226,21 +226,44 @@ class Catalog
         if (! $key) {
             return null;
         }
-        $g = DB::table('size_guides')->where('key', $key)->where('status', 'active')->first(['id', 'title', 'customer_details']);
+        // select * so this also works before the measurement_unit column exists (older database).
+        $g = DB::table('size_guides')->where('key', $key)->where('status', 'active')->first();
         if (! $g) {
             return null;
         }
         $attrs = DB::table('size_guide_attributes')->where('size_guide_id', $g->id)->orderBy('sort_order')->get(['id', 'attribute_name', 'unit']);
         $vals = DB::table('size_guide_values')->where('size_guide_id', $g->id)->orderBy('sort_order')->get(['size_label', 'attribute_id', 'measurement_value']);
+        // Values stay TEXT ("38", "71.1-76.2"): a range must not be cast to a number. The browser parses, converts, rounds.
         $rows = [];
         foreach ($vals as $v) {
-            $rows[$v->size_label][$v->attribute_id] = (float) $v->measurement_value;
+            if (trim((string) $v->measurement_value) !== '') {
+                $rows[$v->size_label][$v->attribute_id] = trim((string) $v->measurement_value);
+            }
         }
 
+        if (! $rows || ! $attrs->count()) {
+            return null; // nothing to show: the storefront reports the guide as unavailable
+        }
+        // Stored unit, same rule as Admin (SizeGuide::storedUnit): all attributes share one recognised unit -> that unit
+        // (reliable stored data beats the column's 'in' default); else the guide column; else 'cm' (original default).
+        // Each attribute also carries its own unit, so mixed legacy guides convert per column. Conversion is client-side only.
+        $units = $attrs->map(fn ($a) => self::normalizeUnit($a->unit))->unique()->values();
+        $unit = ($units->count() === 1 && $units[0]) ? $units[0] : (self::normalizeUnit($g->measurement_unit ?? null) ?? 'cm');
+
         return [
-            'title' => $g->title, 'details' => $g->customer_details,
-            'attributes' => $attrs->map(fn ($a) => ['id' => (int) $a->id, 'name' => $a->attribute_name, 'unit' => $a->unit])->all(),
+            'title' => $g->title, 'details' => $g->customer_details, 'unit' => $unit,
+            'attributes' => $attrs->map(fn ($a) => ['id' => (int) $a->id, 'name' => $a->attribute_name, 'unit' => self::normalizeUnit($a->unit) ?? $unit])->all(),
             'rows' => $rows,
         ];
+    }
+
+    /** Maps unit spellings to 'in' | 'cm'; null when unknown. */
+    public static function normalizeUnit(?string $u): ?string
+    {
+        return match (strtolower(trim((string) $u))) {
+            'in', 'inch', 'inches', '"' => 'in',
+            'cm', 'centimeter', 'centimeters', 'centimetre', 'centimetres' => 'cm',
+            default => null,
+        };
     }
 }

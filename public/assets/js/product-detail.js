@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const productSlug = (window.__PAGE__ || {}).slug;
   const allProducts = window.BongoProducts.getAll();
   const product = allProducts.find(p => p.slug === productSlug);
+
+  // Size Guide is wired first and on its own: it must keep working even if the product is missing from the (cached)
+  // catalog data or a later render step throws. The guide key is server-rendered on the trigger button.
+  try { setupSizeGuideModal(product); } catch (err) { console.error('Size guide init failed', err); }
+
   if (!product) return;
 
   // Track Recently Viewed in localStorage
@@ -37,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGalleryZoom();
   setupQuantityPicker(detailState);
   setupCtaButtons(detailState);
-  setupSizeGuideModal();
   setupAccordionToggle();
 });
 
@@ -583,17 +587,19 @@ function setupAccordionToggle() {
   });
 }
 
-function setupSizeGuideModal() {
+function setupSizeGuideModal(product) {
   const openBtn = document.getElementById('btn-open-size-guide');
   const modalOverlay = document.getElementById('size-guide-modal');
   const closeBtn = document.getElementById('size-guide-close');
-  const product = (window.BongoProducts.getAll().find(p => p.slug === (window.__PAGE__ || {}).slug)) || {};
 
-  if (!openBtn || !modalOverlay) return;
-  if (!product.sizeGuideKey) {
-    openBtn.style.display = 'none';
+  if (!openBtn || !modalOverlay || modalOverlay.dataset.sgBound) return; // never bind twice
+  const guideKey = openBtn.dataset.guideKey || (product && product.sizeGuideKey) || '';
+  if (!guideKey) {
+    openBtn.hidden = true;
     return;
   }
+  openBtn.hidden = false;
+  modalOverlay.dataset.sgBound = '1';
 
   // The guide is secondary content: fetch it once, in the background after the page has loaded
   // (idle time), or immediately if the shopper opens the modal first. Never shows placeholder data.
@@ -604,7 +610,7 @@ function setupSizeGuideModal() {
     if (loaded) return Promise.resolve();
     if (pending) return pending;
     pending = (async () => {
-      const res = await window.bongoApi('GET', '/size-guides/' + encodeURIComponent(product.sizeGuideKey));
+      const res = await window.bongoApi('GET', '/size-guides/' + encodeURIComponent(guideKey));
       if (!res.ok) {
         body.innerHTML = '<p style="font-size: var(--fs-small); color: var(--color-grey-700)">Size guide is unavailable right now. Please try again.</p>';
         return;
@@ -622,20 +628,60 @@ function setupSizeGuideModal() {
   if (document.readyState === 'complete') prefetch();
   else window.addEventListener('load', prefetch, { once: true });
 
-  openBtn.addEventListener('click', () => {
+  // Delegated, so it keeps working if the product info area is re-rendered and the button node is replaced.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#btn-open-size-guide')) return;
     modalOverlay.classList.add('open');
+    // Every opening starts in Inch.
+    if (guideData && viewUnit !== 'in') setUnit('in');
     loadGuide();
   });
 
-  function renderGuide(g) {
-    const head = g.attributes.map(a => `<th>${escapeHtml(a.name)}${a.unit ? ` (${escapeHtml(a.unit)})` : ''}</th>`).join('');
-    const rows = Object.entries(g.rows).map(([size, vals]) =>
-      `<tr><td><strong>${escapeHtml(size)}</strong></td>${g.attributes.map(a => `<td>${vals[a.id] ?? '—'}</td>`).join('')}</tr>`).join('');
-    modalOverlay.querySelector('.size-guide-title').textContent = g.title;
-    modalOverlay.querySelector('.size-guide-body').innerHTML =
-      (g.details ? `<p style="font-size: var(--fs-small); color: var(--color-grey-700)">${escapeHtml(g.details)}</p>` : '') +
-      `<div class="size-table-wrapper"><table class="size-guide-table"><thead><tr><th>Size</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  // Stored values are text ("38", "71.1-76.2") in each attribute's own unit. Display text is always derived from the stored
+  // original via SizeGuideUnits.display() (size-guide-units.js), so switching units never drifts and nothing is saved.
+  const Units = window.SizeGuideUnits;
+  const toggleEl = document.getElementById('size-unit-toggle');
+  const subtitleEl = modalOverlay.querySelector('.size-guide-subtitle');
+  let guideData = null;
+  let viewUnit = 'in';
+
+  function renderToggle() {
+    toggleEl.innerHTML = ['in', 'cm'].map(u =>
+      `<button type="button" class="size-unit-btn${u === viewUnit ? ' active' : ''}" role="radio" aria-checked="${u === viewUnit}" data-unit="${u}">${u === 'in' ? 'Inch' : 'CM'}</button>`).join('');
+    toggleEl.hidden = false;
   }
+
+  function renderTable() {
+    const g = guideData;
+    const head = g.attributes.map(a => `<th scope="col">${escapeHtml(a.name)} (${viewUnit})</th>`).join('');
+    const rows = Object.entries(g.rows).map(([size, vals]) =>
+      `<tr><th scope="row">${escapeHtml(size)}</th>${g.attributes.map(a => `<td>${Units.display(vals[a.id], Units.unit(a.unit) || g.unit, viewUnit)}</td>`).join('')}</tr>`).join('');
+    body.querySelector('.size-table-wrapper').innerHTML =
+      `<table class="size-guide-table"><thead><tr><th scope="col">Size</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderGuide(g) {
+    guideData = g;
+    viewUnit = 'in';
+    subtitleEl.textContent = g.title || '';
+    body.innerHTML =
+      (g.details ? `<p class="size-guide-note">${escapeHtml(g.details)}</p>` : '') +
+      '<div class="size-table-wrapper" tabindex="0" role="region" aria-label="Size chart"></div>';
+    renderToggle();
+    renderTable();
+  }
+
+  function setUnit(u) {
+    if (!guideData || u === viewUnit) return;
+    viewUnit = u;
+    renderToggle();
+    renderTable();
+  }
+
+  toggleEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.size-unit-btn');
+    if (btn) setUnit(btn.dataset.unit);
+  });
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => modalOverlay.classList.remove('open'));

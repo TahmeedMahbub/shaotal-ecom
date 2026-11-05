@@ -89,7 +89,7 @@
             <div class="detail-option-group" id="detail-size-group">
               <div class="detail-option-header">
                 <span class="detail-option-title">SIZE: <span class="selected-option-value" id="selected-size-name">Medium (M)</span></span>
-                <button class="size-guide-trigger-btn" id="btn-open-size-guide">
+                <button type="button" class="size-guide-trigger-btn" id="btn-open-size-guide" data-guide-key="{{ $sizeGuideKey }}" @if (! $sizeGuideKey) hidden @endif aria-haspopup="dialog" aria-controls="size-guide-modal">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
                   Size Guide
                 </button>
@@ -198,8 +198,14 @@
   <div class="size-guide-modal-overlay" id="size-guide-modal">
     <div class="size-guide-modal-card">
       <div class="size-guide-header">
-        <h3 class="size-guide-title">{{ config('storefront.brand') }} — Size & Measurement Guide</h3>
-        <button class="size-guide-close" id="size-guide-close" aria-label="Close size guide">&times;</button>
+        <div class="size-guide-heading">
+          <h3 class="size-guide-title">Size Guide</h3>
+          <p class="size-guide-subtitle"></p>
+        </div>
+        <div class="size-guide-actions">
+          <div class="size-unit-toggle" id="size-unit-toggle" role="radiogroup" aria-label="Measurement unit" hidden></div>
+          <button class="size-guide-close" id="size-guide-close" aria-label="Close size guide">&times;</button>
+        </div>
       </div>
       <div class="size-guide-body">
         <p class="size-guide-status" style="font-size: var(--fs-small); color: var(--color-grey-700)">Loading size guide…</p>
@@ -238,5 +244,6 @@
   </div>
 @endsection
 @push('scripts')
+<script src="{{ \App\Support\Assets::url('assets/js/size-guide-units.js') }}"></script>
 <script src="{{ \App\Support\Assets::url('assets/js/product-detail.js') }}"></script>
 @endpush
