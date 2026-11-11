@@ -1,0 +1,65 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  storefront:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: shaotal_storefront_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, pdo_mysql, pdo_sqlite, dom, gd, zip
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare app (no real credentials; the test DB is the local MySQL service)
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Same recipe validated locally: SQL source of truth + Google login table + schema drift + test seed.
+      - name: Build test database from sql/
+        run: |
+          for f in sql/ecom.sql sql/google_login.sql tests/Support/ci-schema-drift.sql sql/local_test_seed.sql; do
+            echo "loading $f"
+            mysql -h 127.0.0.1 -u root shaotal_storefront_test < "$f"
+          done
+
+      - name: PHP tests (MySQL)
+        run: composer test
+
+      - name: JS tests
+        run: node --test tests/js/*.test.js
+
+      - name: Code style (changed files only)
+        if: github.event_name == 'pull_request'
+        run: vendor/bin/pint --test --diff=origin/${{ github.base_ref }}

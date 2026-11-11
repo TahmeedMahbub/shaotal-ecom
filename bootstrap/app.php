@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureCustomer;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\ValidateCustomerSession;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,7 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Global so 404s (thrown before route middleware) and other error pages get the headers too.
+        $middleware->append(SecurityHeaders::class);
+        // After StartSession: ends sessions of deleted/blocked customers and of sessions older than a password change.
+        $middleware->appendToGroup('web', ValidateCustomerSession::class);
+        $middleware->alias(['customer' => EnsureCustomer::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -44,9 +44,9 @@
         if (window.jQuery) {
           return window.jQuery(
             `<div style="display: flex; align-items: center; gap: 10px; padding: 4px 0;">
-              <img src="${img || window.PLACEHOLDER_IMG}" style="width: 36px; height: 36px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-grey-200);" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+              <img src="${escapeHtml(img || window.PLACEHOLDER_IMG)}" style="width: 36px; height: 36px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-grey-200);" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
               <div style="flex: 1; overflow: hidden;">
-                <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-dark); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${option.text}</div>
+                <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-dark); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(option.text)}</div>
                 ${meta ? `<div style="font-size: 0.75rem; color: var(--color-grey-600); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin-top: 1px;">${meta}</div>` : ''}
               </div>
             </div>`
@@ -85,7 +85,7 @@
           // Image box: SVG placeholder if null, or product image
           let imageHTML = '';
           if (curProd) {
-            imageHTML = `<img src="${curProd.image}" alt="${curProd.name}">`;
+            imageHTML = `<img src="${escapeHtml(curProd.image)}" alt="${escapeHtml(curProd.name)}">`;
           } else {
             imageHTML = `
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 32px; height: 32px; color: var(--color-grey-400);">
@@ -100,9 +100,9 @@
               ? cp.colors.map(c => (window.COLOR_NAMES || {})[c] || c).join(', ')
               : 'Standard';
             const sizeList = (cp.sizes && cp.sizes.length > 0) ? cp.sizes.join(', ') : 'Standard';
-            const metaText = `<b>Colours:</b> ${colorList} · <b>Sizes:</b> ${sizeList}`;
+            const metaText = `<b>Colours:</b> ${escapeHtml(colorList)} · <b>Sizes:</b> ${escapeHtml(sizeList)}`;
 
-            return `<option value="${cp.id}" data-image="${cp.image}" data-meta="${escapeHtml(metaText)}" ${curProd && curProd.id === cp.id ? 'selected' : ''}>${cp.name}</option>`;
+            return `<option value="${cp.id}" data-image="${escapeHtml(cp.image)}" data-meta="${escapeHtml(metaText)}" ${curProd && curProd.id === cp.id ? 'selected' : ''}>${escapeHtml(cp.name)}</option>`;
           }).join('');
 
           // Variant rows
@@ -114,14 +114,14 @@
               if (curProd.colors && curProd.colors.length > 0) {
                 colorOpts += curProd.colors.map(c => {
                   const label = (window.COLOR_NAMES || {})[c] || c;
-                  return `<option value="${label}" ${vState.color === label ? 'selected' : ''}>${label}</option>`;
+                  return `<option value="${escapeHtml(label)}" ${vState.color === label ? 'selected' : ''}>${escapeHtml(label)}</option>`;
                 }).join('');
               } else {
                 colorOpts += `<option value="Standard" ${vState.color === 'Standard' ? 'selected' : ''}>Standard Color</option>`;
               }
 
               if (curProd.sizes && curProd.sizes.length > 0) {
-                sizeOpts += curProd.sizes.map(s => `<option value="${s}" ${vState.size === s ? 'selected' : ''}>Size: ${s}</option>`).join('');
+                sizeOpts += curProd.sizes.map(s => `<option value="${escapeHtml(s)}" ${vState.size === s ? 'selected' : ''}>Size: ${escapeHtml(s)}</option>`).join('');
               } else {
                 sizeOpts += `<option value="Standard" ${vState.size === 'Standard' ? 'selected' : ''}>Standard Size</option>`;
               }
@@ -311,7 +311,7 @@
                 <label style="display: block; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 4px;">
                   What item are you looking for? <span style="color: var(--color-danger)">*</span>
                 </label>
-                <input type="text" class="unlisted-name-input" value="${uState.name || ''}" placeholder="e.g. Custom Engraved Brass Coasters, Artisanal Silk Scarf" style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);" required>
+                <input type="text" class="unlisted-name-input" value="${escapeHtml(uState.name)}" placeholder="e.g. Custom Engraved Brass Coasters, Artisanal Silk Scarf" style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);" required>
               </div>
               <div>
                 <label style="display: block; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 4px;">
@@ -326,13 +326,13 @@
                 <label style="display: block; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 4px;">
                   Specifications / Material / Color & Size <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
                 </label>
-                <input type="text" class="unlisted-specs-input" value="${uState.customSpecs || ''}" placeholder="e.g. Solid brass with lacquered finish, set of 4" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);">
+                <input type="text" class="unlisted-specs-input" value="${escapeHtml(uState.customSpecs)}" placeholder="e.g. Solid brass with lacquered finish, set of 4" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);">
               </div>
               <div>
                 <label style="display: block; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); margin-bottom: 4px;">
                   Reference Link or Image URL <span style="color: var(--color-grey-500); font-weight: var(--fw-normal)">(Optional)</span>
                 </label>
-                <input type="url" class="unlisted-link-input" value="${uState.productLink || ''}" placeholder="https://instagram.com/p/... or website link" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);">
+                <input type="url" class="unlisted-link-input" value="${escapeHtml(uState.productLink)}" placeholder="https://instagram.com/p/... or website link" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-grey-300); border-radius: var(--radius-sm); font-size: var(--fs-small); background: var(--color-surface-card);">
               </div>
             </div>
           `;

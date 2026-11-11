@@ -173,6 +173,33 @@ class Checkout
     }
 
     /**
+     * Re-check a coupon's limits while holding a row lock on it, inside the order transaction. The lock serialises every
+     * checkout using this coupon until the order row is committed, so two customers cannot both take the last use
+     * (the pre-check in totals() runs without a lock and only gives early feedback). Usage = non-cancelled orders with
+     * the code, so a rolled-back (failed) order never uses it up, and a replayed duplicate request creates no order.
+     * Only the one coupon row is locked and always first in the transaction, so this cannot deadlock with itself.
+     */
+    private static function claimCoupon(string $code, ?int $customerId): void
+    {
+        $c = DB::table('coupons')->where('code', $code)->lockForUpdate()
+            ->first(['code', 'status', 'starts_at', 'expires_at', 'usage_limit', 'usage_limit_per_customer']);
+        $now = now();
+        abort_unless($c && $c->status === 'active' && (! $c->starts_at || $c->starts_at <= $now) && (! $c->expires_at || $c->expires_at >= $now),
+            422, 'This coupon is no longer available. Please remove it and try again.');
+
+        $used = fn () => DB::table('orders')->where('coupon_code', $c->code)->where('order_status', '!=', 'cancelled');
+        if ($c->usage_limit !== null && $used()->count() >= (int) $c->usage_limit) {
+            abort(422, 'This coupon has reached its usage limit. Please remove it and try again.');
+        }
+        if ($c->usage_limit_per_customer !== null) {
+            abort_unless($customerId, 422, 'Please sign in to use this coupon.');
+            if ($used()->where('customer_id', $customerId)->count() >= (int) $c->usage_limit_per_customer) {
+                abort(422, 'You have already used this coupon the maximum number of times.');
+            }
+        }
+    }
+
+    /**
      * Create the order, items, payment and timeline atomically.
      *
      * @return array{orderNumber: string, total: float}
@@ -182,6 +209,10 @@ class Checkout
         $customerEmail = $customerId ? DB::table('customers')->where('id', $customerId)->value('email') : null;
 
         return DB::transaction(function () use ($lines, $totals, $address, $method, $customerId, $note, $customerEmail) {
+            if ($code = $totals['coupon']['code'] ?? null) {
+                self::claimCoupon($code, $customerId);
+            }
+
             $number = null;
             for ($i = 0; $i < 5 && ! $number; $i++) {
                 $try = 'INV-'.random_int(100000, 999999);

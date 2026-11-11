@@ -215,9 +215,9 @@ function renderColorSwatches(detailState) {
   if (detailState.product.colors && detailState.product.colors.length > 0) {
     swatchesContainer.innerHTML = detailState.product.colors.map(colorHex => `
       <button class="detail-color-swatch-item ${colorHex === detailState.selectedColor ? 'active' : ''}" 
-              style="background-color: ${colorHex}" 
-              data-color-hex="${colorHex}" 
-              aria-label="Select color ${COLOR_NAME_MAP[colorHex] || colorHex}">
+              style="background-color: ${escapeHtml(colorHex)}" 
+              data-color-hex="${escapeHtml(colorHex)}" 
+              aria-label="Select color ${escapeHtml(COLOR_NAME_MAP[colorHex] || colorHex)}">
       </button>
     `).join('');
 
@@ -258,9 +258,9 @@ function renderSizePills(detailState) {
       const isActive = sizeStr === detailState.selectedSize;
       return `
         <button class="detail-size-pill ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" 
-                data-size="${sizeStr}" 
+                data-size="${escapeHtml(sizeStr)}" 
                 ${isDisabled ? 'disabled' : ''}>
-          ${sizeStr}
+          ${escapeHtml(sizeStr)}
         </button>
       `;
     }).join('');
@@ -545,7 +545,7 @@ function executeAddToCart(detailState) {
     cart.push(item);
     localStorage.setItem('bongo_cart', JSON.stringify(cart));
     if (typeof showToast === 'function') {
-      showToast(`Added ${detailState.quantity}x ${detailState.product.name} to cart`);
+      showToast(`Added ${detailState.quantity}x ${escapeHtml(detailState.product.name)} to cart`);
     }
   }
 }

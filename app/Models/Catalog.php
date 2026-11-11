@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Img;
+use App\Support\SafeHtml;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -184,8 +185,9 @@ class Catalog
             'slug' => $r->slug,
             'sku' => $r->sku,
             'name' => $r->name,
-            'desc' => $r->short_description ?? '',
-            'fullDesc' => $r->description ?? '',
+            // Admin rich text is rendered as HTML by the page scripts: only allowlisted markup leaves the server.
+            'desc' => SafeHtml::clean($r->short_description),
+            'fullDesc' => SafeHtml::clean($r->description),
             'price' => $selling,
             'originalPrice' => $selling < $price ? $price : null,
             'image' => $imgUrls[0] ?? null,

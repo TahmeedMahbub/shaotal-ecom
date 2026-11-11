@@ -10,6 +10,16 @@ use Tests\TestCase;
 /** In-memory SQLite with only the size guide tables (the real schema is SQL-first, see sql/). */
 class SizeGuideUnitTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (! extension_loaded('pdo_sqlite')) {
+            $this->markTestSkipped('Needs the pdo_sqlite PHP extension (Laragon: enable extension=pdo_sqlite in php.ini).');
+        }
+        // Builds its own tables, so it always uses a throwaway in-memory SQLite connection (even in a MySQL test run).
+        config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:']);
+    }
+
     private function tables(bool $withUnit): void
     {
         Schema::create('size_guides', function ($t) use ($withUnit) {
@@ -39,7 +49,7 @@ class SizeGuideUnitTest extends TestCase
         });
     }
 
-    private function seed(array $guide, string $attrUnit, bool $withValue = true): void
+    private function seedGuide(array $guide, string $attrUnit, bool $withValue = true): void
     {
         DB::table('size_guides')->insert($guide + ['title' => 'T', 'key' => 'k']);
         DB::table('size_guide_attributes')->insert(['size_guide_id' => 1, 'attribute_name' => 'Chest', 'unit' => $attrUnit]);
@@ -51,7 +61,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_payload_has_guide_unit_and_the_stored_value_untouched(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'in'], 'in');
+        $this->seedGuide(['measurement_unit' => 'in'], 'in');
 
         $g = $this->getJson('/size-guides/k')->assertOk()->json();
 
@@ -63,7 +73,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_cm_guide_keeps_cm(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'cm'], 'cm');
+        $this->seedGuide(['measurement_unit' => 'cm'], 'cm');
 
         $this->getJson('/size-guides/k')->assertOk()->assertJsonPath('unit', 'cm');
     }
@@ -71,7 +81,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_legacy_database_without_column_uses_attribute_unit(): void
     {
         $this->tables(false);
-        $this->seed([], 'Inches');
+        $this->seedGuide([], 'Inches');
 
         $this->getJson('/size-guides/k')->assertOk()->assertJsonPath('unit', 'in');
     }
@@ -79,7 +89,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_unknown_guide_or_guide_without_measurements_is_404(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'in'], 'in', false);
+        $this->seedGuide(['measurement_unit' => 'in'], 'in', false);
 
         $this->getJson('/size-guides/k')->assertNotFound();
         $this->getJson('/size-guides/missing')->assertNotFound();
@@ -88,7 +98,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_range_values_stay_text_not_floats(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'cm'], 'cm', false);
+        $this->seedGuide(['measurement_unit' => 'cm'], 'cm', false);
         DB::table('size_guide_values')->insert(['size_guide_id' => 1, 'size_label' => 'M', 'attribute_id' => 1, 'measurement_value' => '71.1-76.2']);
 
         $this->getJson('/size-guides/k')->assertOk()->assertJsonPath('rows.M.1', '71.1-76.2');
@@ -97,7 +107,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_cm_attributes_beat_a_default_inch_column(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'in'], 'cm');
+        $this->seedGuide(['measurement_unit' => 'in'], 'cm');
 
         $this->getJson('/size-guides/k')->assertOk()->assertJsonPath('unit', 'cm')->assertJsonPath('attributes.0.unit', 'cm');
     }
@@ -105,7 +115,7 @@ class SizeGuideUnitTest extends TestCase
     public function test_mixed_attribute_units_are_kept_per_attribute(): void
     {
         $this->tables(true);
-        $this->seed(['measurement_unit' => 'in'], 'cm');
+        $this->seedGuide(['measurement_unit' => 'in'], 'cm');
         DB::table('size_guide_attributes')->insert(['size_guide_id' => 1, 'attribute_name' => 'Length', 'unit' => 'inches']);
 
         $g = $this->getJson('/size-guides/k')->assertOk()->assertJsonPath('unit', 'in')->json();

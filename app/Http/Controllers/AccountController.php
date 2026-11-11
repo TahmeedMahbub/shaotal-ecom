@@ -12,6 +12,32 @@ class AccountController extends Controller
 {
     public const STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
 
+    /** Phone: digits with optional +, spaces, dashes, brackets; 8-15 digits in total (AU landline/mobile, +61). */
+    public const PHONE_MESSAGE = 'Please enter a valid phone number (8 to 15 digits).';
+
+    public const PHONE_REGEX = '/^(?=(?:\D*\d){8,15}\D*$)\+?[0-9 ()\-]{8,24}$/';
+
+    /** Delivery address problem for a saved/inline address in checkout shape, or null when it is complete. */
+    public static function addressProblem(array $a): ?string
+    {
+        foreach (['fullName' => 'recipient name', 'street' => 'street address', 'suburb' => 'suburb', 'state' => 'state', 'postcode' => 'postcode', 'phone' => 'phone number'] as $k => $label) {
+            if (trim((string) ($a[$k] ?? '')) === '') {
+                return "This delivery address is missing a {$label}. Please edit the address and try again.";
+            }
+        }
+        if (! in_array($a['state'], self::STATES, true)) {
+            return 'This delivery address has an invalid state. Please edit the address and try again.';
+        }
+        if (! preg_match('/^\d{4}$/', (string) $a['postcode'])) {
+            return 'This delivery address needs a 4-digit postcode. Please edit the address and try again.';
+        }
+        if (! preg_match(self::PHONE_REGEX, (string) $a['phone'])) {
+            return 'This delivery address has an invalid phone number. Please edit the address and try again.';
+        }
+
+        return null;
+    }
+
     private function require(): int
     {
         $id = $this->customerId();
@@ -32,17 +58,25 @@ class AccountController extends Controller
         $parts = preg_split('/\s+/', trim($data['name']), 2);
         $phone = trim((string) ($data['phone'] ?? '')) ?: null;
 
-        if (! empty($data['address']) && ! $phone) {
+        // The form shows the default address as "street, suburb, state". Saving it back unchanged used to copy that whole
+        // text into street_address (duplicating suburb/state and growing on every save), so only write when it changed.
+        $shown = Storefront::customer($id);
+        $address = trim((string) ($data['address'] ?? ''));
+        $addressChanged = $address !== '' && ($address !== ($shown['address'] ?? '') || (string) ($data['postcode'] ?? '') !== (string) ($shown['postcode'] ?? ''));
+
+        if ($addressChanged && ! $phone) {
             return response()->json(['message' => 'Please add a phone number to save an address.'], 422);
         }
 
-        DB::transaction(function () use ($id, $parts, $phone, $data) {
+        DB::transaction(function () use ($id, $parts, $phone, $data, $address, $addressChanged) {
             DB::table('customers')->where('id', $id)->update([
                 'first_name' => mb_substr($parts[0], 0, 100), 'last_name' => isset($parts[1]) ? mb_substr($parts[1], 0, 100) : null, 'phone' => $phone,
             ]);
-            if (! empty($data['address'])) {
+            if ($addressChanged) {
                 $default = DB::table('customer_addresses')->where('customer_id', $id)->orderByDesc('is_default')->orderBy('id')->first(['id']);
-                $row = ['recipient_name' => trim($data['name']), 'phone' => $phone, 'street_address' => $data['address'], 'postcode' => $data['postcode'] ?? null];
+                // Free text cannot be split reliably, so suburb/state are cleared rather than left pointing at the old
+                // address; checkout then asks the customer to complete the address before it can be used.
+                $row = ['recipient_name' => trim($data['name']), 'phone' => $phone, 'street_address' => $address, 'postcode' => $data['postcode'] ?? null, 'suburb' => null, 'state' => null];
                 if ($default) {
                     DB::table('customer_addresses')->where('id', $default->id)->update($row);
                 } else {
@@ -160,7 +194,7 @@ class AccountController extends Controller
     {
         return [
             'fullName' => ['required', 'string', 'max:180'],
-            'phone' => ['required', 'string', 'max:40'],
+            'phone' => ['required', 'string', 'max:40', 'regex:'.self::PHONE_REGEX],
             'street' => ['required', 'string', 'max:255'],
             'suburb' => ['required', 'string', 'max:120'],
             'state' => ['required', Rule::in(self::STATES)],
@@ -180,7 +214,7 @@ class AccountController extends Controller
     public function storeAddress(Request $request): JsonResponse
     {
         $id = $this->require();
-        $d = $request->validate($this->addressRules());
+        $d = $request->validate($this->addressRules(), ['phone.regex' => self::PHONE_MESSAGE]);
         $isFirst = ! DB::table('customer_addresses')->where('customer_id', $id)->exists();
         $newId = DB::table('customer_addresses')->insertGetId($this->addressRow($d) + ['customer_id' => $id, 'is_default' => $isFirst ? 1 : 0]);
 
@@ -190,7 +224,7 @@ class AccountController extends Controller
     public function updateAddress(Request $request, int $addressId): JsonResponse
     {
         $id = $this->require();
-        $d = $request->validate($this->addressRules());
+        $d = $request->validate($this->addressRules(), ['phone.regex' => self::PHONE_MESSAGE]);
         $n = DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $id)->update($this->addressRow($d));
         abort_unless($n || DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $id)->exists(), 404);
 

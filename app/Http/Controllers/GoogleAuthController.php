@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\CustomerSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -66,8 +67,8 @@ class GoogleAuthController extends Controller
             return $this->fail('This account is not active. Please contact us.');
         }
 
-        $request->session()->regenerate();
-        $request->session()->put('customer_id', $customerId);
+        // Fingerprint taken after resolveCustomer(), which may have cleared an unverified password (ending older sessions).
+        CustomerSession::start($request, $customerId, DB::table('customers')->where('id', $customerId)->value('password_hash'));
         $return = $request->session()->pull('google_return', '/');
 
         return redirect($return)->with('auth_notice', 'Signed in with Google.');

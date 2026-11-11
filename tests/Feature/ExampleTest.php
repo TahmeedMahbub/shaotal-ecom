@@ -2,18 +2,16 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
     public function test_the_application_returns_a_successful_response(): void
     {
-        $response = $this->get('/');
+        if (config('database.default') !== 'mysql') {
+            $this->markTestSkipped('Requires the MySQL test database (the home page reads the catalog schema).');
+        }
 
-        $response->assertStatus(200);
+        $this->get('/')->assertStatus(200);
     }
 }

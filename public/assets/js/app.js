@@ -9,34 +9,48 @@
   /* ── Server session, cart & wishlist ── */
   const BOOT = window.__BOOT__ || {};
   let CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  // Escape customer-controlled text (name, email) before it goes into innerHTML templates.
+  const escHtml = str => String(str ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  // Admin-entered links (hero buttons, menus, social): same-site paths and http(s)/mailto/tel only; javascript:, data: etc. → '#'.
+  const safeUrl = url => {
+    const raw = String(url ?? '').trim();
+    if (raw === '') return '#';
+    try {
+      return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(raw, window.location.origin).protocol) ? raw : '#';
+    } catch (e) { return '#'; }
+  };
+  window.escHtml = escHtml;
+  window.safeUrl = safeUrl;
   window.PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500"><rect width="400" height="500" fill="#efe9e0"/></svg>');
 
-  async function api(method, url, body) {
-    try {
-      const res = await fetch(url, {
-        method,
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-      let data = null;
-      try { data = await res.json(); } catch (e) { /* non-JSON response */ }
-      return { ok: res.ok, status: res.status, data: data || {} };
-    } catch (e) {
-      return { ok: false, status: 0, data: { message: 'Network error. Please try again.' } };
-    }
+  function setCsrf(token) {
+    CSRF = token;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) meta.content = token;
   }
+
+  // All AJAX goes through api-client.js: 419 → fresh CSRF token + one retry; 401 → session ended (handled once below).
+  const apiClient = window.BongoApiClient.create({
+    fetch: (url, init) => fetch(url, init),
+    getCsrf: () => CSRF,
+    setCsrf,
+    onSessionEnded: () => handleSessionEnded(),
+  });
+  const api = apiClient.request;
   window.bongoApi = api;
 
-  function apiMessage(res) {
-    const d = res.data || {};
-    if (d.errors) {
-      const first = Object.values(d.errors)[0];
-      return Array.isArray(first) ? first[0] : String(first);
-    }
-    return d.message || 'Something went wrong. Please try again.';
-  }
+  const apiMessage = window.BongoApiClient.message;
   window.bongoApiMessage = apiMessage;
+
+  /** The server says this browser is no longer signed in (expired, signed out elsewhere, password reset, blocked). */
+  function handleSessionEnded() {
+    // Keep the local cart/wishlist: it is merged back into the account after signing in again.
+    state.currentUser = null;
+    BOOT.user = null;
+    renderNavbarIcons();
+    showToast(window.BongoApiClient.MESSAGES[401]);
+    requireLogin(window.BongoApiClient.returnPath(window.location));
+  }
 
   function readList(key) {
     try {
@@ -160,17 +174,17 @@
     if (!Array.isArray(HERO_SLIDES) || HERO_SLIDES.length === 0) return;
 
     let slidesHTML = HERO_SLIDES.map((slide, i) => `
-      <a href="${slide.ctaLink}" class="hero-slide ${i === 0 ? 'active' : ''}" data-slide="${i}" role="group" aria-roledescription="slide" aria-label="Slide ${i + 1} of ${HERO_SLIDES.length}: ${slide.headline}" aria-hidden="${i === 0 ? 'false' : 'true'}">
-        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${slide.imageSrc || slide.image || ''}')"` : `data-bg="${slide.imageSrc || slide.image || ''}"`}></div>
+      <a href="${escHtml(safeUrl(slide.ctaLink))}" class="hero-slide ${i === 0 ? 'active' : ''}" data-slide="${i}" role="group" aria-roledescription="slide" aria-label="Slide ${i + 1} of ${HERO_SLIDES.length}: ${escHtml(slide.headline)}" aria-hidden="${i === 0 ? 'false' : 'true'}">
+        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${escHtml(slide.imageSrc || slide.image || '')}')"` : `data-bg="${escHtml(slide.imageSrc || slide.image || '')}"`}></div>
         <div class="hero-slide-overlay"></div>
         <div class="hero-content">
           <div class="hero-text">
-            ${slide.label ? `<span class="hero-label">${slide.label}</span>` : ''}
-            <h1 class="hero-headline">${slide.headline}</h1>
-            <p class="hero-subtext">${slide.subtext}</p>
+            ${slide.label ? `<span class="hero-label">${escHtml(slide.label)}</span>` : ''}
+            <h1 class="hero-headline">${escHtml(slide.headline)}</h1>
+            <p class="hero-subtext">${escHtml(slide.subtext)}</p>
             <div class="hero-ctas">
-              <span class="btn btn-white">${slide.cta}</span>
-              ${slide.secondaryCta ? `<span class="btn btn-outline-white hero-secondary-btn" data-secondary-link="${slide.secondaryCtaLink}">${slide.secondaryCta}</span>` : ''}
+              <span class="btn btn-white">${escHtml(slide.cta)}</span>
+              ${slide.secondaryCta ? `<span class="btn btn-outline-white hero-secondary-btn" data-secondary-link="${escHtml(safeUrl(slide.secondaryCtaLink))}">${escHtml(slide.secondaryCta)}</span>` : ''}
             </div>
           </div>
         </div>
@@ -378,9 +392,9 @@
         <div class="category-card-bg" style="background-image: url('${imgUrl(cat.image, 640)}'); background-color: ${cat.gradient.split(',')[0].replace('linear-gradient(135deg', '').trim()}"></div>
         <div class="category-card-overlay"></div>
         <div class="category-card-content">
-          <h3 class="category-card-title">${cat.name} ${ICONS.arrowRight}</h3>
+          <h3 class="category-card-title">${escHtml(cat.name)} ${ICONS.arrowRight}</h3>
           ${'' /* <p class="category-card-desc">${cat.desc}</p> */}
-          ${'' /* <span class="category-card-link">Explore ${cat.name} ${ICONS.arrowRight}</span> */}
+          ${'' /* <span class="category-card-link">Explore ${escHtml(cat.name)} ${ICONS.arrowRight}</span> */}
         </div>
       </a>
     `).join('');
@@ -407,22 +421,22 @@
     return `
       <div class="product-card fade-up visible" data-product-id="${product.id}">
         <div class="product-card-image">
-          <img src="${imgUrl(imgPath, 480)}" ${imgSrcset(imgPath, [320, 480, 640, 800]) ? `srcset="${imgSrcset(imgPath, [320, 480, 640, 800])}" sizes="(max-width: 640px) 50vw, (max-width: 1100px) 40vw, 260px"` : ''} width="400" height="450" alt="${product.name || 'Product'}" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src=window.PLACEHOLDER_IMG;">
+          <img src="${imgUrl(imgPath, 480)}" ${imgSrcset(imgPath, [320, 480, 640, 800]) ? `srcset="${imgSrcset(imgPath, [320, 480, 640, 800])}" sizes="(max-width: 640px) 50vw, (max-width: 1100px) 40vw, 260px"` : ''} width="400" height="450" alt="${escHtml(product.name || 'Product')}" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src=window.PLACEHOLDER_IMG;">
           <div class="product-card-badge">${product.soldOut ? '<span class="badge badge-limited">Sold Out</span>' : (BADGE_MAP[product.badge] || '')}</div>
           <button class="product-card-wishlist ${state.wishlist.includes(product.id) ? 'active' : ''}" data-wishlist-id="${product.id}" aria-label="Add to wishlist">
             ${state.wishlist.includes(product.id) ? ICONS.heartFill : ICONS.heart}
           </button>
         </div>
         <div class="product-card-info">
-          <div class="product-card-category">${CATEGORY_NAME_MAP[product.category] || product.category || 'General'}</div>
-          <div class="product-card-name">${product.name || 'Product'}</div>
+          <div class="product-card-category">${escHtml(CATEGORY_NAME_MAP[product.category] || product.category || 'General')}</div>
+          <div class="product-card-name">${escHtml(product.name || 'Product')}</div>
           <div class="product-card-desc">${product.desc || ''}</div>
           <div class="product-card-footer">
             <div class="product-card-price">
               ${originalPriceHTML}
               <span class="current">${SITE.currency}${numPrice.toFixed(2)}</span>
             </div>
-            <button class="product-card-btn" data-view-details-id="${product.id}" aria-label="View details for ${product.name || 'Product'}">
+            <button class="product-card-btn" data-view-details-id="${product.id}" aria-label="View details for ${escHtml(product.name || 'Product')}">
               <span class="btn-text-desktop">View Details</span>
               <span class="btn-text-mobile">View</span>
             </button>
@@ -639,7 +653,7 @@
 
     container.innerHTML = eligibleCategories.map((cat, catIdx) => {
       const allCatProducts = sourceProducts.filter(p => p.category === cat.slug);
-      const categoryUrl = `/products?category=${cat.slug}`;
+      const categoryUrl = `/products?category=${encodeURIComponent(cat.slug)}`;
 
       // Divide products into pages of up to 5 products each (max 3 pages for homepage)
       const pages = [];
@@ -656,7 +670,7 @@
       categorySliderState[cat.slug] = { step: 0, isAnimating: false };
 
       const mobileEndCardHTML = `
-        <a href="${categoryUrl}" class="category-mobile-end-card" aria-label="View all ${cat.name} products">
+        <a href="${categoryUrl}" class="category-mobile-end-card" aria-label="View all ${escHtml(cat.name)} products">
           <div class="category-mobile-end-arrow-circle">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -675,14 +689,14 @@
       `).join('');
 
       // Left & Right arrow controls positioned at the sides of each category's product row
-      const nextArrowTitle = totalPages > 1 ? `View next ${cat.name} products` : `View all ${cat.name} products`;
-      const prevArrowTitle = `View previous ${cat.name} products`;
+      const nextArrowTitle = totalPages > 1 ? `View next ${escHtml(cat.name)} products` : `View all ${escHtml(cat.name)} products`;
+      const prevArrowTitle = `View previous ${escHtml(cat.name)} products`;
 
       const prevArrowHTML = `
         <button type="button" 
                 class="category-nav-arrow category-nav-arrow-prev is-disabled" 
-                data-category="${cat.slug}"
-                data-category-name="${cat.name}"
+                data-category="${escHtml(cat.slug)}"
+                data-category-name="${escHtml(cat.name)}"
                 data-direction="prev"
                 data-url="${categoryUrl}"
                 data-total-pages="${totalPages}"
@@ -700,8 +714,8 @@
       const nextArrowHTML = `
         <button type="button" 
                 class="category-nav-arrow category-nav-arrow-next ${totalPages <= 1 ? 'is-final-step' : ''}" 
-                data-category="${cat.slug}"
-                data-category-name="${cat.name}"
+                data-category="${escHtml(cat.slug)}"
+                data-category-name="${escHtml(cat.name)}"
                 data-direction="next"
                 data-url="${categoryUrl}"
                 data-total-pages="${totalPages}"
@@ -717,22 +731,22 @@
       const isAltBg = catIdx % 2 === 1;
 
       return `
-        <section class="section category-products-section ${isAltBg ? 'category-section-alt' : ''} fade-up visible" id="category-section-${cat.slug}">
+        <section class="section category-products-section ${isAltBg ? 'category-section-alt' : ''} fade-up visible" id="category-section-${escHtml(cat.slug)}">
           <div class="container">
             <div class="section-header">
               <div class="section-header-top">
                 <div class="section-header-title">
-                  <h2>${cat.name}</h2>
+                  <h2>${escHtml(cat.name)}</h2>
                 </div>
-                <a href="${categoryUrl}" class="section-see-more" aria-label="Show all ${cat.name} products">Show All &rarr;</a>
+                <a href="${categoryUrl}" class="section-see-more" aria-label="Show all ${escHtml(cat.name)} products">Show All &rarr;</a>
               </div>
             </div>
 
-            <div class="category-slider-wrapper" data-category="${cat.slug}">
+            <div class="category-slider-wrapper" data-category="${escHtml(cat.slug)}">
               ${prevArrowHTML}
               ${nextArrowHTML}
               <div class="category-slider-viewport">
-                <div class="category-slider-track" id="category-track-${cat.slug}">
+                <div class="category-slider-track" id="category-track-${escHtml(cat.slug)}">
                   ${pagesHTML}
                 </div>
               </div>
@@ -833,8 +847,8 @@
           <div class="mega-menu">
             ${cat.megaMenu.map(col => `
               <div class="mega-menu-col">
-                <h4>${col.heading}</h4>
-                <ul>${col.links.map(l => `<li><a href="/products?category=${l.slug}${l.sub ? '&subcategory=' + l.sub : ''}">${l.label}</a></li>`).join('')}</ul>
+                <h4>${escHtml(col.heading)}</h4>
+                <ul>${col.links.map(l => `<li><a href="/products?category=${encodeURIComponent(l.slug)}${l.sub ? '&subcategory=' + encodeURIComponent(l.sub) : ''}">${escHtml(l.label)}</a></li>`).join('')}</ul>
               </div>
             `).join('')}
           </div>
@@ -843,7 +857,7 @@
       const targetHref = cat.customUrl || (cat.filterCategory ? `/products?category=${cat.filterCategory}` : '/products');
       return `
         <li class="nav-item">
-          <a href="${targetHref}" class="nav-link">${cat.name}${cat.megaMenu ? ICONS.chevronDown : ''}</a>
+          <a href="${escHtml(safeUrl(targetHref))}" class="nav-link">${escHtml(cat.name)}${cat.megaMenu ? ICONS.chevronDown : ''}</a>
           ${megaHTML}
         </li>
       `;
@@ -857,8 +871,8 @@
             <div class="mobile-submenu">
               ${cat.megaMenu.map(col => `
                 <div class="mobile-submenu-group">
-                  <h4>${col.heading}</h4>
-                  ${col.links.map(l => `<a href="/products?category=${l.slug}${l.sub ? '&subcategory=' + l.sub : ''}">${l.label}</a>`).join('')}
+                  <h4>${escHtml(col.heading)}</h4>
+                  ${col.links.map(l => `<a href="/products?category=${encodeURIComponent(l.slug)}${l.sub ? '&subcategory=' + encodeURIComponent(l.sub) : ''}">${escHtml(l.label)}</a>`).join('')}
                 </div>
               `).join('')}
             </div>
@@ -867,8 +881,8 @@
         const targetHref = cat.customUrl || (cat.filterCategory ? `/products?category=${cat.filterCategory}` : '/products');
         return `
           <div class="mobile-nav-item ${cat.megaMenu ? 'has-submenu' : ''}">
-            <a href="${targetHref}" class="mobile-nav-link">
-              ${cat.name}
+            <a href="${escHtml(safeUrl(targetHref))}" class="mobile-nav-link">
+              ${escHtml(cat.name)}
               ${cat.megaMenu ? ICONS.chevronDown : ''}
             </a>
             ${subHTML}
@@ -947,7 +961,7 @@
 
   async function logoutUser() {
     const out = await api('POST', '/auth/logout');
-    if (out.data && out.data.csrf) CSRF = out.data.csrf;
+    if (out.data && out.data.csrf) setCsrf(out.data.csrf);
     state.currentUser = null;
     state.cart = [];
     state.wishlist = [];
@@ -983,7 +997,7 @@
     if (!el) return;
 
     const curr = state.currentUser;
-    const userIconContent = curr ? `<span class="user-avatar-badge">${(curr.name || 'U').charAt(0).toUpperCase()}</span>` : ICONS.user;
+    const userIconContent = curr ? `<span class="user-avatar-badge">${escHtml((curr.name || 'U').charAt(0).toUpperCase())}</span>` : ICONS.user;
 
     el.innerHTML = `
       <button class="navbar-action-btn" id="search-toggle" aria-label="Search">${ICONS.search}</button>
@@ -996,14 +1010,14 @@
         <span class="cart-count" id="cart-count" style="display:${state.cart.length ? 'flex' : 'none'}">${state.cart.length}</span>
       </button>
       <div class="user-menu-wrapper">
-        <button class="navbar-action-btn" id="user-account-toggle" aria-label="Account" title="${curr ? `Logged in as ${curr.name}` : 'Account / Sign In'}">
+        <button class="navbar-action-btn" id="user-account-toggle" aria-label="Account" title="${curr ? `Logged in as ${escHtml(curr.name)}` : 'Account / Sign In'}">
           ${userIconContent}
         </button>
         <div class="user-dropdown-menu" id="user-dropdown-menu">
           ${curr ? `
             <div class="user-dropdown-header">
-              <div class="user-dropdown-name">${curr.name}</div>
-              <div class="user-dropdown-email">${curr.email}</div>
+              <div class="user-dropdown-name">${escHtml(curr.name)}</div>
+              <div class="user-dropdown-email">${escHtml(curr.email)}</div>
             </div>
             <a href="/account" class="user-dropdown-item">👤 My Profile & Account</a>
             <a href="/account#orders" class="user-dropdown-item">📦 My Orders</a>
@@ -1074,7 +1088,7 @@
     if (!el) return;
 
     const curr = state.currentUser;
-    const accountLabel = curr ? (curr.name.split(' ')[0]) : 'Account';
+    const accountLabel = curr ? escHtml((curr.name || '').split(' ')[0]) : 'Account';
 
     el.innerHTML = `
       <a href="/" class="bottom-nav-item active">${ICONS.home}<span>Home</span></a>
@@ -1140,6 +1154,8 @@
 
   // Same-site path to go to once the shopper has signed in (set when a page needs an account, e.g. checkout).
   let authReturn = null;
+  // Same minimum as the server (AuthController::PASSWORD_MIN); the server is the authority.
+  const PASSWORD_MIN = 8;
 
   /** True when signed in; otherwise opens the sign-in modal that continues to `path` afterwards. */
   function requireLogin(path) {
@@ -1230,7 +1246,7 @@
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-password">Password</label>
-            <input type="password" id="reg-password" class="auth-input" placeholder="At least 6 characters" required>
+            <input type="password" id="reg-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required>
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-confirm">Confirm Password</label>
@@ -1272,7 +1288,7 @@
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reset-password">New Password</label>
-            <input type="password" id="reset-password" class="auth-input" placeholder="At least 6 characters" required>
+            <input type="password" id="reset-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required>
           </div>
           <button type="submit" class="btn btn-primary auth-submit-btn">Update Password</button>
         </form>
@@ -1345,7 +1361,7 @@
         const res = await loginUser(body.querySelector('#login-email').value, body.querySelector('#login-password').value);
         busy(loginForm, false);
         if (!res.success) return showError(res.message);
-        afterAuth(`Welcome back, ${res.user.name}!`);
+        afterAuth(`Welcome back, ${escHtml(res.user.name)}!`);
       });
     }
 
@@ -1355,12 +1371,13 @@
         e.preventDefault();
         clearError();
         const password = body.querySelector('#reg-password').value;
+        if (password.length < PASSWORD_MIN) return showError(`Password must be at least ${PASSWORD_MIN} characters.`);
         if (password !== body.querySelector('#reg-confirm').value) return showError('Passwords do not match.');
         busy(registerForm, true);
         const res = await registerUser(body.querySelector('#reg-name').value, body.querySelector('#reg-email').value, password);
         busy(registerForm, false);
         if (!res.success) return showError(res.message);
-        afterAuth(`Account created! Welcome, ${res.user.name}`);
+        afterAuth(`Account created! Welcome, ${escHtml(res.user.name)}`);
       });
     }
 
@@ -1386,6 +1403,7 @@
       resetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         clearError();
+        if (body.querySelector('#reset-password').value.length < PASSWORD_MIN) return showError(`Password must be at least ${PASSWORD_MIN} characters.`);
         busy(resetForm, true);
         const res = await resetPassword(resetEmail, body.querySelector('#reset-code').value, body.querySelector('#reset-password').value);
         busy(resetForm, false);
@@ -1423,22 +1441,22 @@
         </a>
         <p>An Australian ecommerce brand offering thoughtfully curated lifestyle pieces — from fashion and handcrafted decor to natural jute items and gifts.</p>
         <div class="footer-social">
-          ${social.facebook ? `<a href="${social.facebook}" target="_blank" rel="noopener" aria-label="Facebook">${ICONS.facebook}</a>` : ''}
-          ${social.instagram ? `<a href="${social.instagram}" target="_blank" rel="noopener" aria-label="Instagram">${ICONS.instagram}</a>` : ''}
-          ${social.tiktok ? `<a href="${social.tiktok}" target="_blank" rel="noopener" aria-label="TikTok">${ICONS.tiktok}</a>` : ''}
+          ${social.facebook ? `<a href="${escHtml(safeUrl(social.facebook))}" target="_blank" rel="noopener" aria-label="Facebook">${ICONS.facebook}</a>` : ''}
+          ${social.instagram ? `<a href="${escHtml(safeUrl(social.instagram))}" target="_blank" rel="noopener" aria-label="Instagram">${ICONS.instagram}</a>` : ''}
+          ${social.tiktok ? `<a href="${escHtml(safeUrl(social.tiktok))}" target="_blank" rel="noopener" aria-label="TikTok">${ICONS.tiktok}</a>` : ''}
         </div>
       </div>
       <div class="footer-col">
         <h4>Shop</h4>
-        <ul>${FOOTER_LINKS.shop.map(l => `<li><a href="${l.href}">${l.label}</a></li>`).join('')}</ul>
+        <ul>${FOOTER_LINKS.shop.map(l => `<li><a href="${escHtml(safeUrl(l.href))}">${escHtml(l.label)}</a></li>`).join('')}</ul>
       </div>
       <div class="footer-col">
         <h4>Customer Care</h4>
-        <ul>${FOOTER_LINKS.help.map(l => `<li><a href="${l.href}">${l.label}</a></li>`).join('')}</ul>
+        <ul>${FOOTER_LINKS.help.map(l => `<li><a href="${escHtml(safeUrl(l.href))}">${escHtml(l.label)}</a></li>`).join('')}</ul>
       </div>
       <div class="footer-col">
         <h4>About</h4>
-        <ul>${FOOTER_LINKS.about.map(l => `<li><a href="${l.href}">${l.label}</a></li>`).join('')}</ul>
+        <ul>${FOOTER_LINKS.about.map(l => `<li><a href="${escHtml(safeUrl(l.href))}">${escHtml(l.label)}</a></li>`).join('')}</ul>
       </div>
     `;
   }
@@ -1661,14 +1679,14 @@
       return `
         <div class="wishlist-item" data-index="${i}">
           <div class="wishlist-item-image">
-            <img src="${imgUrl(product.image, 160)}" alt="${product.name}" width="80" height="80" loading="lazy" decoding="async">
+            <img src="${imgUrl(product.image, 160)}" alt="${escHtml(product.name)}" width="80" height="80" loading="lazy" decoding="async">
           </div>
           <div class="wishlist-item-details">
             <div class="wishlist-item-top">
               <div class="wishlist-item-header-row">
-                <h4 class="wishlist-item-name">${product.name}</h4>
+                <h4 class="wishlist-item-name">${escHtml(product.name)}</h4>
               </div>
-              <div class="wishlist-item-variant">Variant: ${variantText}</div>
+              <div class="wishlist-item-variant">Variant: ${escHtml(variantText)}</div>
             </div>
             <div class="wishlist-item-bottom">
               <div class="wishlist-item-price-wrapper">
@@ -1831,7 +1849,7 @@
         const isHex = c.startsWith('#');
         const bgStyle = isHex ? `background-color: ${c};` : '';
         const colorTitle = getColorName(c);
-        return `<div class="modal-color-swatch ${isSelected ? 'selected' : ''}" data-color="${c}" title="${colorTitle}" style="${bgStyle}"></div>`;
+        return `<div class="modal-color-swatch ${isSelected ? 'selected' : ''}" data-color="${escHtml(c)}" title="${escHtml(colorTitle)}" style="${escHtml(bgStyle)}"></div>`;
       }).join('');
 
       colorsContainer.querySelectorAll('.modal-color-swatch').forEach(swatch => {
@@ -1855,7 +1873,7 @@
 
       sizesContainer.innerHTML = product.sizes.map(s => {
         const isSelected = s === variantModalState.selectedSize;
-        return `<button type="button" class="modal-size-btn ${isSelected ? 'selected' : ''}" data-size="${s}">${s}</button>`;
+        return `<button type="button" class="modal-size-btn ${isSelected ? 'selected' : ''}" data-size="${escHtml(s)}">${escHtml(s)}</button>`;
       }).join('');
 
       sizesContainer.querySelectorAll('.modal-size-btn').forEach(btn => {
@@ -2016,7 +2034,7 @@
     updateCartCount();
     if (typeof closeQuickView === 'function') closeQuickView();
     if (autoOpenCart) {
-      showToast(`${targetProduct.name} added to cart`);
+      showToast(`${escHtml(targetProduct.name)} added to cart`);
       openCart();
     }
   }
@@ -2124,14 +2142,14 @@
       return `
         <div class="cart-item" data-index="${i}">
           <div class="cart-item-image">
-            <img src="${imgUrl(item.image, 160)}" alt="${item.name}" width="80" height="80" loading="lazy" decoding="async">
+            <img src="${imgUrl(item.image, 160)}" alt="${escHtml(item.name)}" width="80" height="80" loading="lazy" decoding="async">
           </div>
           <div class="cart-item-details">
             <div class="cart-item-top">
               <div class="cart-item-header-row">
-                <h4 class="cart-item-name">${item.name}</h4>
+                <h4 class="cart-item-name">${escHtml(item.name)}</h4>
               </div>
-              <div class="cart-item-variant">Variant: ${variantText}</div>
+              <div class="cart-item-variant">Variant: ${escHtml(variantText)}</div>
             </div>
             <div class="cart-item-bottom">
               <div class="cart-item-price-wrapper">
@@ -2453,10 +2471,10 @@
     const suggested = PRODUCTS.slice(0, 4);
     container.innerHTML = suggested.map(p => `
       <div class="search-result-item" data-search-product-id="${p.id}">
-        <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
+        <img src="${imgUrl(p.image, 160)}" alt="${escHtml(p.name)}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
         <div class="search-result-info">
-          <div class="search-result-name">${p.name}</div>
-          <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || SITE.brandName}</div>
+          <div class="search-result-name">${escHtml(p.name)}</div>
+          <div class="search-result-meta">${escHtml(CATEGORY_NAME_MAP[p.category] || p.category)} · ${escHtml(p.brand || SITE.brandName)}</div>
         </div>
         <div class="search-result-price">
           <span class="current">${SITE.currency}${p.price.toFixed(2)}</span>
@@ -2523,10 +2541,10 @@
       if (listEl) {
         listEl.innerHTML = matches.map(p => `
           <div class="search-result-item" data-search-product-id="${p.id}">
-            <img src="${imgUrl(p.image, 160)}" alt="${p.name}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
+            <img src="${imgUrl(p.image, 160)}" alt="${escHtml(p.name)}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
             <div class="search-result-info">
-              <div class="search-result-name">${p.name}</div>
-              <div class="search-result-meta">${CATEGORY_NAME_MAP[p.category] || p.category} · ${p.brand || SITE.brandName}</div>
+              <div class="search-result-name">${escHtml(p.name)}</div>
+              <div class="search-result-meta">${escHtml(CATEGORY_NAME_MAP[p.category] || p.category)} · ${escHtml(p.brand || SITE.brandName)}</div>
             </div>
             <div class="search-result-price">
               <span class="current">${SITE.currency}${p.price.toFixed(2)}</span>

@@ -47,6 +47,10 @@
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test -c phpunit.mysql.xml"
+        ],
+        "test:sqlite": [
+            "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
         ],
         "post-autoload-dump": [

@@ -141,20 +141,11 @@
 
           const submitBtn = form.querySelector('button[type="submit"]');
           if (submitBtn) submitBtn.disabled = true;
-          let res;
-          try {
-            const r = await fetch('/request', {
-              method: 'POST', body: fd, credentials: 'same-origin',
-              headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-            });
-            res = { ok: r.ok, data: await r.json().catch(() => ({})) };
-          } catch (err) {
-            res = { ok: false, data: { message: 'Network error. Please try again.' } };
-          }
+          // Shared client: current CSRF token, one retry on 419, safe error messages.
+          const res = await window.bongoApi('POST', '/request', fd);
           if (submitBtn) submitBtn.disabled = false;
           if (!res.ok) {
-            const first = res.data.errors ? Object.values(res.data.errors)[0][0] : null;
-            if (typeof showToast === 'function') showToast(first || res.data.message || 'Could not submit your request.');
+            if (typeof showToast === 'function') showToast(window.bongoApiMessage(res));
             return;
           }
 
