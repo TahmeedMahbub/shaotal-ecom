@@ -86,12 +86,49 @@ function renderAccountPage() {
     renderAccountPage();
   };
 
-  /* Orders */
+  /* Orders (paginated: GET /account/orders?page=N -> {orders, page, hasMore}) */
   const ordersListEl = document.getElementById('account-orders-list');
   ordersListEl.innerHTML = '<p style="color:var(--color-grey-600)">Loading your orders…</p>';
-  window.bongoApi('GET', '/account/orders').then(res => {
-    const orders = res.ok ? res.data : [];
-    if (orders.length === 0) {
+  const money = v => `$${Number(v || 0).toFixed(2)}`;
+  const orderCard = ord => `
+      <div class="order-card">
+        <div class="order-card-header">
+          <div>
+            <a class="order-id" href="${accountEsc(ord.url)}">Order #${accountEsc(ord.id)}</a>
+            <span class="order-date">· ${accountEsc(ord.date)}</span>
+          </div>
+          <span class="order-status-badge ${accountEsc(ord.statusClass)}">${accountEsc(ord.status)}</span>
+        </div>
+        <div class="order-items-body">
+          ${ord.items.map(item => `
+            <div class="order-item-row">
+              <img class="order-item-thumb" src="${accountEsc(window.imgUrl(item.image, 160) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+              <div class="order-item-info">
+                <div class="order-item-title">${accountEsc(item.name)}</div>
+                <div class="order-item-variant">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(item.color || 'Default')} · Qty: ${Number(item.quantity) || 0}</div>
+              </div>
+              <div class="order-item-price">${money(item.price * item.quantity)}</div>
+            </div>`).join('')}
+        </div>
+        <div class="order-item-variant" style="padding-top:6px">${accountEsc(ord.paymentMethod)} · ${accountEsc(ord.paymentStatus)}</div>
+        <div class="order-footer">
+          <span class="order-total-label">Order Total</span>
+          <span class="order-total-value">${money(ord.total)} AUD</span>
+        </div>
+        <div style="text-align:right; margin-top:var(--space-sm)">
+          <a href="${accountEsc(ord.url)}" class="btn btn-outline btn-sm">View Details &amp; Track</a>
+        </div>
+      </div>`;
+  const loadOrders = page => window.bongoApi('GET', `/account/orders?page=${page}`).then(res => {
+    const more = document.getElementById('account-orders-more');
+    if (more) more.parentNode.removeChild(more);
+    if (!res.ok) {
+      if (page === 1) ordersListEl.innerHTML = `<p style="color:var(--color-grey-600)">${accountEsc(window.bongoApiMessage(res))}</p>`;
+      else showToast(window.bongoApiMessage(res));
+      return;
+    }
+    const orders = Array.isArray(res.data.orders) ? res.data.orders : [];
+    if (page === 1 && orders.length === 0) {
       ordersListEl.innerHTML = `
         <div style="text-align:center; padding:var(--space-lg) 0">
           <p style="color:var(--color-grey-600); margin-bottom:var(--space-md)">You haven't placed any orders yet.</p>
@@ -99,36 +136,22 @@ function renderAccountPage() {
         </div>`;
       return;
     }
-    ordersListEl.innerHTML = orders.map(ord => `
-      <div class="order-card">
-        <div class="order-card-header">
-          <div>
-            <span class="order-id">Order #${accountEsc(ord.id)}</span>
-            <span class="order-date">· ${accountEsc(ord.date)}</span>
-          </div>
-          <span class="order-status-badge ${accountEsc(statusClass(ord.status))}">${accountEsc(ord.status)}</span>
-        </div>
-        <div class="order-items-body">
-          ${ord.items.map(item => `
-            <div class="order-item-row">
-              <img class="order-item-thumb" src="${accountEsc(window.imgUrl(item.image, 160) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
-              <div class="order-item-info">
-                <div class="order-item-title">${accountEsc(item.name)}</div>
-                <div class="order-item-variant">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(item.color || 'Default')} · Qty: ${item.quantity}</div>
-              </div>
-              <div class="order-item-price">$${(item.price * item.quantity).toFixed(2)}</div>
-            </div>`).join('')}
-        </div>
-        <div class="order-footer">
-          <span class="order-total-label">Order Total</span>
-          <span class="order-total-value">$${ord.total.toFixed(2)} AUD</span>
-        </div>
-      </div>`).join('');
+    if (page === 1) ordersListEl.innerHTML = '';
+    ordersListEl.insertAdjacentHTML('beforeend', orders.map(orderCard).join(''));
+    if (res.data.hasMore) {
+      ordersListEl.insertAdjacentHTML('beforeend', '<div id="account-orders-more" style="text-align:center"><button type="button" class="btn btn-secondary btn-sm">Load More Orders</button></div>');
+      const btn = document.querySelector('#account-orders-more button');
+      btn.addEventListener('click', () => { btn.disabled = true; btn.textContent = 'Loading…'; loadOrders(page + 1); });
+    }
   });
+  loadOrders(1);
 
   /* Wishlist */
   const wishlistGridEl = document.getElementById('account-wishlist-grid');
   const wItems = accountList('bongo_wishlist').map(i => (typeof i === 'object' ? (i.productId || i.id) : i));
+  // Wishlist products are fetched by id when this page did not embed them.
+  wishlistGridEl.innerHTML = '<p style="color:var(--color-grey-600)">Loading your wishlist…</p>';
+  window.BongoCatalog.ensure(wItems).then(() => {
   const wProducts = wItems.map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean);
   if (wProducts.length === 0) {
     wishlistGridEl.innerHTML = `
@@ -150,6 +173,7 @@ function renderAccountPage() {
           </div>
         </div>`).join('') + '</div>';
   }
+  });
 
   /* Cart */
   const cartGridEl = document.getElementById('account-cart-grid');
@@ -249,8 +273,15 @@ function renderAccountPage() {
   const sidebarLogout = document.getElementById('account-sidebar-logout');
   if (sidebarLogout) sidebarLogout.addEventListener('click', () => window.logoutUser());
 
-  if (window.location.hash) {
-    const targetTabBtn = document.querySelector(`.account-tab-item[data-account-tab="${window.location.hash.replace('#', '')}"]`);
+  // Deep links (/account#orders from "View My Orders", the header menu and order pages); also when only the hash changes.
+  const openTabFromHash = () => {
+    const key = window.location.hash.replace('#', '');
+    const targetTabBtn = key && document.querySelector(`.account-tab-item[data-account-tab="${CSS.escape(key)}"]`);
     if (targetTabBtn) targetTabBtn.click();
+  };
+  openTabFromHash();
+  if (!window.__accountHashBound) {
+    window.__accountHashBound = true;
+    window.addEventListener('hashchange', openTabFromHash);
   }
 }

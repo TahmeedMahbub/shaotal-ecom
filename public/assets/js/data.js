@@ -77,6 +77,39 @@
     return p ? '/products/' + encodeURIComponent(p.slug) : '/products';
   };
 
+  /* ── Page-scoped catalog ──
+     Pages embed only the products they render. Anything else (guest cart/wishlist, recently viewed) is fetched by id
+     from /catalog/products and appended to the same array, so PRODUCTS.find() keeps working everywhere. */
+  const byId = new Map(products.map(p => [p.id, p]));
+  window.BongoCatalog = {
+    has: id => byId.has(parseInt(id, 10)),
+    add(list) {
+      (list || []).forEach(p => {
+        if (!p || !p.id) return;
+        if (byId.has(p.id)) {
+          const i = products.indexOf(byId.get(p.id));
+          if (i >= 0) products[i] = p;
+        } else {
+          products.push(p);
+        }
+        byId.set(p.id, p);
+        Object.assign(window.COLOR_NAMES, p.colorNames || {});
+      });
+    },
+    // Resolves true once every id is known or confirmed unlisted (absent from the response); false on a network error,
+    // so callers never treat "could not check" as "product gone".
+    ensure(ids) {
+      const need = Array.from(new Set((ids || []).map(i => parseInt(i, 10)).filter(i => i > 0 && !byId.has(i))));
+      if (!need.length) return Promise.resolve(true);
+      const chunks = [];
+      for (let i = 0; i < need.length; i += 60) chunks.push(need.slice(i, i + 60));
+      return Promise.all(chunks.map(c => fetch('/catalog/products?ids=' + c.join(','), { headers: { Accept: 'application/json' }, credentials: 'omit' })
+        .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then(d => window.BongoCatalog.add(d.products))))
+        .then(() => true, () => false);
+    },
+  };
+
   window.BongoProducts = {
     getAll: () => products,
     getById: id => products.find(p => p.id === parseInt(id, 10)),
@@ -93,7 +126,7 @@
   /* ── Hero ── */
   window.HERO_SLIDES = (BOOT.hero || []).map(h => ({
     id: h.id, label: '', headline: h.headline, subtext: h.subtext, cta: h.cta, ctaLink: h.ctaLink,
-    secondaryCta: '', secondaryCtaLink: '', image: h.image, imageSrc: h.imageSrc || h.image,
+    secondaryCta: '', secondaryCtaLink: '', image: h.image, imageSrc: h.imageSrc || h.image, imageSrcMobile: h.imageSrcMobile || h.imageSrc || h.image,
   }));
 
   /* ── Navigation (categories + sub-categories from the database) ── */

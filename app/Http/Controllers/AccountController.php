@@ -98,26 +98,6 @@ class AccountController extends Controller
         return response()->json(Storefront::sessionPayload($id));
     }
 
-    public function orders(): JsonResponse
-    {
-        $id = $this->require();
-        $orders = DB::table('orders')->where('customer_id', $id)->orderByDesc('id')->limit(100)
-            ->get(['id', 'order_number', 'order_status', 'payment_status', 'grand_total', 'created_at']);
-        $items = DB::table('order_items')->whereIn('order_id', $orders->pluck('id')->all() ?: [0])->orderBy('id')
-            ->get(['order_id', 'product_name', 'image_url', 'variant_color', 'variant_size', 'unit_selling_price', 'quantity'])->groupBy('order_id');
-
-        return response()->json($orders->map(fn ($o) => [
-            'id' => $o->order_number,
-            'date' => substr((string) $o->created_at, 0, 10),
-            'total' => (float) $o->grand_total,
-            'status' => ucwords(str_replace('_', ' ', $o->order_status)),
-            'items' => ($items[$o->id] ?? collect())->map(fn ($i) => [
-                'name' => $i->product_name, 'price' => (float) $i->unit_selling_price, 'quantity' => (int) $i->quantity,
-                'size' => $i->variant_size, 'color' => $i->variant_color, 'image' => $i->image_url,
-            ])->values(),
-        ])->values());
-    }
-
     public function requests(): JsonResponse
     {
         $id = $this->require();

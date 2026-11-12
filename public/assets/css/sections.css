@@ -122,6 +122,16 @@
   will-change: transform;
 }
 
+.hero-slide-bg[data-ssr] {
+  background-image: var(--hero-bg);
+}
+
+@media (max-width: 768px) {
+  .hero-slide-bg[data-ssr] {
+    background-image: var(--hero-bg-m, var(--hero-bg));
+  }
+}
+
 .hero-slide.active .hero-slide-bg {
   animation: kenBurnsZoomIn 7s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }

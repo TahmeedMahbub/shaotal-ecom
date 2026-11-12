@@ -12,19 +12,19 @@
           <span class="breadcrumb-sep">/</span>
           <a href="/products">Shop</a>
           <span class="breadcrumb-sep">/</span>
-          <span class="breadcrumb-current" id="breadcrumb-current">All Products</span>
+          <span class="breadcrumb-current" id="breadcrumb-current">{{ $heading ?? 'All Products' }}</span>
         </div>
 
         
         <header class="listing-header">
           <div class="listing-header-top">
             <div class="listing-title-wrap">
-              <h1 class="listing-title" id="listing-title">All Products</h1>
+              <h1 class="listing-title" id="listing-title">{{ $heading ?? 'All Products' }}</h1>
               
             </div>
 
             <div class="listing-controls-right">
-              <div class="listing-count" id="listing-count">Showing products</div>
+              <div class="listing-count" id="listing-count">@isset($totalCount)Showing {{ $totalCount }} {{ $totalCount === 1 ? 'product' : 'products' }}@else Showing products @endisset</div>
               
               <div class="listing-sort-wrap">
                 <label for="sort-select" class="listing-sort-label">Sort By:</label>
@@ -133,7 +133,9 @@
           <div class="listing-content">
             
             <div class="listing-grid" id="listing-products-grid">
-              
+              @foreach ($initialProducts ?? [] as $i => $p)
+                @include('partials.product-card', ['product' => $p, 'eager' => $i < 4])
+              @endforeach
             </div>
 
             
@@ -198,5 +200,7 @@
   </div>
 @endsection
 @push('scripts')
+{{-- First page + filter options for products.js (later pages come from /catalog/feed). Not executed; cannot close the tag. --}}
+<script type="application/json" id="listing-data">{!! json_encode($listingData ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) !!}</script>
 <script src="{{ \App\Support\Assets::url('assets/js/products.js') }}"></script>
 @endpush

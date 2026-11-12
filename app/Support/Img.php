@@ -9,6 +9,9 @@ namespace App\Support;
  */
 class Img
 {
+    /** Same neutral block as window.PLACEHOLDER_IMG (app.js): used instead of requesting a missing image ("/null"). */
+    public const PLACEHOLDER = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22500%22%20viewBox%3D%220%200%20400%20500%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%23efe9e0%22%2F%3E%3C%2Fsvg%3E';
+
     /** Cloudinary transformation components, e.g. "w_800", "f_auto", "c_fill". */
     private const CLD_TRANSFORM = '/^(?:ar|a|b|bo|c|co|d|dl|dpr|e|f|fl|g|h|l|o|pg|q|r|t|u|w|x|y|z)_[^\/]+$/i';
 

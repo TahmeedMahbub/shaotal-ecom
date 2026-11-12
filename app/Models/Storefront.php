@@ -3,44 +3,124 @@
 namespace App\Models;
 
 use App\Http\Controllers\GoogleAuthController;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /** Data injected into every storefront page (window.__BOOT__) plus customer cart/wishlist helpers. */
 class Storefront
 {
+    public const CACHE_KEY = 'storefront.catalog.v3';
+
+    private const VERSION_KEY = 'storefront.catalog.version';
+
+    private const LOCAL_VERSION_KEY = 'storefront.catalog.local_version';
+
     /**
      * Catalog data shared by all visitors (never user-specific). Cached on the file store: fresh for 60 s, then the
      * previous copy keeps being served for up to 5 more minutes while ONE request rebuilds it after its response is
-     * sent (Cache::flexible). The admin is a separate app, so edits appear within ~1–6 minutes; to force a refresh
-     * delete the key: php artisan tinker --execute="Cache::store('file')->forget('storefront.catalog.v2')".
+     * sent (Cache::flexible). A cold cache is rebuilt by one request at a time (lock), not by every visitor at once.
+     *
+     * Invalidation (the admin is a separate app): the cache key carries a version made from the site_settings row
+     * "catalog_version" (the admin can bump it on every catalog save; read at most every 10 s) and a local counter that
+     * `php artisan storefront:refresh-catalog` bumps. Without either, edits appear within ~1–6 minutes.
      */
     public static function catalog(): array
     {
-        return Cache::store('file')->flexible('storefront.catalog.v2', [60, 300], function () {
-            $images = Catalog::settings(array_merge(array_keys(config('storefront.home_images')), ['social_facebook', 'social_instagram', 'social_tiktok']));
-            $home = [];
-            foreach (config('storefront.home_images') as $key => $name) {
-                $home[$name] = is_string($images[$key] ?? null) ? $images[$key] : null;
+        $store = Cache::store('file');
+        $key = self::CACHE_KEY.'.'.self::version();
+        if (! $store->has($key)) {
+            $lock = $store->lock($key.':build', 30);
+            try {
+                $lock->block(10);
+            } catch (LockTimeoutException) {
+                // another request is still building it: build our own copy rather than fail the page
             }
+            try {
+                return $store->flexible($key, [60, 300], fn () => self::build());
+            } finally {
+                $lock->release();
+            }
+        }
 
-            return [
-                'products' => Catalog::products(),
-                'categories' => Catalog::categories(),
-                'subcategories' => Catalog::subcategories(),
-                'brands' => Catalog::brands(),
-                'hero' => Catalog::heroSlides(),
-                'homeImages' => $home,
-                'social' => [
-                    'facebook' => is_string($images['social_facebook'] ?? null) ? $images['social_facebook'] : null,
-                    'instagram' => is_string($images['social_instagram'] ?? null) ? $images['social_instagram'] : null,
-                    'tiktok' => is_string($images['social_tiktok'] ?? null) ? $images['social_tiktok'] : null,
-                ],
-            ];
+        return $store->flexible($key, [60, 300], fn () => self::build());
+    }
+
+    /** Current catalog cache version (cached 10 s, so the check costs at most one indexed query per 10 s). */
+    public static function version(): string
+    {
+        $store = Cache::store('file');
+
+        return $store->remember(self::VERSION_KEY, 10, function () use ($store) {
+            $remote = DB::table('site_settings')->where('setting_key', 'catalog_version')->value('setting_value');
+
+            return substr(md5(($remote ?? '').'|'.($store->get(self::LOCAL_VERSION_KEY) ?? '')), 0, 12);
         });
     }
 
-    public static function boot(?int $customerId, ?string $productSlug = null): array
+    /** Make the next request rebuild the catalog (artisan storefront:refresh-catalog). */
+    public static function refresh(): void
+    {
+        $store = Cache::store('file');
+        $store->forever(self::LOCAL_VERSION_KEY, bin2hex(random_bytes(6)));
+        $store->forget(self::VERSION_KEY);
+    }
+
+    private static function build(): array
+    {
+        $images = Catalog::settings(array_merge(array_keys(config('storefront.home_images')), ['social_facebook', 'social_instagram', 'social_tiktok']));
+        $home = [];
+        foreach (config('storefront.home_images') as $key => $name) {
+            $home[$name] = is_string($images[$key] ?? null) ? $images[$key] : null;
+        }
+
+        return [
+            'products' => Catalog::products(),
+            'categories' => Catalog::categories(),
+            'subcategories' => Catalog::subcategories(),
+            'brands' => Catalog::brands(),
+            'hero' => Catalog::heroSlides(),
+            'homeImages' => $home,
+            'social' => [
+                'facebook' => is_string($images['social_facebook'] ?? null) ? $images['social_facebook'] : null,
+                'instagram' => is_string($images['social_instagram'] ?? null) ? $images['social_instagram'] : null,
+                'tiktok' => is_string($images['social_tiktok'] ?? null) ? $images['social_tiktok'] : null,
+            ],
+        ];
+    }
+
+    /** Home page products: the first HOME_PER_CATEGORY of each category (category sliders, showcase) + pre-orders. */
+    public const HOME_PER_CATEGORY = 15;
+
+    public static function homeProductIds(): array
+    {
+        $per = [];
+        $ids = [];
+        $preorder = 0;
+        foreach (self::catalog()['products'] as $p) {
+            $include = false;
+            if (($per[$p['category']] ?? 0) < self::HOME_PER_CATEGORY) {
+                $per[$p['category']] = ($per[$p['category']] ?? 0) + 1;
+                $include = true;
+            }
+            // renderPreorderPreview() shows the first four pre-order products of the catalog.
+            if ($p['availability'] === 'preorder' && $preorder++ < 4) {
+                $include = true;
+            }
+            if ($include) {
+                $ids[] = $p['id'];
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Data injected into the page (window.__BOOT__). Products are page-scoped: only $productIds (plus the signed-in
+     * customer's cart and wishlist products) are embedded, or the whole catalog when $productIds is 'all' (bulk order
+     * form). Everything else is fetched on demand (/catalog/products, /catalog/search, /catalog/feed).
+     */
+    public static function boot(?int $customerId, ?string $productSlug = null, array|string $productIds = []): array
     {
         $cat = self::catalog();
         $user = $customerId ? self::customer($customerId) : null;
@@ -48,15 +128,23 @@ class Storefront
         foreach ($cat['products'] as $p) {
             $byId[$p['id']] = $p;
         }
+        $cart = $user ? self::cart($customerId, $byId) : [];
+        $wishlist = $user ? self::wishlist($customerId, $byId) : [];
 
-        // Long text and specs are only needed on the product page of the product being viewed.
-        $cat['products'] = array_map(function ($p) use ($productSlug) {
-            if ($p['slug'] !== $productSlug) {
-                unset($p['fullDesc'], $p['specs']);
+        if ($productIds === 'all') {
+            $want = null;
+        } else {
+            $want = array_flip(array_merge(array_map('intval', $productIds), array_column($cart, 'productId'), $wishlist));
+        }
+        $products = [];
+        foreach ($cat['products'] as $p) {
+            if ($want !== null && ! isset($want[$p['id']])) {
+                continue;
             }
-
-            return $p;
-        }, $cat['products']);
+            // Long text and specs are only needed on the product page of the product being viewed.
+            $products[] = $p['slug'] === $productSlug ? $p : Listing::card($p);
+        }
+        $cat['products'] = $products;
 
         return $cat + [
             'site' => [
@@ -64,10 +152,11 @@ class Storefront
                 'tagline' => config('storefront.tagline'),
                 'currency' => config('storefront.currency_symbol'),
                 'countryCode' => config('storefront.country_code'),
+                'dispatchStatus' => config('storefront.delivery_copy.dispatch_status') ?? 'In Stock',
             ],
             'user' => $user,
-            'cart' => $user ? self::cart($customerId, $byId) : [],
-            'wishlist' => $user ? self::wishlist($customerId, $byId) : [],
+            'cart' => $cart,
+            'wishlist' => $wishlist,
             'payments' => config('storefront.payment_methods'),
             'googleLogin' => GoogleAuthController::enabled(),
             'flash' => ['error' => session('auth_error'), 'notice' => session('auth_notice')],
@@ -233,10 +322,15 @@ class Storefront
     {
         $byId = self::productsById();
 
+        $cart = self::cart($customerId, $byId);
+        $wishlist = self::wishlist($customerId, $byId);
+
         return [
             'user' => self::customer($customerId),
-            'cart' => self::cart($customerId, $byId),
-            'wishlist' => self::wishlist($customerId, $byId),
+            'cart' => $cart,
+            'wishlist' => $wishlist,
+            // Product data for the cart and wishlist, which the page may not have embedded.
+            'products' => Listing::byIds(array_merge(array_column($cart, 'productId'), $wishlist)),
         ];
     }
 }

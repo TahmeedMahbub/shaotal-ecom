@@ -105,7 +105,7 @@ class CustomerAccessTest extends TestCase
             ]);
         }
 
-        $ids = $this->withSession(['customer_id' => $a])->getJson('/account/orders')->assertOk()->json('*.id');
+        $ids = $this->withSession(['customer_id' => $a])->getJson('/account/orders')->assertOk()->json('orders.*.id');   // paginated shape since Part 3
 
         $this->assertSame(['INV-TESTA1'], $ids);
     }

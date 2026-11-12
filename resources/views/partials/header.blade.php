@@ -12,7 +12,36 @@
 
       
       <ul class="navbar-nav" id="nav-items">
-        
+        {{-- Same items and markup as NAV_CATEGORIES (data.js) + renderNavbar() (app.js), which re-renders it on load. --}}
+        @php
+          $navChevron = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="chevron-down"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>';
+          $navItems = [['New Arrivals', '/products?sort=newest', []]];
+          foreach ($boot['categories'] ?? [] as $navCat) {
+              $cols = [];
+              foreach ($boot['subcategories'] ?? [] as $navSub) {
+                  if ($navSub['category'] === $navCat['slug']) {
+                      $cols[$navSub['section'] ?: $navCat['name']][] = [$navSub['name'], \App\Support\Seo::listingUrl($navCat['slug'], $navSub['slug'])];
+                  }
+              }
+              $navItems[] = [$navCat['name'], \App\Support\Seo::listingUrl($navCat['slug']), $cols];
+          }
+          $navItems[] = ['Bulk Orders', '/bulk-order', []];
+        @endphp
+        @foreach ($navItems as [$navName, $navHref, $navCols])
+          <li class="nav-item">
+            <a href="{{ $navHref }}" class="nav-link">{{ $navName }}@if ($navCols){!! $navChevron !!}@endif</a>
+            @if ($navCols)
+              <div class="mega-menu">
+                @foreach ($navCols as $navHeading => $navLinks)
+                  <div class="mega-menu-col">
+                    <h4>{{ $navHeading }}</h4>
+                    <ul>@foreach ($navLinks as [$navLabel, $navLink])<li><a href="{{ $navLink }}">{{ $navLabel }}</a></li>@endforeach</ul>
+                  </div>
+                @endforeach
+              </div>
+            @endif
+          </li>
+        @endforeach
       </ul>
 
       

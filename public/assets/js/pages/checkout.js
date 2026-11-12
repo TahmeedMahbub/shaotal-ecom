@@ -230,6 +230,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Same rows straight away (prices pending) so the summary does not grow when the server quote arrives.
+    if (!lastQuote) {
+      summaryItemsList.innerHTML = cart.map(i => `
+        <div class="summary-item-row">
+          <img src="${esc(window.imgUrl(i.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(i.name)}" class="summary-item-img" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+          <div class="summary-item-info">
+            <div class="summary-item-title">${esc(i.name)}</div>
+            <div class="summary-item-meta">Qty: ${Number(i.quantity) || 1}</div>
+          </div>
+          <div class="summary-item-price">…</div>
+        </div>`).join('');
+    }
+
     const res = await api('POST', '/checkout/quote', { items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null });
     if (!res.ok) {
       toast(window.bongoApiMessage(res));
@@ -346,6 +359,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('success-order-ref').textContent = `#${res.data.orderNumber}`;
     document.getElementById('success-address-summary').textContent = res.data.address;
     document.getElementById('success-paid-amount').textContent = `${money(res.data.total)} AUD`;
+    const viewOrder = document.getElementById('success-view-order');
+    if (viewOrder && res.data.orderNumber) viewOrder.href = `/account/orders/${encodeURIComponent(res.data.orderNumber)}`;
     successModalOverlay.classList.add('active');
     toast('Order placed successfully!');
   });
@@ -358,8 +373,15 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Initial render ── */
   (async function init() {
     if (user) {
-      const res = await api('GET', '/account/addresses');
-      addresses = res.ok ? res.data : [];
+      // Embedded by the server (no extra request before the first render); fetched only if missing.
+      let embedded = null;
+      try { embedded = JSON.parse((document.getElementById('checkout-addresses') || {}).textContent || 'null'); } catch (e) { embedded = null; }
+      if (Array.isArray(embedded)) {
+        addresses = embedded;
+      } else {
+        const res = await api('GET', '/account/addresses');
+        addresses = res.ok ? res.data : [];
+      }
       const def = addresses.find(a => a.isDefault) || addresses[0];
       selectedAddressId = def ? def.id : null;
     } else {

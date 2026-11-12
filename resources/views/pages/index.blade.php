@@ -3,7 +3,8 @@
 @section('description', "Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.")
 @if (! empty($boot['hero'][0]['imageSrc']))
 @push('preload')
-<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrc'] }}" fetchpriority="high">
+<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrc'] }}" media="(min-width: 769px)" fetchpriority="high">
+<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrcMobile'] ?? $boot['hero'][0]['imageSrc'] }}" media="(max-width: 768px)" fetchpriority="high">
 @endpush
 @endif
 @section('content')
@@ -15,7 +16,28 @@
       <div class="hero-desktop-grid">
         
         <div class="hero" id="hero" role="region" aria-label="Featured Collection Highlights" aria-roledescription="carousel">
-          
+          {{-- First slide server-rendered (same markup as renderHero() in app.js, which then builds the full carousel):
+               the headline is the page's h1 and the image starts loading before any script runs. --}}
+          @if ($slide = $boot['hero'][0] ?? null)
+            <a href="{{ \App\Support\SafeHtml::link($slide['ctaLink']) }}" class="hero-slide active" data-slide="0" role="group" aria-roledescription="slide" aria-label="Slide 1 of {{ count($boot['hero']) }}: {{ $slide['headline'] }}" aria-hidden="false">
+              @php($cssUrl = fn ($u) => is_string($u) && preg_match('#^https?://[^\s\'"()\\\\<>]+$#i', $u) ? $u : null)
+              @php($heroBg = $cssUrl($slide['imageSrc'] ?: $slide['image']))
+              @php($heroBgMobile = $cssUrl($slide['imageSrcMobile'] ?? null) ?? $heroBg)
+              {{-- admin-entered URLs inside CSS url(): only plain http(s) URLs without quotes/parens/whitespace. The
+                   phone/desktop choice is made in CSS (.hero-slide-bg[data-ssr]) so a phone never downloads both. --}}
+              <div class="hero-slide-bg" data-ssr @if ($heroBg) style="--hero-bg: url('{{ $heroBg }}'); --hero-bg-m: url('{{ $heroBgMobile }}')" @endif></div>
+              <div class="hero-slide-overlay"></div>
+              <div class="hero-content">
+                <div class="hero-text">
+                  <h1 class="hero-headline">{{ $slide['headline'] }}</h1>
+                  <p class="hero-subtext">{{ $slide['subtext'] }}</p>
+                  <div class="hero-ctas"><span class="btn btn-white">{{ $slide['cta'] }}</span></div>
+                </div>
+              </div>
+            </a>
+          @else
+            <h1 class="sr-only">{{ config('storefront.brand') }} — {{ config('storefront.tagline') }}</h1>
+          @endif
         </div>
 
         
@@ -53,8 +75,11 @@
         <p class="section-header-desc">A selection of pieces we're excited to bring to Australia.</p>
       </div>
 
-      <div class="product-grid product-grid-5" id="product-grid" @if (count($boot['products'])) data-reserve style="--prows-md: {{ (int) ceil(min(count($boot['products']), 5) / 3) }}" @endif>
-        
+      <div class="product-grid product-grid-5" id="product-grid" data-popular-ids="{{ implode(',', array_column($popular ?? [], 'id')) }}" @if (count($boot['products'])) data-reserve style="--prows-md: {{ (int) ceil(min(count($boot['products']), 5) / 3) }}" @endif>
+        {{-- Server pick of "Popular Right Now"; renderProducts() keeps the same pick for the session. --}}
+        @foreach ($popular ?? [] as $p)
+          @include('partials.product-card', ['product' => $p])
+        @endforeach
       </div>
 
     </div>
@@ -74,7 +99,17 @@
         <p class="section-header-desc">Explore fashion, home & living, natural jute, handcrafted pieces and thoughtful gifts.</p>
       </div>
       <div class="category-grid" id="category-grid" @if (count($boot['categories'])) data-reserve style="--rows-lg: {{ (int) ceil(count($boot['categories']) / 5) }}; --rows-md: {{ (int) ceil(count($boot['categories']) / 2) }}" @endif>
-        
+        {{-- Same markup as renderCategories() in app.js. --}}
+        @foreach ($boot['categories'] ?? [] as $c)
+          @php($catBg = \App\Support\Img::url($c['image'], 640))
+          <a href="{{ \App\Support\Seo::listingUrl($c['slug']) }}" class="category-card fade-up visible">
+            <div class="category-card-bg" style="@if (is_string($catBg) && preg_match('#^https?://[^\s\'"()\\\\<>]+$#i', $catBg))background-image: url('{{ $catBg }}'); @endif background-color: #7A5C43"></div>
+            <div class="category-card-overlay"></div>
+            <div class="category-card-content">
+              <h3 class="category-card-title">{{ $c['name'] }} <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></h3>
+            </div>
+          </a>
+        @endforeach
       </div>
     </div>
   </section>

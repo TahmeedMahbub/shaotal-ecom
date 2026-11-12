@@ -119,6 +119,14 @@ class SafeHtml
         }
     }
 
+    /** Admin-entered link for an href (server twin of safeUrl() in app.js): the URL when safe, otherwise "#". */
+    public static function link(?string $url): string
+    {
+        $url = trim((string) $url);
+
+        return $url !== '' && self::safeUrl($url, true) ? $url : '#';
+    }
+
     private static function safeUrl(string $url, bool $isLink): bool
     {
         // Browsers ignore whitespace/control characters inside schemes ("java\nscript:"), so compare without them.

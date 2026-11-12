@@ -1,12 +1,13 @@
 @extends('layouts.store')
 @section('title', "My Account")
 @section('description', "Manage your Shaotal profile, orders, wishlist, saved bag and sourcing requests.")
+@section('robots', 'noindex, nofollow')
 @push('head')
 @endpush
 @section('content')
 <div class="announcement-bar" id="announcement-bar">
     <div class="container announcement-bar-inner">
-      <span class="announcement-text">✈️ Express Australian Delivery · Seamless Door-to-Door Shipping</span>
+      <span class="announcement-text">{{ config('storefront.delivery_copy.announcement') }}</span>
     </div>
   </div>
 
@@ -26,15 +27,35 @@
         <span class="breadcrumb-current">My Account</span>
       </div>
 
+      {{-- Server-rendered with the same markup account.js writes, so nothing moves when the script runs. --}}
+      @php($acctUser = $boot['user'] ?? null)
       <div class="account-header-content" id="account-header-card">
-        
+        @if ($acctUser)
+          <div class="account-user-info">
+            <div class="account-avatar-lg">{{ mb_strtoupper(mb_substr($acctUser['name'] ?: 'U', 0, 1)) }}</div>
+            <div>
+              <h2 class="account-user-title">G'day, {{ $acctUser['name'] }}</h2>
+              <div class="account-user-email">{{ $acctUser['email'] }} · Member since {{ $acctUser['joinedDate'] }}</div>
+            </div>
+          </div>
+          <button class="account-logout-btn" id="account-header-logout-btn">Log Out</button>
+        @else
+          <div class="account-user-info">
+            <div class="account-avatar-lg" style="background:var(--color-grey-300)">?</div>
+            <div>
+              <h2 class="account-user-title">Guest User</h2>
+              <div class="account-user-email">Sign in to manage your Australian orders &amp; wishlist</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAuthModal('login')">Sign In / Register</button>
+        @endif
       </div>
     </div>
   </section>
 
   
   <main class="container">
-    <div id="account-unauth-view" style="display:none; max-width:440px; margin:var(--space-xl) auto;">
+    <div id="account-unauth-view" style="display:{{ $acctUser ? 'none' : 'block' }}; max-width:440px; margin:var(--space-xl) auto;">
       <div class="account-card-panel" style="text-align:center;">
         <h3 class="auth-title" style="margin-bottom:8px">Access Your Account</h3>
         <p class="auth-subtitle" style="margin-bottom:var(--space-md)">Sign in or create an account to view your Australian orders, saved items, and custom sourcing requests.</p>
@@ -45,7 +66,7 @@
       </div>
     </div>
 
-    <div class="account-layout" id="account-auth-view" style="display:none;">
+    <div class="account-layout" id="account-auth-view" style="display:{{ $acctUser ? 'grid' : 'none' }};">
       
       <aside class="account-nav-card">
         <nav class="account-tab-list" role="tablist">

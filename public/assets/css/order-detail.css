@@ -1,0 +1,85 @@
+/* Order details & tracking (account). Built on the account/order tokens and classes in components.css. */
+.order-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+  margin: var(--space-lg) auto var(--space-2xl);
+}
+.order-detail-layout > div { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
+.order-detail-layout .account-card-panel { margin: 0; }
+
+.order-detail-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm);
+}
+.order-detail-head h1 {
+  font-family: var(--font-heading); font-size: var(--fs-h3); color: var(--color-dark); margin: 0;
+}
+.order-detail-meta { font-size: var(--fs-small); color: var(--color-grey-600, var(--color-grey-700)); margin-top: 2px; }
+.order-detail-back { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--color-brand); font-weight: var(--fw-semibold); }
+
+.order-status-badge.pending { background: var(--color-grey-100); color: var(--color-charcoal); }
+.order-status-badge.cancelled { background: hsl(0, 60%, 95%); color: hsl(0, 60%, 35%); }
+
+/* Progress timeline */
+.order-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.order-track-step { position: relative; text-align: center; padding: 0 4px; }
+.order-track-step::before {
+  content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--color-grey-200); z-index: 0;
+}
+.order-track-step:first-child::before { display: none; }
+.order-track-step.is-done::before, .order-track-step.is-current::before { background: var(--color-brand); }
+.order-track-dot {
+  position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--radius-full); border: 2px solid var(--color-grey-300);
+  background: var(--color-surface-card); color: var(--color-grey-400); font-size: 0.8rem; font-weight: var(--fw-bold);
+}
+.order-track-step.is-done .order-track-dot { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-white); }
+.order-track-step.is-current .order-track-dot { border-color: var(--color-brand); color: var(--color-brand); box-shadow: 0 0 0 4px var(--color-brand-light); }
+.order-track-step.is-skipped .order-track-dot { border-style: dashed; }
+.order-track-label { display: block; margin-top: 6px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); }
+.order-track-step.is-upcoming .order-track-label, .order-track-step.is-skipped .order-track-label { color: var(--color-grey-400); font-weight: var(--fw-medium); }
+.order-track-time { display: block; font-size: 0.7rem; color: var(--color-grey-500); margin-top: 2px; }
+.order-track-exception {
+  margin-top: var(--space-md); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);
+  background: hsl(0, 60%, 96%); color: hsl(0, 55%, 32%); font-size: var(--fs-small);
+}
+.order-track-exception.returned { background: var(--color-grey-100); color: var(--color-charcoal); }
+.order-track-note { margin-top: var(--space-md); font-size: var(--fs-xs); color: var(--color-grey-500); }
+
+/* Items */
+.order-detail-items .order-item-row { padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-grey-100); }
+.order-detail-items .order-item-row:last-child { border-bottom: 0; }
+.order-detail-items .order-item-thumb { width: 64px; height: 64px; }
+.order-detail-items .order-item-title { font-size: var(--fs-small); }
+.order-detail-items .order-item-title a { color: inherit; }
+.order-detail-items .order-item-title a:hover { color: var(--color-brand); }
+.order-item-each { font-size: 0.725rem; color: var(--color-grey-500); }
+.order-item-was { text-decoration: line-through; margin-left: 4px; }
+
+/* Summary / address / payment */
+.order-summary-rows { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); }
+.order-summary-row { display: flex; justify-content: space-between; gap: var(--space-sm); color: var(--color-grey-700); }
+.order-summary-row.is-discount span:last-child { color: var(--color-success); }
+.order-summary-row.is-total {
+  border-top: 1px solid var(--color-grey-200); padding-top: var(--space-sm); margin-top: 4px;
+  font-weight: var(--fw-bold); color: var(--color-dark); font-size: var(--fs-body);
+}
+.order-summary-row.is-total span:last-child { color: var(--color-brand); }
+.order-info-block { font-size: var(--fs-small); color: var(--color-grey-700); line-height: 1.6; }
+.order-info-block strong { color: var(--color-dark); }
+.order-info-label { display: block; font-size: var(--fs-xs); color: var(--color-grey-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.order-cancel-box p { font-size: var(--fs-xs); color: var(--color-grey-600, var(--color-grey-700)); margin: 0 0 var(--space-sm); }
+
+@media (max-width: 900px) {
+  .order-detail-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  /* Vertical timeline on phones: five columns are too narrow for the labels. */
+  .order-track { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .order-track-step { display: grid; grid-template-columns: 28px 1fr; column-gap: var(--space-sm); text-align: left; padding: 0 0 var(--space-md); }
+  .order-track-step::before { top: -100%; left: 13px; width: 2px; height: 100%; }
+  .order-track-step:first-child::before { display: none; }
+  .order-track-dot { grid-row: span 2; }
+  .order-track-label { margin-top: 4px; }
+}

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Payments\PaymentMethod;
+use App\Payments\PaymentMethods;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -204,8 +206,9 @@ class Checkout
      *
      * @return array{orderNumber: string, total: float}
      */
-    public static function place(array $lines, array $totals, array $address, string $method, ?int $customerId, ?string $note): array
+    public static function place(array $lines, array $totals, array $address, PaymentMethod|string $method, ?int $customerId, ?string $note): array
     {
+        $method = is_string($method) ? PaymentMethods::get($method) : $method;
         $customerEmail = $customerId ? DB::table('customers')->where('id', $customerId)->value('email') : null;
 
         return DB::transaction(function () use ($lines, $totals, $address, $method, $customerId, $note, $customerEmail) {
@@ -228,7 +231,8 @@ class Checkout
                 'shipping_suburb' => $address['suburb'], 'shipping_state' => $address['state'], 'shipping_postcode' => $address['postcode'],
                 'subtotal' => $totals['subtotal'], 'discount_total' => $totals['discount'], 'shipping_total' => $totals['shipping'],
                 'tax_total' => $totals['tax'], 'grand_total' => $totals['total'], 'coupon_code' => $totals['coupon']['code'] ?? null,
-                'payment_method' => $method, 'payment_status' => 'pending', 'order_status' => 'pending', 'fulfillment_type' => 'delivery',
+                // Never "paid" at placement: COD is collected later, a card gateway confirms server-side (webhook).
+                'payment_method' => $method->code(), 'payment_status' => 'pending', 'order_status' => 'pending', 'fulfillment_type' => 'delivery',
                 'customer_note' => $note, 'placed_at' => now(),
             ]);
 
@@ -241,7 +245,8 @@ class Checkout
 
             DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => null, 'new_status' => 'pending', 'note' => 'Order placed']);
             DB::table('payments')->insert([
-                'order_id' => $orderId, 'payment_method' => $method, 'amount' => $totals['total'], 'status' => 'pending',
+                'order_id' => $orderId, 'provider' => $method->provider(), 'payment_method' => $method->code(), 'amount' => $totals['total'],
+                'status' => $method->initialPaymentStatus(),
             ]);
 
             if ($customerId) {

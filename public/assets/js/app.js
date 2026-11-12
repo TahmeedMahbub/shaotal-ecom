@@ -76,11 +76,14 @@
   window.bongoVariantPrice = variantPrice;
 
   // Refresh cart lines from the live catalog (price, name, image) and drop products that are gone or sold out.
-  function reconcileCart(cart) {
+  // Pages embed only some products: a line whose product is not loaded yet is kept as saved until the catalog has been
+  // asked (final=true after BongoCatalog.ensure succeeded), so a guest's cart is never emptied by a missing lookup.
+  function reconcileCart(cart, final) {
     const out = [];
     (cart || []).forEach(item => {
       const p = PRODUCTS.find(x => x.id === (item.productId || item.id));
-      if (!p || p.soldOut) return;
+      if (!p) { if (!final) out.push(item); return; }
+      if (p.soldOut) return;
       const price = variantPrice(p, item.color, item.size);
       out.push(Object.assign({}, item, {
         productId: p.id, name: p.name, price,
@@ -172,10 +175,13 @@
     if (!heroEl) return;
 
     if (!Array.isArray(HERO_SLIDES) || HERO_SLIDES.length === 0) return;
+    // Phones get the smaller/mobile source (same choice the server-rendered first slide makes in CSS).
+    const phone = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    const bgOf = slide => (phone && slide.imageSrcMobile) || slide.imageSrc || slide.image || '';
 
     let slidesHTML = HERO_SLIDES.map((slide, i) => `
       <a href="${escHtml(safeUrl(slide.ctaLink))}" class="hero-slide ${i === 0 ? 'active' : ''}" data-slide="${i}" role="group" aria-roledescription="slide" aria-label="Slide ${i + 1} of ${HERO_SLIDES.length}: ${escHtml(slide.headline)}" aria-hidden="${i === 0 ? 'false' : 'true'}">
-        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${escHtml(slide.imageSrc || slide.image || '')}')"` : `data-bg="${escHtml(slide.imageSrc || slide.image || '')}"`}></div>
+        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${escHtml(bgOf(slide))}')"` : `data-bg="${escHtml(bgOf(slide))}"`}></div>
         <div class="hero-slide-overlay"></div>
         <div class="hero-content">
           <div class="hero-text">
@@ -429,7 +435,7 @@
         </div>
         <div class="product-card-info">
           <div class="product-card-category">${escHtml(CATEGORY_NAME_MAP[product.category] || product.category || 'General')}</div>
-          <div class="product-card-name">${escHtml(product.name || 'Product')}</div>
+          <div class="product-card-name"><a href="${escHtml(productUrl(product))}">${escHtml(product.name || 'Product')}</a></div>
           <div class="product-card-desc">${product.desc || ''}</div>
           <div class="product-card-footer">
             <div class="product-card-price">
@@ -488,6 +494,17 @@
         }
       }
     } catch (e) { }
+
+    // First visit of the session: keep the server's pick (already rendered in the page), so nothing is replaced.
+    const grid = document.getElementById('product-grid');
+    const serverIds = ((grid && grid.dataset.popularIds) || '').split(',').map(Number).filter(Boolean);
+    if (serverIds.length === Math.min(count, products.length)) {
+      const picked = serverIds.map(id => products.find(p => p.id === id)).filter(Boolean);
+      if (picked.length === serverIds.length) {
+        try { sessionStorage.setItem(storageKey, JSON.stringify(serverIds)); } catch (e) { }
+        return picked;
+      }
+    }
 
     // Deterministic/Random shuffle that stays stable for the session
     const copy = [...products];
@@ -912,8 +929,9 @@
   }
 
   function applySession(data) {
+    if (window.BongoCatalog) window.BongoCatalog.add(data.products);
     state.currentUser = data.user || null;
-    state.cart = reconcileCart(data.cart || []);
+    state.cart = reconcileCart(data.cart || [], true);
     state.wishlist = data.wishlist || [];
     try {
       localStorage.setItem('bongo_cart', JSON.stringify(state.cart));
@@ -2074,6 +2092,26 @@
     }
   }
 
+  // Fetch the products of saved cart/wishlist lines that this page did not embed, then refresh prices and drop lines
+  // whose product is no longer listed (only when the lookup succeeded).
+  function loadSavedItemProducts() {
+    if (!window.BongoCatalog) return;
+    const ids = state.cart.map(i => i.productId || i.id).concat(wishlistIds());
+    const missing = ids.filter(id => !window.BongoCatalog.has(id));
+    if (!missing.length) return;
+    window.BongoCatalog.ensure(missing).then(ok => {
+      if (!ok) return;
+      const before = JSON.stringify(state.cart);
+      state.cart = reconcileCart(state.cart, true);
+      if (JSON.stringify(state.cart) !== before) saveCart();
+      updateCartCount();
+      renderCartDrawer();
+      updateWishlistCount();
+      renderWishlistDrawer();
+      updateAllWishlistIcons();
+    });
+  }
+
   function renderCartDrawer() {
     const body = document.getElementById('cart-drawer-body');
     const footer = document.getElementById('cart-drawer-footer');
@@ -2464,11 +2502,17 @@
     });
   }
 
+  let suggestedCache = null;
   function renderSuggestedProducts() {
     const container = document.getElementById('search-suggested-list');
     if (!container) return;
+    if (!suggestedCache) {
+      // Newest products from the server (pages no longer embed the whole catalog).
+      fetchSearch('').then(d => { if (d) { suggestedCache = d.products.slice(0, 4); renderSuggestedProducts(); } });
+      return;
+    }
 
-    const suggested = PRODUCTS.slice(0, 4);
+    const suggested = suggestedCache;
     container.innerHTML = suggested.map(p => `
       <div class="search-result-item" data-search-product-id="${p.id}">
         <img src="${imgUrl(p.image, 160)}" alt="${escHtml(p.name)}" class="search-result-thumb" width="64" height="64" loading="lazy" decoding="async">
@@ -2500,7 +2544,27 @@
     });
   }
 
+  function fetchSearch(q) {
+    return fetch('/catalog/search?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' }, credentials: 'omit' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && window.BongoCatalog) window.BongoCatalog.add(d.products); return d; })
+      .catch(() => null);
+  }
+
+  // Header quick search runs on the server (/catalog/search); only the latest query's answer is shown.
+  let searchSeq = 0;
+  let searchTimer = null;
   function handleSearchQuery(rawQuery) {
+    const q = rawQuery.trim().toLowerCase();
+    clearTimeout(searchTimer);
+    const seq = ++searchSeq;
+    if (q.length < SEARCH_MIN_CHARACTERS) { renderSearchResults(rawQuery, null); return; }
+    searchTimer = setTimeout(() => {
+      fetchSearch(q).then(d => { if (seq === searchSeq) renderSearchResults(rawQuery, d); });
+    }, 150);
+  }
+
+  function renderSearchResults(rawQuery, data) {
     const q = rawQuery.trim().toLowerCase();
     const defaultState = document.getElementById('search-default-state');
     const resultsState = document.getElementById('search-results-state');
@@ -2518,24 +2582,15 @@
 
     if (defaultState) defaultState.style.display = 'none';
 
-    const matches = PRODUCTS.filter(p => {
-      const catName = (CATEGORY_NAME_MAP[p.category] || '').toLowerCase();
-      const brandName = (p.brand || '').toLowerCase();
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        catName.includes(q) ||
-        brandName.includes(q) ||
-        p.desc.toLowerCase().includes(q)
-      );
-    });
+    const matches = (data && data.products) || [];
+    const total = (data && data.total) || 0;
 
     if (matches.length > 0) {
       if (noResultsState) noResultsState.style.display = 'none';
       if (resultsState) resultsState.style.display = 'block';
 
       if (countEl) {
-        countEl.textContent = `${matches.length} result${matches.length === 1 ? '' : 's'} for "${rawQuery.trim()}"`;
+        countEl.textContent = `${total} result${total === 1 ? '' : 's'} for "${rawQuery.trim()}"`;
       }
 
       if (listEl) {
@@ -2919,6 +2974,7 @@
     if (wishlistDrawerOverlay) wishlistDrawerOverlay.addEventListener('click', closeWishlist);
 
     initVariantModalEvents();
+    loadSavedItemProducts();
     handleAuthRedirect();
     updateWishlistCount();
     renderWishlistDrawer();

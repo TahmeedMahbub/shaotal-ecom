@@ -2,7 +2,7 @@
     <div class="modal" id="quick-view-modal">
       <div class="modal-image" style="position:relative">
         <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
-        <img src="" alt="" id="modal-product-img">
+        <img alt="" id="modal-product-img">
       </div>
       <div class="modal-content">
         <div>
@@ -30,7 +30,7 @@
     <div class="modal variant-modal" id="variant-selection-modal">
       <div class="modal-image" style="position:relative">
         <button class="modal-close" id="variant-modal-close" aria-label="Close modal">&times;</button>
-        <img src="" alt="" id="variant-modal-img">
+        <img alt="" id="variant-modal-img">
       </div>
       <div class="modal-content">
         <div>

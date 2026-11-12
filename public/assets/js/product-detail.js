@@ -282,7 +282,7 @@ function renderAvailabilityBadge(product) {
   if (!badgeEl) return;
 
   let dotClass = 'instock';
-  let statusText = 'In Stock — Ready to dispatch from Sydney';
+  let statusText = (window.SITE && SITE.dispatchStatus) || 'In Stock — Ready to dispatch from Sydney';
 
   if (product.availability === 'preorder') {
     dotClass = 'preorder';
@@ -411,16 +411,17 @@ function renderRecentlyViewed(currentId) {
       return;
     }
 
-    const items = filteredIds.map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean);
-
-    if (items.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
-
-    section.style.display = 'block';
-    container.innerHTML = items.map(p => createProductCardHTML(p)).join('');
-    bindProductCardEvents(container);
+    // The page embeds only this product and its related products; fetch the rest by id first.
+    window.BongoCatalog.ensure(filteredIds).then(() => {
+      const items = filteredIds.map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean);
+      if (items.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      container.innerHTML = items.map(p => createProductCardHTML(p)).join('');
+      bindProductCardEvents(container);
+    });
   } catch (e) {
     section.style.display = 'none';
   }

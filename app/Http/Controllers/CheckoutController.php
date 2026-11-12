@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Checkout;
-use Illuminate\Http\JsonResponse;
+use App\Payments\PaymentMethods;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -50,7 +51,7 @@ class CheckoutController extends Controller
         $customerId = $this->customerId();
         abort_unless($customerId, 401, 'Please sign in to checkout.');
         $rules = $this->itemRules() + [
-            'paymentMethod' => ['required', Rule::in(config('storefront.payment_methods'))],
+            'paymentMethod' => ['required', Rule::in(PaymentMethods::enabled())],
             'note' => ['nullable', 'string', 'max:1000'],
             'addressId' => ['nullable', 'integer'],
             'address' => ['nullable', 'array'],
@@ -113,7 +114,7 @@ class CheckoutController extends Controller
             return response()->json(['message' => $totals['couponError']], 422);
         }
 
-        $order = Checkout::place($priced['lines'], $totals, $address, $data['paymentMethod'], $customerId, $data['note'] ?? null);
+        $order = Checkout::place($priced['lines'], $totals, $address, PaymentMethods::get($data['paymentMethod']), $customerId, $data['note'] ?? null);
         $payload = $order + [
             'address' => "{$address['fullName']}, {$address['street']}, {$address['suburb']} {$address['state']} {$address['postcode']}",
         ];

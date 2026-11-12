@@ -55,6 +55,8 @@ class Catalog
                 'id' => (int) $h->id, 'headline' => $h->title ?? '', 'subtext' => $h->subtitle ?? '',
                 'cta' => $h->button_text ?? '', 'ctaLink' => $h->button_url ?: '/products',
                 'image' => $h->image_url, 'imageSrc' => Img::url($h->image_url, 1280), 'mobileImage' => $h->mobile_image_url,
+                // Phones: the admin's mobile image when set, else the main image at 768 px (unchanged if not transformable).
+                'imageSrcMobile' => Img::url($h->mobile_image_url ?: $h->image_url, 768),
             ])->all();
     }
 

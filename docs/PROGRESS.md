@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-16_
+_Last updated: 2026-11-12 (production-readiness Parts 3–5: see STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§17, STOREFRONT_DEPLOYMENT_CHECKLIST.md and SESSION_HANDOFF.md)_
 
 ## Architecture (how the design was kept)
 The prepared design is rendered as Blade pages (`resources/views/pages`, shared shell in `layouts/store` + `partials/`). Its CSS/JS live in `public/assets` and run unchanged in spirit: the catalog, categories, hero and nav are read from MySQL (`App\Models\Catalog` / `Storefront`, cached 60s on the file store) and injected as `window.__BOOT__`; `public/assets/js/data.js` turns that into the globals the design scripts expect. Cart/wishlist use localStorage for guests and are synced to `carts`/`cart_items`/`wishlist_items` for signed-in customers. All prices, stock, coupons and totals are recomputed server-side (`App\Models\Checkout`). Customer sessions use Laravel's session (`customers` table), no Eloquent models/migrations.
@@ -18,7 +18,7 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 2. **Schema changes (approval needed)**: `sql/proposed_changes.sql` adds postcode/target date/variant columns and makes `email` nullable on bulk/sourcing requests. Until then those values are stored in the message/details text, and phone-only contacts require a signed-in account email.
 3. **Card & PayPal payments**: no gateway credentials, so only COD is enabled (`config/storefront.php` `payment_methods`). Orders are created `pending`.
 4. **Google sign-in** implemented but needs credentials + `sql/google_login.sql` (not executed) — see `docs/google-login.md`. Password-reset email uses `MAIL_MAILER` (currently `log`) — configure SMTP.
-5. **Stock is validated but not decremented** at order time (unclear whether the admin app does it). Decide who decrements.
+5. **Stock quantity is out of scope until V2** (owner decision, 2026-11-12): never decremented, reserved or checked; only the admin availability flag and status/visibility gate ordering.
 6. **Sourcing images** are stored on the Laravel `public` disk (`php artisan storage:link`, already run); switch to Cloudinary upload when credentials exist.
 7. `.env`: `CACHE_STORE`/`QUEUE_CONNECTION=database` but no such tables in the SQL; the storefront uses the `file` cache store explicitly and no queues. `sessions` use files.
 8. Footer links Shipping/Returns/FAQ/Size Guide and the launch-offer strip (ends 2026-10-15, static in design) have no designed pages/data; omitted or left as design.
@@ -29,3 +29,13 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 
 ## Performance (2026-10-16)
 Image optimization (Cloudinary/Unsplash), hero/product preload, reserved heights, smaller boot payload, `Cache::flexible` catalog cache, fewer queries, versioned assets. Details, before/after numbers, stale-data behaviour and the production deployment checklist: [docs/performance.md](performance.md). Not done: Apache/Nginx cache headers (host unconfirmed), server-side rendering of the hero/product core, minification, catalog pagination.
+
+## Orders & SEO (2026-11-12)
+Account order history (paginated) + order details/tracking page (`/account/orders/{number}`) built on `order_timeline`, customer cancellation while `pending`, payment-method seam (`app/Payments`). Server-rendered product/listing content, canonical/robots/OG/Twitter meta, JSON-LD, `/sitemap.xml`, dynamic `/robots.txt`. Details and admin-side follow-ups: STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§12.
+
+## Performance, deployment & admin spec (2026-11-12, Part 5)
+- **Catalog data:** pages embed only the products they render (was the whole catalog). Listing, search and lookups are server endpoints.
+- **Layout shift:** server-rendered nav, home sections, product options, account and checkout removed it (CLS ≤ 0.05 everywhere measured).
+- **Deployment:** `storefront:deploy-check`, `.env.production.example` and STOREFRONT_DEPLOYMENT_CHECKLIST.md.
+- **Delivery wording:** now in `storefront.delivery_copy` (owner decisions in plan §16).
+- **Admin changes:** specified in docs/admin-order-integration.md. Not applied or verified (admin code not available).

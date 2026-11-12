@@ -10,7 +10,7 @@ Phase 1 (audit) and Phase 2 (implementation) results. All numbers are lab measur
 | 2 | Hero (LCP) image: `<link rel=preload fetchpriority=high>` with the same optimized URL the page uses; other slides load after `window.load`. Product page preloads its first gallery image; first 4 listing cards load eagerly. | `layouts/store`, `index`, `product-detail` blades, `PageController::firstGalleryImage`, `renderHero` in `app.js` |
 | 3 | Reserved heights for the JS-rendered home sections (popular products, category grid) so content below does not jump. Only applied when the server confirms there is content. | end of `public/assets/css/sections.css`, `index.blade.php` |
 | 4 | Boot payload: `<script type="application/json" id="boot-data">` instead of a JS string literal; `generalImages` removed (derived in the browser); `fullDesc` and `specs` sent only for the product page being viewed. | `layouts/store.blade.php`, `Storefront::boot`, `Catalog`, `data.js` |
-| 5 | `Cache::flexible('storefront.catalog.v2', [60, 300])` (see "Cache behaviour"). | `Storefront::catalog` |
+| 5 | `Cache::flexible('storefront.catalog.v3.{version}', [60, 300])` (see "Cache behaviour"). | `Storefront::catalog` |
 | 6 | `/products` no longer runs 2 unused queries. Signed-in pages: customer+address in one query, cart+items in one query (5 → 3 queries). Same data returned. | `PageController`, `Storefront::customer` / `cart` |
 | 7 | Static assets versioned by file mtime (`?v=…`). | `app/Support/Assets.php`, layout + page blades |
 | 8 | Fixed a latent bug found on the way: `stdClass` values in the cached catalog came back as `__PHP_Incomplete_Class` (Laravel 13 `serializable_classes=false`), which broke colour-specific images on every cached request. The catalog now contains plain arrays only. Also fixed `href=".//products"` links on the home page. | `Catalog::shape`, `index.blade.php` |
@@ -52,10 +52,10 @@ Other metrics:
 5. Static assets are only cache-busted, not cacheable until the web server sends long cache headers (see Apache section).
 
 ## Cache behaviour and stale data
-- Key `storefront.catalog.v2` on the **file** cache store. It holds only public catalog data (products, categories, hero, brands, settings) — never cart, wishlist, account or order data. Customer data is built per request in `Storefront::boot()`.
+- Key `storefront.catalog.v3.{version}` on the **file** cache store (version: `site_settings.catalog_version` + a local counter, checked at most every 10 s; cold builds take a lock so only one request rebuilds). It holds only public catalog data (products, categories, hero, brands, settings) — never cart, wishlist, account or order data. Customer data is built per request in `Storefront::boot()`.
 - Fresh for 60 s. After that the previous copy is served for up to 5 more minutes while one request rebuilds it after sending its response (`Cache::flexible`); later than 6 minutes the next request rebuilds inline.
 - The admin is a separate app and cannot invalidate this cache, so **admin edits (prices, stock flags, images, hero) can appear up to ~6 minutes late**. Prices at checkout are not affected: `Checkout::priceLines` always reads the database. Add-to-cart availability on the page can lag the same way; the server re-validates stock when the order is placed.
-- Force a refresh: `php artisan tinker --execute="Cache::store('file')->forget('storefront.catalog.v2'); Cache::store('file')->forget('illuminate:cache:flexible:created:storefront.catalog.v2');"`. If the admin app should clear it, it needs a shared signal (e.g. bump a `site_settings` value and include it in the key) — not implemented.
+- Force a refresh: `php artisan storefront:refresh-catalog`. The admin app can do the same by bumping the `site_settings` row `catalog_version` on every catalog save (specified in [admin-order-integration.md](admin-order-integration.md) §5; not yet implemented in the admin).
 - `.env` sets `CACHE_STORE=database` but there is no cache table in the schema; the code uses the `file` store explicitly, so this does not matter.
 
 ## Deployment checklist (production only — nothing here was applied)
@@ -116,3 +116,10 @@ The profiling scripts are deliberately **not** in the repo. They live in the Cla
 - `vitals.js <url> <runs> [mobile|desktop]` — median TTFB/FCP/LCP/CLS/TBT, bytes and request counts with CDP throttling (`AUTH=1` signs in as the test customer first).
 - `cls2.js <url>` — layout-shift sources at 1350/820/412 px. `ttfb.js` — server response times over plain HTTP. `regress.js [base] [mobile]` — 22 functional checks (home, search, wishlist, cart, listing filters, product page, login, checkout order, account, bulk/request pages) plus console/network error collection.
 - Run the app against a local copy of the database, take 3+ runs per page, compare medians. Re-run after any image, script or layout change.
+
+## Part 5 (2026-11-12): page-scoped catalog and measurements
+- **Embedding:** every page used to embed the whole catalog (583 KB of JSON at 400 products). Pages now embed only the products they render, and the rest comes from `/catalog/feed`, `/catalog/search` and `/catalog/products`.
+- **Server rendering and layout shift:** server-rendered nav, home sections, product options, account view and checkout addresses removed the large layout shifts.
+- **Measurements:** method, before/after table and raw data are in STOREFRONT_PRODUCTION_READINESS_PLAN.md §14 and `docs/perf/`.
+- **Reproduce:** see `tests/Support/perf-catalog-seed.php`, `tests/Support/perf-server.php`, `tests/Support/perf-router.php` and `tests/browser/perf.mjs`.
+- **Biggest remaining mobile win:** gzip + long cache for `/assets` (rules in `public/.htaccess`, Nginx snippet in STOREFRONT_DEPLOYMENT_CHECKLIST.md §2).

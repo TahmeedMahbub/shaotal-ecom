@@ -22,8 +22,15 @@
     pageSize: 8,
     isLoading: false,
     hasMore: true,
-    filteredProducts: [],
+    filteredProducts: [],   // products loaded so far (pages from /catalog/feed)
+    total: 0,
   };
+
+  // First page and filter options rendered by the server (later pages: /catalog/feed). Filtering, sorting and paging run
+  // on the server with the same rules this script used to apply to the whole embedded catalog.
+  let LISTING = null;
+  try { LISTING = JSON.parse((document.getElementById('listing-data') || {}).textContent || 'null'); } catch (e) { LISTING = null; }
+  let requestSeq = 0;
 
   const CATEGORY_LABEL_MAP = Object.assign({ all: 'All Products', preorder: 'Pre-order' }, window.CATEGORY_NAME_MAP || {});
   const CATEGORY_DESC_MAP = { all: 'Thoughtfully selected apparel, home decor, natural jute goods, and artisan handcrafted pieces curated for Australian living.' };
@@ -79,82 +86,63 @@
   /* ══════════════════════════════════════════════════════════
      2. FILTER & SORT LOGIC
      ══════════════════════════════════════════════════════════ */
+  function feedQuery(page) {
+    const q = new URLSearchParams();
+    if (listingState.category && listingState.category !== 'all') q.set('category', listingState.category);
+    if (listingState.subcategory) q.set('subcategory', listingState.subcategory);
+    listingState.brands.forEach(v => q.append('brands[]', v));
+    listingState.priceRanges.forEach(v => q.append('prices[]', v));
+    listingState.sizes.forEach(v => q.append('sizes[]', v));
+    listingState.colors.forEach(v => q.append('colors[]', v));
+    listingState.availability.forEach(v => q.append('availability[]', v));
+    if (listingState.searchQuery) q.set('search', listingState.searchQuery);
+    if (listingState.sort && listingState.sort !== 'featured') q.set('sort', listingState.sort);
+    q.set('page', page);
+    q.set('perPage', listingState.pageSize);
+    return q.toString();
+  }
+
+  function fetchPage(page) {
+    return fetch('/catalog/feed?' + feedQuery(page), { headers: { Accept: 'application/json' }, credentials: 'omit' })
+      .then(r => (r.ok ? r.json() : Promise.reject(r.status)));
+  }
+
+  function applyPage(data, append) {
+    window.BongoCatalog.add(data.products);
+    listingState.filteredProducts = append ? listingState.filteredProducts.concat(data.products) : data.products.slice();
+    listingState.total = data.total;
+    listingState.hasMore = data.hasMore;
+    listingState.currentPage = data.page;
+  }
+
   function applyFiltersAndRender(resetPage = true) {
     if (resetPage) {
       listingState.currentPage = 1;
       listingState.hasMore = true;
     }
+    const seq = ++requestSeq;
 
-    const sourceProducts = window.BongoProducts.getAll();
-    let result = sourceProducts.filter(p => !p.isDisabled);
-
-    // Category Filter
-    if (listingState.category === 'preorder') {
-      result = result.filter(p => p.availability === 'preorder');
-    } else if (listingState.category !== 'all') {
-      result = result.filter(p => p.category === listingState.category);
+    // Initial render: the server already rendered page 1 for the URL's filters; use it instead of asking again.
+    if (LISTING) {
+      const data = LISTING;
+      LISTING = null;
+      applyPage(data, false);
+      updateHeaderInfo();
+      renderProductGrid();
+      updateMobileBadgeCount();
+      return;
     }
-    if (listingState.subcategory) {
-      result = result.filter(p => p.subcategory === listingState.subcategory);
-    }
-
-    // Brand Filter
-    if (listingState.brands.length > 0) {
-      result = result.filter(p => listingState.brands.includes(p.brand));
-    }
-
-    // Price Range Filter
-    if (listingState.priceRanges.length > 0) {
-      result = result.filter(p => {
-        const price = parseFloat(p.price) || 0;
-        return listingState.priceRanges.some(range => {
-          if (range === 'under-30') return price < 30;
-          if (range === '30-40') return price >= 30 && price <= 40;
-          if (range === '40-50') return price > 40 && price <= 50;
-          if (range === '50-above') return price > 50;
-          return true;
-        });
-      });
-    }
-
-    // Size Filter
-    if (listingState.sizes.length > 0) {
-      result = result.filter(p => p.sizes && p.sizes.some(s => listingState.sizes.includes(s)));
-    }
-
-    // Color Filter
-    if (listingState.colors.length > 0) {
-      result = result.filter(p => p.colors && p.colors.some(c => listingState.colors.includes(c)));
-    }
-
-    // Availability Filter
-    if (listingState.availability.length > 0) {
-      result = result.filter(p => listingState.availability.includes(p.availability === 'lowstock' ? 'instock' : p.availability));
-    }
-
-    // Search Query Filter
-    if (listingState.searchQuery) {
-      result = result.filter(p =>
-        (p.name || '').toLowerCase().includes(listingState.searchQuery) ||
-        (p.desc || '').toLowerCase().includes(listingState.searchQuery) ||
-        (p.category || '').toLowerCase().includes(listingState.searchQuery)
-      );
-    }
-
-    // Sorting
-    if (listingState.sort === 'price-low') {
-      result.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
-    } else if (listingState.sort === 'price-high') {
-      result.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
-    } else if (listingState.sort === 'newest') {
-      result.sort((a, b) => b.id - a.id);
-    }
-
-    listingState.filteredProducts = result;
 
     updateHeaderInfo();
-    renderProductGrid();
     updateMobileBadgeCount();
+    fetchPage(1).then(data => {
+      if (seq !== requestSeq) return;   // a newer filter change is already on its way
+      applyPage(data, false);
+      updateHeaderInfo();
+      renderProductGrid();
+    }).catch(() => {
+      if (seq === requestSeq && typeof showToast === 'function') showToast('Could not load products. Please try again.');
+    });
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -166,10 +154,7 @@
     const sentinelEl = document.getElementById('infinite-scroll-sentinel');
     if (!gridEl) return;
 
-    const visibleItemsCount = listingState.currentPage * listingState.pageSize;
-    const itemsToDisplay = listingState.filteredProducts.slice(0, visibleItemsCount);
-
-    listingState.hasMore = visibleItemsCount < listingState.filteredProducts.length;
+    const itemsToDisplay = listingState.filteredProducts;
 
     if (listingState.filteredProducts.length === 0) {
       gridEl.innerHTML = '';
@@ -189,7 +174,7 @@
       if (listingState.hasMore) {
         sentinelEl.innerHTML = `<div class="loading-spinner" title="Loading more products..."></div>`;
       } else {
-        sentinelEl.innerHTML = `<span class="all-loaded-message">All ${listingState.filteredProducts.length} products loaded</span>`;
+        sentinelEl.innerHTML = `<span class="all-loaded-message">All ${listingState.total} products loaded</span>`;
       }
     }
   }
@@ -198,11 +183,13 @@
     if (listingState.isLoading || !listingState.hasMore) return;
 
     listingState.isLoading = true;
-    setTimeout(() => {
-      listingState.currentPage++;
+    const seq = requestSeq;
+    fetchPage(listingState.currentPage + 1).then(data => {
+      if (seq !== requestSeq) return;   // filters changed meanwhile: that request renders instead
+      applyPage(data, true);
       renderProductGrid();
-      listingState.isLoading = false;
-    }, 350);
+    }).catch(() => { /* keep what is shown; scrolling again retries */ })
+      .finally(() => { listingState.isLoading = false; });
   }
 
   function setupInfiniteScroll() {
@@ -238,7 +225,7 @@
     if (descEl) descEl.textContent = catDesc;
     if (breadcrumbCurrent) breadcrumbCurrent.textContent = catLabel;
     if (countEl) {
-      const total = listingState.filteredProducts.length;
+      const total = listingState.total;
       countEl.textContent = `Showing ${total} product${total === 1 ? '' : 's'}`;
     }
   }
@@ -247,7 +234,7 @@
      5. FILTER UI SYNC & EVENT HANDLERS
      ══════════════════════════════════════════════════════════ */
   function renderFilterOptions() {
-    const products = window.BongoProducts.getAll();
+    const facets = (LISTING && LISTING.facets) || { brands: [], sizes: [], colors: [], hasPreorder: false };
     const esc = str => String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
     document.querySelectorAll('[data-dyn-options]').forEach(el => {
@@ -256,14 +243,14 @@
         const name = el.dataset.radioName || 'category';
         const options = [{ slug: 'all', name: 'All Products' }]
           .concat(window.BongoCategories.getAll().map(c => ({ slug: c.slug, name: c.name })));
-        if (products.some(p => p.availability === 'preorder')) options.push({ slug: 'preorder', name: 'Pre-order' });
+        if (facets.hasPreorder) options.push({ slug: 'preorder', name: 'Pre-order' });
         el.innerHTML = options.map((o, i) => `
           <label class="filter-checkbox-label">
             <input type="radio" name="${name}" value="${esc(o.slug)}" data-filter-category ${i === 0 ? 'checked' : ''}>
             <span>${esc(o.name)}</span>
           </label>`).join('');
       } else if (type === 'brand') {
-        const used = new Set(products.map(p => p.brand).filter(Boolean));
+        const used = new Set(facets.brands);
         el.innerHTML = Array.from(used).sort().map(b => `
           <label class="filter-checkbox-label">
             <input type="checkbox" value="${esc(b)}" data-filter-brand>
@@ -271,14 +258,12 @@
           </label>`).join('');
         if (used.size === 0 && el.closest('.filter-group')) el.closest('.filter-group').style.display = 'none';
       } else if (type === 'size') {
-        const sizes = [];
-        products.forEach(p => (p.sizes || []).forEach(sz => { if (!sizes.includes(sz)) sizes.push(sz); }));
+        const sizes = facets.sizes.slice();
         el.innerHTML = sizes.map(sz => `<button class="size-pill" data-size="${esc(sz)}">${esc(sz)}</button>`).join('');
         if (sizes.length === 0 && el.closest('.filter-group')) el.closest('.filter-group').style.display = 'none';
       } else if (type === 'color') {
-        const colors = [];
-        products.forEach(p => (p.colors || []).forEach(c => { if (/^#[0-9a-f]{3,8}$/i.test(c) && !colors.includes(c)) colors.push(c); }));
-        el.innerHTML = colors.map(c => `<button class="color-swatch-btn" data-color="${esc(c)}" style="background-color:${esc(c)}${/^#f{3,6}$/i.test(c) ? '; border: 1px solid #ccc' : ''}" title="${esc((window.COLOR_NAMES || {})[c] || c)}"></button>`).join('');
+        const colors = facets.colors.filter(c => /^#[0-9a-f]{3,8}$/i.test(c.hex));
+        el.innerHTML = colors.map(c => `<button class="color-swatch-btn" data-color="${esc(c.hex)}" style="background-color:${esc(c.hex)}${/^#f{3,6}$/i.test(c.hex) ? '; border: 1px solid #ccc' : ''}" title="${esc(c.name || c.hex)}"></button>`).join('');
         if (colors.length === 0 && el.closest('.filter-group')) el.closest('.filter-group').style.display = 'none';
       }
     });
