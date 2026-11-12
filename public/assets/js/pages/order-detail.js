@@ -1,5 +1,20 @@
-// Order details page: everything is server-rendered; this only handles customer cancellation.
+// Order details page: everything is server-rendered; this only handles cancellation and return requests.
 document.addEventListener('DOMContentLoaded', () => {
+  const returnForm = document.getElementById('order-return-form');
+  if (returnForm) {
+    returnForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('order-return-btn');
+      btn.disabled = true;
+      const res = await window.bongoApi('POST', `/account/orders/${encodeURIComponent(returnForm.dataset.order)}/return`, {
+        reason: returnForm.elements.reason.value, details: returnForm.elements.details.value,
+      });
+      btn.disabled = false;
+      showToast(res.ok ? res.data.message : window.bongoApiMessage(res));
+      if (res.ok || res.status === 422) setTimeout(() => window.location.reload(), 1500);
+    });
+  }
+
   const btn = document.getElementById('order-cancel-btn');
   if (!btn) return;
   btn.addEventListener('click', async () => {

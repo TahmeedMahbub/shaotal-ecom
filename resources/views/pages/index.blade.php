@@ -3,8 +3,10 @@
 @section('description', "Discover thoughtfully selected fashion, home decor, natural jute, handcrafted pieces and gifts curated for Australian living.")
 @if (! empty($boot['hero'][0]['imageSrc']))
 @push('preload')
-<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrc'] }}" media="(min-width: 769px)" fetchpriority="high">
-<link rel="preload" as="image" href="{{ $boot['hero'][0]['imageSrcMobile'] ?? $boot['hero'][0]['imageSrc'] }}" media="(max-width: 768px)" fetchpriority="high">
+@php($h0 = $boot['hero'][0])
+{{-- The first hero image is the LCP element: one preload per viewport, matching the <picture> below exactly. --}}
+<link rel="preload" as="image" href="{{ $h0['imageSrc'] }}" @if ($h0['srcset'] ?? null) imagesrcset="{{ $h0['srcset'] }}" imagesizes="(max-width: 992px) 100vw, (max-width: 1400px) 75vw, 1000px" @endif media="(min-width: 769px)" fetchpriority="high">
+<link rel="preload" as="image" href="{{ $h0['imageSrcMobile'] ?? $h0['imageSrc'] }}" @if ($h0['srcsetMobile'] ?? null) imagesrcset="{{ $h0['srcsetMobile'] }}" imagesizes="100vw" @endif media="(max-width: 768px)" fetchpriority="high">
 @endpush
 @endif
 @section('content')
@@ -20,12 +22,14 @@
                the headline is the page's h1 and the image starts loading before any script runs. --}}
           @if ($slide = $boot['hero'][0] ?? null)
             <a href="{{ \App\Support\SafeHtml::link($slide['ctaLink']) }}" class="hero-slide active" data-slide="0" role="group" aria-roledescription="slide" aria-label="Slide 1 of {{ count($boot['hero']) }}: {{ $slide['headline'] }}" aria-hidden="false">
-              @php($cssUrl = fn ($u) => is_string($u) && preg_match('#^https?://[^\s\'"()\\\\<>]+$#i', $u) ? $u : null)
-              @php($heroBg = $cssUrl($slide['imageSrc'] ?: $slide['image']))
-              @php($heroBgMobile = $cssUrl($slide['imageSrcMobile'] ?? null) ?? $heroBg)
-              {{-- admin-entered URLs inside CSS url(): only plain http(s) URLs without quotes/parens/whitespace. The
-                   phone/desktop choice is made in CSS (.hero-slide-bg[data-ssr]) so a phone never downloads both. --}}
-              <div class="hero-slide-bg" data-ssr @if ($heroBg) style="--hero-bg: url('{{ $heroBg }}'); --hero-bg-m: url('{{ $heroBgMobile }}')" @endif></div>
+              {{-- Responsive first slide (same markup renderHero() builds): phones get the mobile source, desktops a
+                   width-matched candidate; eager + high priority because it is the LCP image. --}}
+              <div class="hero-slide-bg">
+                <picture>
+                  <source media="(max-width: 768px)" srcset="{{ $slide['srcsetMobile'] ?? $slide['imageSrcMobile'] }}" @if ($slide['srcsetMobile'] ?? null) sizes="100vw" @endif>
+                  <img class="hero-slide-img" src="{{ $slide['imageSrc'] ?: $slide['image'] }}" @if ($slide['srcset'] ?? null) srcset="{{ $slide['srcset'] }}" sizes="(max-width: 992px) 100vw, (max-width: 1400px) 75vw, 1000px" @endif width="1600" height="533" alt="" fetchpriority="high" decoding="async">
+                </picture>
+              </div>
               <div class="hero-slide-overlay"></div>
               <div class="hero-content">
                 <div class="hero-text">

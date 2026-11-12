@@ -9,25 +9,33 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Security headers on every response (registered globally so error pages get them too).
  *
- * CSP exceptions (see STOREFRONT_PRODUCTION_READINESS_PLAN.md → A4):
- *  - script-src 'unsafe-inline': the design's scripts build markup with inline handlers (onclick=, onerror=) and the
- *    layout has one inline bootstrap script. Nonces cannot cover inline handlers, and adding a nonce would make
- *    browsers ignore 'unsafe-inline' and break them. External script hosts are still restricted.
- *  - code.jquery.com / cdn.jsdelivr.net: jQuery + Select2 on /bulk-order.
- *  - style-src 'unsafe-inline': inline style="" attributes throughout the design.
+ * CSP (STOREFRONT_PRODUCTION_READINESS_PLAN.md → A4/A12):
+ *  - script-src 'self' only: no inline scripts or inline event handlers anywhere (page data is JSON in
+ *    <script type="application/json">, handlers are addEventListener / data-action delegation in data.js).
+ *  - /bulk-order alone may load jQuery 3.7.1 + Select2 4.1.0-rc.0, pinned to the exact files (SRI in the view).
+ *  - style-src 'unsafe-inline': kept on purpose. The design uses inline style="" attributes throughout (hundreds,
+ *    including ones the scripts generate); style injection cannot run script under this policy.
  *  - img-src https: product/category/hero images are admin-entered URLs (Cloudinary, Unsplash, others).
  */
 class SecurityHeaders
 {
+    public const JQUERY = 'https://code.jquery.com/jquery-3.7.1.min.js';
+
+    public const SELECT2_JS = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js';
+
+    public const SELECT2_CSS = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css';
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
         $h = $response->headers;
+        $bulk = $request->is('bulk-order');
 
-        $h->set('Content-Security-Policy', implode('; ', [
+        $h->set('Content-Security-Policy', implode('; ', array_filter([
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "script-src 'self'".($bulk ? ' '.self::JQUERY.' '.self::SELECT2_JS : ''),
+            "script-src-attr 'none'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com".($bulk ? ' '.self::SELECT2_CSS : ''),
             "font-src 'self' data: https://fonts.gstatic.com",
             "img-src 'self' data: blob: https:",
             "connect-src 'self'",
@@ -36,7 +44,8 @@ class SecurityHeaders
             "base-uri 'self'",
             "form-action 'self'",
             "frame-ancestors 'self'",
-        ]), false);
+            app()->environment('production') ? 'upgrade-insecure-requests' : null,
+        ])), false);
         $h->set('X-Frame-Options', 'SAMEORIGIN', false);
         $h->set('X-Content-Type-Options', 'nosniff', false);
         $h->set('Referrer-Policy', 'strict-origin-when-cross-origin', false);

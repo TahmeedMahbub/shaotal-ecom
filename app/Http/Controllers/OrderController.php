@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\CustomerOrders;
+use App\Models\CustomerReturns;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 /** Customer order history, order details/tracking and cancellation. Routes are behind the "customer" middleware. */
@@ -35,6 +37,20 @@ class OrderController extends Controller
         return response()->view('pages.order-detail', ['order' => $order])
             ->header('Cache-Control', 'private, no-store')
             ->header('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /** POST /account/orders/{number}/return — only when enabled, for the customer's own delivered order, once. */
+    public function requestReturn(Request $request, string $number): JsonResponse
+    {
+        $id = $this->require();
+        $d = $request->validate([
+            'reason' => ['required', 'string', Rule::in(config('storefront.returns.reasons'))],
+            'details' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $result = CustomerReturns::request($id, $number, $d['reason'], isset($d['details']) ? trim($d['details']) : null);
+        abort_if($result === null, 404);
+
+        return response()->json(['message' => $result['message']], $result['ok'] ? 201 : 422);
     }
 
     /** POST /account/orders/{number}/cancel */

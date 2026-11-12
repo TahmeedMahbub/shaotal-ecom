@@ -57,6 +57,9 @@ class Catalog
                 'image' => $h->image_url, 'imageSrc' => Img::url($h->image_url, 1280), 'mobileImage' => $h->mobile_image_url,
                 // Phones: the admin's mobile image when set, else the main image at 768 px (unchanged if not transformable).
                 'imageSrcMobile' => Img::url($h->mobile_image_url ?: $h->image_url, 768),
+                // Responsive candidates (null when the host cannot resize): desktop 3:1 banner, phone 2:1 banner.
+                'srcset' => Img::srcset($h->image_url, [960, 1280, 1600, 1920]),
+                'srcsetMobile' => Img::srcset($h->mobile_image_url ?: $h->image_url, [480, 768, 1080]),
             ])->all();
     }
 

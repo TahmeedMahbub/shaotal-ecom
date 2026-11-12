@@ -20,14 +20,23 @@ class GoogleAuthController extends Controller
         return filled(config('services.google.client_id')) && filled(config('services.google.client_secret'));
     }
 
+    /**
+     * Same-site relative path or "/". Browsers treat "\\" as "/" and drop tabs/newlines in URLs, so "/\\evil.example"
+     * or "/\t/evil.example" would leave the site despite starting with a single "/": both are rejected.
+     */
+    public static function safeReturnPath(mixed $path): string
+    {
+        $path = is_string($path) ? $path : '';
+
+        return (str_starts_with($path, '/') && ! str_starts_with($path, '//') && ! preg_match('/[\x00-\x20\x7f\\\\]/', $path)) ? $path : '/';
+    }
+
     public function redirect(Request $request): RedirectResponse
     {
         if (! self::enabled()) {
             return $this->fail('Google sign-in is not available right now.');
         }
-        $return = (string) $request->query('return', '/');
-        // Only same-site relative paths, never an external URL.
-        $request->session()->put('google_return', (str_starts_with($return, '/') && ! str_starts_with($return, '//')) ? $return : '/');
+        $request->session()->put('google_return', self::safeReturnPath($request->query('return')));
 
         return Socialite::driver('google')->redirect();
     }
@@ -69,7 +78,7 @@ class GoogleAuthController extends Controller
 
         // Fingerprint taken after resolveCustomer(), which may have cleared an unverified password (ending older sessions).
         CustomerSession::start($request, $customerId, DB::table('customers')->where('id', $customerId)->value('password_hash'));
-        $return = $request->session()->pull('google_return', '/');
+        $return = self::safeReturnPath($request->session()->pull('google_return', '/'));
 
         return redirect($return)->with('auth_notice', 'Signed in with Google.');
     }

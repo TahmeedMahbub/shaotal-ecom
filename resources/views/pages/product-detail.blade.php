@@ -132,7 +132,7 @@
                 <span>Low Stock — Only {{ $product['stockQty'] }} left</span>
               @else
                 <span class="availability-status-dot instock"></span>
-                <span>{{ config('storefront.delivery_copy.dispatch_status') ?? 'In Stock' }}</span>
+                <span>{{ \App\Support\Delivery::text('dispatch_status') ?? 'In Stock' }}</span>
               @endif
             </div>
 
@@ -152,19 +152,24 @@
 
             
             <div class="detail-trust-features">
+              @if ($dp = \App\Support\Delivery::text('dispatch_point'))
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
-                <span>{{ config('storefront.delivery_copy.dispatch_point') }}</span>
+                <span>{{ $dp }}</span>
               </div>
+              @endif
+              @if ($fs = \App\Support\Delivery::text('free_shipping_short'))
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {{-- Was "over A$299" in the design while checkout charges by free_shipping_over (A$100): now one source. --}}
-                <span>Free AU Shipping over {{ config('storefront.currency_symbol') }}{{ rtrim(rtrim(number_format(config('storefront.free_shipping_over'), 2), '0'), '.') }}</span>
+                <span>{{ $fs }}</span>
               </div>
+              @endif
+              @if ($rs = \App\Support\Delivery::text('returns_short'))
               <div class="trust-feature-item">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-                <span>{{ config('storefront.delivery_copy.returns_short') }}</span>
+                <span>{{ $rs }}</span>
               </div>
+              @endif
             </div>
 
           </div>
@@ -204,20 +209,20 @@
           <div class="delivery-returns-grid">
             <div class="delivery-info-col">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
-              <h4 class="delivery-info-title">Australian Delivery Timeframe</h4>
-              <p class="delivery-info-desc">{{ config('storefront.delivery_copy.timeframe') }}</p>
+              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('timeframe_title') }}</h4>
+              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('timeframe') }}</p>
             </div>
 
             <div class="delivery-info-col">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-6h6m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              <h4 class="delivery-info-title">Free Shipping Rates</h4>
-              <p class="delivery-info-desc">Complimentary {{ config('storefront.delivery_copy.carrier') ? config('storefront.delivery_copy.carrier').' ' : '' }}Standard Shipping on all orders over {{ config('storefront.currency_symbol') }}{{ rtrim(rtrim(number_format(config('storefront.free_shipping_over'), 2), '0'), '.') }}. Flat rate {{ config('storefront.currency_symbol') }}{{ rtrim(rtrim(number_format(config('storefront.shipping_flat'), 2), '0'), '.') }} shipping for orders under {{ config('storefront.currency_symbol') }}{{ rtrim(rtrim(number_format(config('storefront.free_shipping_over'), 2), '0'), '.') }}.</p>
+              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('rates_title') }}</h4>
+              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('rates') }}</p>
             </div>
 
             <div class="delivery-info-col">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-              <h4 class="delivery-info-title">{{ config('storefront.delivery_copy.returns_title') }}</h4>
-              <p class="delivery-info-desc">{{ config('storefront.delivery_copy.returns_text') }}</p>
+              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('returns_title') }}</h4>
+              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('returns_text') }} <a href="/returns" style="color: var(--color-brand);">Returns information</a></p>
             </div>
           </div>
         </section>

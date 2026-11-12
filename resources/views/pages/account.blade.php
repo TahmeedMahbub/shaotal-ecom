@@ -7,7 +7,7 @@
 @section('content')
 <div class="announcement-bar" id="announcement-bar">
     <div class="container announcement-bar-inner">
-      <span class="announcement-text">{{ config('storefront.delivery_copy.announcement') }}</span>
+      <span class="announcement-text">{{ \App\Support\Delivery::text('announcement') }}</span>
     </div>
   </div>
 
@@ -47,7 +47,7 @@
               <div class="account-user-email">Sign in to manage your Australian orders &amp; wishlist</div>
             </div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openAuthModal('login')">Sign In / Register</button>
+          <button class="btn btn-primary btn-sm" data-action="open-auth" data-auth-tab="login">Sign In / Register</button>
         @endif
       </div>
     </div>
@@ -60,8 +60,8 @@
         <h3 class="auth-title" style="margin-bottom:8px">Access Your Account</h3>
         <p class="auth-subtitle" style="margin-bottom:var(--space-md)">Sign in or create an account to view your Australian orders, saved items, and custom sourcing requests.</p>
         <div style="display:flex; flex-direction:column; gap:var(--space-xs)">
-          <button class="btn btn-primary" onclick="openAuthModal('login')">Sign In</button>
-          <button class="btn btn-secondary" onclick="openAuthModal('register')">Create Account</button>
+          <button class="btn btn-primary" data-action="open-auth" data-auth-tab="login">Sign In</button>
+          <button class="btn btn-secondary" data-action="open-auth" data-auth-tab="register">Create Account</button>
         </div>
       </div>
     </div>
@@ -159,7 +159,7 @@
           <div class="account-card-panel">
             <div class="account-panel-header">
               <h3 class="account-panel-title">Saved Wishlist Items</h3>
-              <button class="btn btn-secondary btn-sm" onclick="toggleWishlistDrawer()">Open Wishlist Drawer</button>
+              <button class="btn btn-secondary btn-sm" data-action="toggle-wishlist">Open Wishlist Drawer</button>
             </div>
             <div id="account-wishlist-grid">
               
@@ -172,7 +172,7 @@
           <div class="account-card-panel">
             <div class="account-panel-header">
               <h3 class="account-panel-title">Shopping Bag Items</h3>
-              <button class="btn btn-secondary btn-sm" onclick="toggleCart()">Open Cart Drawer</button>
+              <button class="btn btn-secondary btn-sm" data-action="toggle-cart">Open Cart Drawer</button>
             </div>
             <div id="account-cart-grid">
               

@@ -196,8 +196,9 @@ class CustomerOrdersTest extends TestCase
 
         $html = $this->asCustomer()->get('/account/orders/'.$number)->getContent();
         $this->assertStringContainsString('>Shipped<', $html);                                  // badge
-        $this->assertStringContainsString('2 Nov 2026, 9:15 am', $html);
-        $this->assertStringContainsString('3 Nov 2026, 2:00 pm', $html);
+        // Stored UTC, shown in Australia/Sydney (AEDT, +11 in November)
+        $this->assertStringContainsString('2 Nov 2026, 8:15 pm AEDT', $html);
+        $this->assertStringContainsString('4 Nov 2026, 1:00 am AEDT', $html);
         $this->assertMatchesRegularExpression('/is-done"[^>]*>\s*<span class="order-track-dot"[^>]*>&#10003;<\/span>\s*<span class="order-track-label">Processing/', $html);
         $this->assertMatchesRegularExpression('/is-upcoming"[^>]*>\s*<span class="order-track-dot"[^>]*>5<\/span>\s*<span class="order-track-label">Delivered/', $html);
         $this->assertStringNotContainsString('id="order-cancel-btn"', $html);              // no longer cancellable

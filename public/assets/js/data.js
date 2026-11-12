@@ -11,6 +11,47 @@
     try { window.__BOOT__ = JSON.parse(bootTag.textContent); } catch (e) { window.__BOOT__ = {}; }
   }
   const BOOT = window.__BOOT__ || {};
+  if (!window.__PAGE__) {
+    try { window.__PAGE__ = JSON.parse((document.getElementById('page-data') || {}).textContent || '{}'); } catch (e) { window.__PAGE__ = {}; }
+  }
+
+  /* ── No inline handlers (CSP script-src 'self') ──
+     Broken images fall back to the placeholder through one capturing listener instead of onerror="" attributes; images
+     that failed before this script ran are fixed by the scan below. */
+  const FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500"><rect width="400" height="500" fill="#efe9e0"/></svg>');
+  const fallback = img => {
+    if (!img || img.tagName !== 'IMG' || img.dataset.fallback || (img.currentSrc || img.src || '').startsWith('data:')) return;
+    img.dataset.fallback = '1';
+    img.removeAttribute('srcset');
+    img.src = window.PLACEHOLDER_IMG || FALLBACK;
+  };
+  document.addEventListener('error', e => fallback(e.target), true);
+  const scanImages = () => Array.from(document.images).forEach(img => {
+    if (img.getAttribute('src') && img.complete && img.naturalWidth === 0) fallback(img);
+  });
+  scanImages();
+  document.addEventListener('DOMContentLoaded', scanImages);
+
+  /* Buttons/links declare what they do with data-action (replaces onclick=""). The functions live in app.js. */
+  document.addEventListener('click', e => {
+    const el = e.target.closest && e.target.closest('[data-action]');
+    if (!el) return;
+    const call = (name, ...args) => (typeof window[name] === 'function' ? window[name](...args) : undefined);
+    switch (el.dataset.action) {
+      case 'open-auth': e.preventDefault(); call('openAuthModal', el.dataset.authTab || 'login'); break;
+      case 'toggle-cart': e.preventDefault(); call('toggleCart'); break;
+      case 'open-cart': e.preventDefault(); call('openCart'); break;
+      case 'toggle-wishlist': e.preventDefault(); call('toggleWishlistDrawer'); break;
+      case 'open-variant': {
+        e.preventDefault();
+        const id = parseInt(el.dataset.productId, 10);
+        call('openVariantModal', (window.PRODUCTS || []).find(p => p.id === id));
+        break;
+      }
+      case 'close-mobile-nav': call('closeMobileNav'); break;   // a link: navigation continues
+      default: break;
+    }
+  });
 
   /* ── Image URL helper (mirrors App\Support\Img in PHP — keep in sync) ──
      Adds responsive sizing to Cloudinary and Unsplash URLs only; stored URLs are never altered,
@@ -23,8 +64,13 @@
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return url;
     if (u.hostname === 'res.cloudinary.com') {
       const m = u.pathname.match(/^(\/[^/]+\/image\/upload\/)(.+)$/);
-      if (!m || CLD_TRANSFORM.test(m[2].split('/')[0])) return url;
-      return u.origin + m[1] + 'f_auto,q_auto,c_limit,w_' + width + '/' + m[2] + u.search;
+      if (!m) return url;
+      let rest = m[2];
+      const first = rest.split('/')[0];
+      // Same rule as App\Support\Img: a plain width (w_1600) is replaced; any other transformation is kept as set.
+      if (/^w_\d+$/.test(first) && rest.indexOf('/') > 0) rest = rest.slice(first.length + 1);
+      else if (CLD_TRANSFORM.test(first)) return url;
+      return u.origin + m[1] + 'f_auto,q_auto,c_limit,w_' + width + '/' + rest + u.search;
     }
     if (u.hostname === 'images.unsplash.com') {
       u.searchParams.set('w', width);
@@ -127,6 +173,7 @@
   window.HERO_SLIDES = (BOOT.hero || []).map(h => ({
     id: h.id, label: '', headline: h.headline, subtext: h.subtext, cta: h.cta, ctaLink: h.ctaLink,
     secondaryCta: '', secondaryCtaLink: '', image: h.image, imageSrc: h.imageSrc || h.image, imageSrcMobile: h.imageSrcMobile || h.imageSrc || h.image,
+    srcset: h.srcset || '', srcsetMobile: h.srcsetMobile || '',
   }));
 
   /* ── Navigation (categories + sub-categories from the database) ── */
@@ -161,15 +208,17 @@
      .concat([{ label: 'Pre-order', href: '/products?category=preorder' }]),
     help: [
       { label: 'My Account', href: '/account' },
+      { label: 'Contact Us', href: '/contact' },
+      { label: 'Shipping', href: '/shipping' },
+      { label: 'Returns', href: '/returns' },
       { label: 'Request Product Sourcing', href: '/request' },
       { label: 'Bulk & Corporate Orders', href: '/bulk-order' },
-      { label: 'Contact Us', href: '/request' },
     ],
     about: [
       { label: 'Our Story', href: '/#bangladesh-made-section' },
       { label: 'Artisan Heritage', href: '/#bangladesh-made-section' },
-      { label: 'Custom Sourcing', href: '/request' },
-      { label: 'Bulk Orders', href: '/bulk-order' },
+      { label: 'Terms of Sale', href: '/terms' },
+      { label: 'Privacy', href: '/privacy' },
     ],
   };
 })();

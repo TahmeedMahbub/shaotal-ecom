@@ -7,14 +7,14 @@
           'Shop' => array_merge([['All Products', '/products'], ['New Arrivals', '/products?sort=newest']],
             array_map(fn ($c) => [$c['name'], \App\Support\Seo::listingUrl($c['slug'])], $boot['categories'] ?? []),
             [['Pre-order', '/products?category=preorder']]),
-          'Customer Care' => [['My Account', '/account'], ['Request Product Sourcing', '/request'], ['Bulk & Corporate Orders', '/bulk-order'], ['Contact Us', '/request']],
-          'About' => [['Our Story', '/#bangladesh-made-section'], ['Artisan Heritage', '/#bangladesh-made-section'], ['Custom Sourcing', '/request'], ['Bulk Orders', '/bulk-order']],
+          'Customer Care' => [['My Account', '/account'], ['Contact Us', '/contact'], ['Shipping', '/shipping'], ['Returns', '/returns'], ['Request Product Sourcing', '/request'], ['Bulk & Corporate Orders', '/bulk-order']],
+          'About' => [['Our Story', '/#bangladesh-made-section'], ['Artisan Heritage', '/#bangladesh-made-section'], ['Terms of Sale', '/terms'], ['Privacy', '/privacy']],
         ];
       @endphp
       <div class="footer-grid" id="footer-grid">
         <div class="footer-brand">
           <a href="/" class="footer-logo-link" aria-label="{{ config('storefront.brand') }}">
-            <img src="/assets/logos/logo.png" alt="{{ config('storefront.brand') }}" class="footer-logo" loading="lazy">
+            <img src="/assets/logos/logo.png" alt="{{ config('storefront.brand') }}" class="footer-logo" width="365" height="66" loading="lazy">
           </a>
           <p>An Australian ecommerce brand offering thoughtfully curated lifestyle pieces — from fashion and handcrafted decor to natural jute items and gifts.</p>
           <div class="footer-social"></div>

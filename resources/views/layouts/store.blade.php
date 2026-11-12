@@ -60,7 +60,7 @@
   @include('partials.overlays')
 
   <script type="application/json" id="boot-data">{!! json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) !!}</script>
-  <script>window.__PAGE__ = {{ Illuminate\Support\Js::from($page ?? new stdClass) }};</script>
+  <script type="application/json" id="page-data">{!! json_encode($page ?? new stdClass, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
   <script src="{{ \App\Support\Assets::url('assets/js/data.js') }}"></script>
   <script src="{{ \App\Support\Assets::url('assets/js/api-client.js') }}"></script>
   <script src="{{ \App\Support\Assets::url('assets/js/app.js') }}"></script>

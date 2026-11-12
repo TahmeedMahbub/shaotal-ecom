@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Payments\PaymentMethod;
 use App\Payments\PaymentMethods;
+use App\Support\Delivery;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -90,7 +91,8 @@ class Checkout
     public static function totals(array $lines, ?string $code, ?int $customerId): array
     {
         $subtotal = round(array_sum(array_map(fn ($l) => $l['price'] * $l['quantity'], $lines)), 2);
-        $shipping = $subtotal > config('storefront.free_shipping_over') ? 0.0 : (float) config('storefront.shipping_flat');
+        // Free at or above the threshold (A$100.00 exactly ships free), flat fee below it.
+        $shipping = Delivery::freeShipping($subtotal) ? 0.0 : (float) config('storefront.shipping_flat');
         $discount = 0.0;
         $coupon = null;
         $couponError = null;

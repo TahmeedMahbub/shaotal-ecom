@@ -2,6 +2,8 @@
 
 _Part 5 (2026-11-12). Commands are for the **production server**, run from the app directory as the deploy user, unless a step says otherwise. Nothing here was run against production. The commands were checked locally for syntax and behaviour only, never against the production database. Template: [`.env.production.example`](.env.production.example). Config check: `php artisan storefront:deploy-check` (read-only, prints no secrets, exit 1 on a blocking problem)._
 
+_Updated for Part 6 (2026-11-12): `storage:link` and the PHP `gd` extension are now **required**, new `STOREFRONT_*` settings (§7), return requests stay **off**, and new post-deploy checks. **Release is still blocked** by the admin app integration (plan §17, Part 6 blockers): staff must be able to see and act on orders, sourcing/bulk requests and contact messages before launch._
+
 ## 0. Before the first deploy (once)
 | # | Item | How |
 |---|---|---|
@@ -14,7 +16,10 @@ _Part 5 (2026-11-12). Commands are for the **production server**, run from the a
 | 0.7 | Behind a load balancer/CDN that terminates TLS? | Set `TRUSTED_PROXIES` (its IPs/CIDRs, or `*` if the app is reachable only through it). Otherwise Laravel sees plain http: cookies, HSTS and URLs go wrong. |
 | 0.8 | Several app servers? | Use `CACHE_STORE=redis` and `SESSION_DRIVER=redis`. The checkout lock, rate limits and catalog cache must be shared across servers. |
 | 0.9 | Permissions | Owner = deploy user, group = web server user: `chmod -R ug+rwX storage bootstrap/cache`, everything else read-only for the web server. |
-| 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), `STOREFRONT_DISPLAY_TIMEZONE`, returns policy, Stripe. |
+| 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), policy-page approval (`STOREFRONT_APPROVED_PAGES`), contact details (`STOREFRONT_CONTACT_*`), returns policy and window, Stripe (future). See §7. Never fill these in without written owner approval. |
+| 0.11 | PHP extensions | `gd` with JPEG, PNG and WebP support is **required**: sourcing-request photos are decoded and re-encoded with GD, and every upload is refused without it. Check: `php -r 'var_dump(function_exists("imagewebp"));'` → `true` (also reported by `storefront:deploy-check`). |
+| 0.12 | Uploaded photos are served as static files only | `storage/app/public` is exposed at `/storage` by `storage:link`. Uploads are already re-encoded images with random `.jpg/.png/.webp` names, but as defence in depth make sure the web server never executes PHP there. Nginx: `location ^~ /storage/ { try_files $uri =404; }` placed before the `\.php$` block. Apache: `php_flag engine off` (or `RemoveHandler .php`) for that directory. |
+| 0.13 | CI green on the release commit | `.github/workflows/tests.yml`: PHPUnit (MySQL) and the browser smoke job. **The workflow has not run on GitHub yet**: check the first run before relying on it. |
 
 ## 1. Deploy
 ```sh
@@ -38,8 +43,9 @@ php artisan route:cache
 php artisan view:cache
 php artisan event:cache
 
-# 6. Storage link: not needed for the storefront pages. Run it only if sourcing-request uploads must be public.
-# php artisan storage:link
+# 6. Storage link: REQUIRED. Sourcing-request photos are stored in storage/app/public/sourcing-requests and their
+#    saved URLs point to /storage/...; without the link staff get 404 for every photo. Once per server (re-run is safe).
+php artisan storage:link        # creates public/storage -> storage/app/public (and nothing else in public/)
 
 # 7. Catalog cache: rebuild from the database now (otherwise within ~1–6 minutes)
 php artisan storefront:refresh-catalog
@@ -65,7 +71,8 @@ location /assets/ {
     add_header Cache-Control "public, max-age=31536000, immutable";   # URLs carry ?v=<mtime>
 }
 location / { try_files $uri $uri/ /index.php?$query_string; }
-# Trailing slash → no slash (Apache does this in .htaccess)
+# Trailing slash → no slash. Optional since Part 7: the app's RedirectTrailingSlash middleware already 301s these
+# (Apache's .htaccess also does). Keeping it saves a PHP request per redirect.
 rewrite ^/(.+)/$ /$1 permanent;
 location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name; fastcgi_pass unix:/run/php/php8.4-fpm.sock; }
 location ~ /\.(?!well-known) { deny all; }
@@ -87,12 +94,25 @@ curl -s  $B/sitemap.xml | head -5                                               
 curl -s  $B/products | grep -o '<link rel="canonical"[^>]*>'                    # https canonical
 curl -sI $B/account | grep -iE "x-robots-tag"                                   # noindex, nofollow
 curl -sI $B/nonexistent-page | head -1                                          # 404 branded page, no stack trace
+curl -sI "$B/products/?category=fashion" | grep -iE "HTTP/|location"            # 301 → $B/products?category=fashion
+curl -sI http://www.<domain-or-apex>/ | grep -i location                         # the non-preferred host 301s to APP_URL
+curl -s  $B/sitemap-products-1.xml | grep -c "<image:loc>"                      # > 0: product images listed
+curl -s  "$B/products?page=2" | grep -o '<link rel="canonical"[^>]*>'           # self-canonical ...?page=2 (if > 8 products)
 curl -sI -H 'Accept-Encoding: gzip' "$B/assets/css/sections.css" | grep -iE "content-encoding|cache-control"
+```
+```sh
+curl -sI $B/bulk-order | grep -i content-security   # script-src lists ONLY 'self' + the two pinned CDN files
+curl -sI $B/ | grep -i content-security             # script-src 'self'; script-src-attr 'none' (no CDN, no unsafe-inline)
+curl -s  $B/returns | grep -o '<meta name="robots"[^>]*>'   # noindex while the page is not approved
+curl -sI $B/storage/ | head -1                      # 403/404: the directory itself is not listable
 ```
 Then in a browser, on a phone too:
 1. Browse home → category → product → add to cart → sign in → checkout → place a COD order.
-2. Open My Orders and check the new order's page.
-3. Check the console: no errors.
+2. Open My Orders and check the new order's page: dates show AEST/AEDT. No "Request a return" form (returns are off).
+3. `/request`: send a test sourcing request with one photo. Open the stored photo URL from the admin app (or the `sourcing_request_images.image_url` value): it loads. Mark the test request as spam/closed in the admin app afterwards.
+4. `/contact`: send a test message; it appears in `contact_messages` (admin app).
+5. `/bulk-order`: the product picker (Select2) works. If it does not, the CDN file changed and failed its SRI check: see plan Part 6 §CSP.
+6. Check the console on each page: no errors and no CSP violations.
 
 Check `storage/logs/laravel-*.log` for new errors.
 
@@ -117,8 +137,50 @@ Check `storage/logs/laravel-*.log` for new errors.
   - Secure session cookie.
   - A session driver that exists (not `database`: no table in `sql/ecom.sql`).
   - `CACHE_STORE` = file or redis.
-  - No `public/robots.txt`, `.env`, `composer.json` or `storage` inside the web root.
-  - Writable `storage/framework/{cache,sessions,views}`, `storage/logs` and `bootstrap/cache`.
+  - `APP_URL host` (Part 7) is not local or test (`localhost`, `127.*`, `0.0.0.0`, `*.test`, `*.local`, `*.localhost`, `*.invalid`): canonicals, the sitemap and JSON-LD are built from it.
+  - No `public/robots.txt`, `.env` or `composer.json` inside the web root.
+  - `public/storage` exists and is **only** the `storage:link` symlink to `storage/app/public` (missing, a copy, or a link to the whole `storage/` all fail).
+  - Writable `storage/framework/{cache,sessions,views}`, `storage/logs`, `storage/app/public` and `bootstrap/cache`.
+  - PHP `gd` loaded with JPEG, PNG and WebP functions.
+  - `STOREFRONT_DISPLAY_TIMEZONE` is a valid time zone name.
+  - `STOREFRONT_APPROVED_PAGES` lists only known pages (`contact, shipping, returns, terms, privacy`).
+  - `STOREFRONT_RETURNS_WINDOW_DAYS`, when set, is a positive number.
+  - Returns switched on while the return-request tables are missing. The database is queried only when the switch is on.
 - **Warnings:**
   - Queue connection, debug log level, log/array mailer.
-  - DB session zone, display zone not set, `TRUSTED_PROXIES` empty.
+  - DB session zone, display zone other than `Australia/Sydney`, `TRUSTED_PROXIES` empty.
+  - Policy pages not yet approved, no public contact details.
+  - Returns switched on (confirm the policy approval and admin review before leaving it on).
+- **Not checked** (do these by hand): HTTPS/redirects, the web server not executing PHP under `/storage`, SMTP delivery, CI status, owner/legal approvals.
+
+## 7. Storefront settings added in Part 6
+All are read in `config/storefront.php`. Defaults are safe for launch. Remember `php artisan config:cache` after any change.
+
+| Variable | Default (unset) | Meaning | Who decides |
+|---|---|---|---|
+| `STOREFRONT_DISPLAY_TIMEZONE` | `Australia/Sydney` | Zone for dates shown to customers (AEST/AEDT label). Storage stays UTC (`APP_TIMEZONE=UTC`, `DB_TIMEZONE=+00:00`). | Owner (decided: Sydney) |
+| `STOREFRONT_APPROVED_PAGES` | empty | Comma-separated subset of `contact,shipping,returns,terms,privacy`. Unlisted pages show "being finalised", send `noindex` and are left out of the sitemap. | Owner; `terms`/`privacy` also legal review |
+| `STOREFRONT_CONTACT_EMAIL` / `_PHONE` / `_HOURS` | empty | Public contact details on `/contact`. Empty = form only (messages go to `contact_messages`). | Owner (not provided yet) |
+| `STOREFRONT_RETURNS_ENABLED` | `false` | Shows the "Request a return" form on the customer's own delivered orders. **Keep false** (see below). | Owner + DB owner + admin team |
+| `STOREFRONT_RETURNS_WINDOW_DAYS` | unset = no limit | Days after the recorded delivery time during which a request may be sent. Do **not** write it as an empty value (`=`): that reads as 0 and deploy-check fails. | Owner (not decided) |
+
+Unchanged code constants (not env): shipping A$10 below A$100, free at A$100 or more (`shipping_flat`, `free_shipping_over`); delivery wording (`delivery_copy`); return reasons (`returns.reasons`); payment methods (`cod` only).
+
+**Switching on return requests: all four are required, in this order.**
+1. The owner approves a returns policy in writing, including whether there is a time limit. The `/returns` page wording is then updated to match and approved (`STOREFRONT_APPROVED_PAGES`). The storefront does not invent eligibility rules: today it only enforces "own order, delivered, once", plus the optional window.
+2. The DB owner reviews and applies `sql/proposed_changes.sql` §4 (`order_return_requests`, `order_return_request_events`) to the shared database, with a backup first. The storefront never runs DDL.
+3. The admin app can list requests and move them `requested → approved/rejected → completed`, recording each change as an event ([docs/admin-order-integration.md](docs/admin-order-integration.md) §7). Refunds and restocking stay manual, staff-side.
+4. Then set `STOREFRONT_RETURNS_ENABLED=true`, run `php artisan config:cache`, run `storefront:deploy-check` (expect the returns WARN, not FAIL), and send one test request on a staff test order.
+
+To switch it off again: set it to `false` and run `config:cache`. Existing requests stay in the tables for staff.
+
+## 8. After launch: search engines (Part 7)
+- **Preferred domain:** choose www or non-www **before** launch. Set `APP_URL` to it, and 301 the other host and `http` to it at the web server or DNS.
+- **Google Search Console** (needs the owner's account; nothing has been set up or verified):
+  1. Domain property, verified by DNS TXT record.
+  2. Submit `https://<domain>/sitemap.xml`.
+  3. URL Inspection on home, a category, a product.
+  4. Rich Results Test on a product.
+
+  Step-by-step and expected warnings: [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md) §12. Don't add verification tokens to the code without the owner providing them.
+- Policy pages stay noindex until listed in `STOREFRONT_APPROVED_PAGES` (§7).

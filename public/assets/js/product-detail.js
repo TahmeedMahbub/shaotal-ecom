@@ -123,7 +123,7 @@ function renderProductGallery(detailState) {
   if (thumbnailsContainer) {
     thumbnailsContainer.innerHTML = detailState.images.map((imgUrl, idx) => `
       <div class="gallery-thumb-item ${idx === detailState.activeImgIndex ? 'active' : ''}" data-thumb-index="${idx}">
-        <img src="${window.imgUrl(fixImgPath(imgUrl), 160)}" alt="Product View ${idx + 1}" width="84" height="84" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+        <img src="${window.imgUrl(fixImgPath(imgUrl), 160)}" alt="Product View ${idx + 1}" width="84" height="84" loading="lazy" decoding="async">
       </div>
     `).join('');
 
@@ -282,7 +282,7 @@ function renderAvailabilityBadge(product) {
   if (!badgeEl) return;
 
   let dotClass = 'instock';
-  let statusText = (window.SITE && SITE.dispatchStatus) || 'In Stock — Ready to dispatch from Sydney';
+  let statusText = (window.SITE && SITE.dispatchStatus) || 'In Stock';
 
   if (product.availability === 'preorder') {
     dotClass = 'preorder';

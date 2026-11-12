@@ -46,8 +46,9 @@
           <a href="/products" class="btn btn-outline">Browse Products</a>
         @show
       </div>
-      <p class="error-help">Need help? <a href="/request">Contact us</a>.</p>
+      <p class="error-help">Need help? <a href="/contact">Contact us</a>.</p>
     </div>
   </main>
+  <script src="{{ \App\Support\Assets::url('assets/js/error-page.js') }}"></script>
 </body>
 </html>

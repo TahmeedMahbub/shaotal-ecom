@@ -127,7 +127,7 @@
       const data = LISTING;
       LISTING = null;
       applyPage(data, false);
-      updateHeaderInfo();
+      updateHeaderInfo(true);
       renderProductGrid();
       updateMobileBadgeCount();
       return;
@@ -205,12 +205,18 @@
     }, { rootMargin: '200px' });
 
     observer.observe(sentinelEl);
+    // Infinite scroll now pages the grid, so on page 1 the server's crawlable page links stay in the HTML but are not
+    // shown (design unchanged). A visitor who lands on ?page=N (e.g. from search) keeps them, to reach earlier pages.
+    const pager = document.getElementById('listing-pagination');
+    const landedPage = parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10);
+    if (pager && !(landedPage > 1)) pager.hidden = true;
   }
 
   /* ══════════════════════════════════════════════════════════
      4. HEADER & BREADCRUMB UPDATE
      ══════════════════════════════════════════════════════════ */
-  function updateHeaderInfo() {
+  // initial: the server already set the document title (with category and page number); keep it on first render.
+  function updateHeaderInfo(initial = false) {
     const titleEl = document.getElementById('listing-title');
     const descEl = document.getElementById('listing-desc');
     const countEl = document.getElementById('listing-count');
@@ -221,7 +227,10 @@
     const catDesc = CATEGORY_DESC_MAP[listingState.category] || CATEGORY_DESC_MAP.all;
 
     if (titleEl) titleEl.textContent = catLabel;
-    document.title = `${catLabel} | ${SITE.brandName}`;
+    if (!initial) document.title = `${catLabel} | ${SITE.brandName}`;
+    // Category level of a subcategory breadcrumb: only while a subcategory of that category is shown.
+    const parentShown = !!(subName && CATEGORY_LABEL_MAP[listingState.category]);
+    ['breadcrumb-parent', 'breadcrumb-parent-sep'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = !parentShown; });
     if (descEl) descEl.textContent = catDesc;
     if (breadcrumbCurrent) breadcrumbCurrent.textContent = catLabel;
     if (countEl) {

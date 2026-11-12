@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-12 (production-readiness Parts 3–5: see STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§17, STOREFRONT_DEPLOYMENT_CHECKLIST.md and SESSION_HANDOFF.md)_
+_Last updated: 2026-11-12 (production-readiness Parts 3–7: see STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§19, docs/SEO_AUDIT.md, STOREFRONT_DEPLOYMENT_CHECKLIST.md and SESSION_HANDOFF.md)_
 
 ## Architecture (how the design was kept)
 The prepared design is rendered as Blade pages (`resources/views/pages`, shared shell in `layouts/store` + `partials/`). Its CSS/JS live in `public/assets` and run unchanged in spirit: the catalog, categories, hero and nav are read from MySQL (`App\Models\Catalog` / `Storefront`, cached 60s on the file store) and injected as `window.__BOOT__`; `public/assets/js/data.js` turns that into the globals the design scripts expect. Cart/wishlist use localStorage for guests and are synced to `carts`/`cart_items`/`wishlist_items` for signed-in customers. All prices, stock, coupons and totals are recomputed server-side (`App\Models\Checkout`). Customer sessions use Laravel's session (`customers` table), no Eloquent models/migrations.
@@ -19,9 +19,9 @@ The prepared design is rendered as Blade pages (`resources/views/pages`, shared 
 3. **Card & PayPal payments**: no gateway credentials, so only COD is enabled (`config/storefront.php` `payment_methods`). Orders are created `pending`.
 4. **Google sign-in** implemented but needs credentials + `sql/google_login.sql` (not executed) — see `docs/google-login.md`. Password-reset email uses `MAIL_MAILER` (currently `log`) — configure SMTP.
 5. **Stock quantity is out of scope until V2** (owner decision, 2026-11-12): never decremented, reserved or checked; only the admin availability flag and status/visibility gate ordering.
-6. **Sourcing images** are stored on the Laravel `public` disk (`php artisan storage:link`, already run); switch to Cloudinary upload when credentials exist.
+6. **Sourcing images** are stored on the Laravel `public` disk as re-encoded copies with random names (Part 6). `php artisan storage:link` is **required** on the server, or staff get 404 for every photo. It is **not** set up in this local checkout (`public/storage` absent). `storefront:deploy-check` fails without it. Switch to Cloudinary upload when credentials exist.
 7. `.env`: `CACHE_STORE`/`QUEUE_CONNECTION=database` but no such tables in the SQL; the storefront uses the `file` cache store explicitly and no queues. `sessions` use files.
-8. Footer links Shipping/Returns/FAQ/Size Guide and the launch-offer strip (ends 2026-10-15, static in design) have no designed pages/data; omitted or left as design.
+8. Footer links: `/contact`, `/shipping`, `/returns`, `/terms`, `/privacy` exist since Part 6 as **drafts** ("being finalised", noindex, not in the sitemap) until the owner approves them (`STOREFRONT_APPROVED_PAGES`; terms/privacy also need legal review). FAQ and the launch-offer strip (ends 2026-10-15, static in design) still have no pages or data.
 9. Brand renamed to "Shaotal" everywhere user-visible (config, titles, footer, JS fallbacks). Internal identifiers keep the old prefix on purpose: localStorage keys `bongo_*` (renaming would empty customers' saved carts/wishlists) and `window.Bongo*` globals. `design/` prototype and `.env` `APP_NAME` (still `Laravel`) were not changed.
 10. Category slugs `home-decor` and `preorder`-availability are used by home sections as in the design.
 11. Product detail "Description & Craft Story" accordion renders the admin-authored `products.description` as real HTML (paragraphs, bold, lists, links) when it contains markup, instead of escaping it to literal text; plain-text/legacy descriptions still render exactly as before. Meta `<description>` tags (`PageController::products`/`product`) strip tags first so rich text never leaks raw markup into `<meta>`. `public/assets/js/product-detail.js` (`renderAccordions`), `public/assets/css/product-detail.css` (`.accordion-inner-body` rich-text styles), `app/Http/Controllers/PageController.php`.
@@ -39,3 +39,61 @@ Account order history (paginated) + order details/tracking page (`/account/order
 - **Deployment:** `storefront:deploy-check`, `.env.production.example` and STOREFRONT_DEPLOYMENT_CHECKLIST.md.
 - **Delivery wording:** now in `storefront.delivery_copy` (owner decisions in plan §16).
 - **Admin changes:** specified in docs/admin-order-integration.md. Not applied or verified (admin code not available).
+
+## Security, policies & release prep (2026-11-12, Part 6)
+Details: STOREFRONT_PRODUCTION_READINESS_PLAN.md §18.
+
+**Done and tested:**
+- **CSP:** no inline JavaScript anywhere (`script-src 'self'`, `script-src-attr 'none'`). The two CDN files are allowed only on `/bulk-order`, pinned with SRI.
+- **Fixes:** an open redirect after Google sign-in, and `javascript:` links in requests.
+- **Uploads:** content-checked and re-encoded with GD, random names, size, dimension and count limits.
+- **Spam protection:** honeypot, link limit, per-contact and per-IP limits.
+- **Contact form:** stores messages in `contact_messages`.
+- **Policy pages:** drafts.
+- **Delivery:** A$10 under A$100, free at A$100 or more; Australia only; no express service; no carrier or tracking claims.
+- **Dates:** shown in Australia/Sydney (AEST/AEDT), stored in UTC.
+- **Hero:** responsive, with a mobile source.
+- **Return requests:** built behind a switch that is **off**.
+- **Payments:** a written architecture plan for Stripe (future).
+- **CI:** a browser smoke-test job.
+- **Deploy-check:** updated.
+
+**Test results:**
+- PHPUnit (local MySQL test DB): 238/238.
+- Browser smoke test: 51/51.
+- Real-browser checks (upload, returns, 419): 13/13.
+
+**Still blocked:**
+- **Admin app integration** is a release blocker: orders, return review, contact messages and sourcing photos.
+- **Owner approvals:**
+  - returns policy and window;
+  - wording of the policy pages, with legal review of terms and privacy;
+  - contact details;
+  - hero images.
+- **DB owner:** must apply `sql/proposed_changes.sql` §4 before returns can be switched on.
+- **Not yet run:** CI on GitHub.
+
+## SEO audit & optimisation (2026-11-12, Part 7)
+Details: [docs/SEO_AUDIT.md](SEO_AUDIT.md) and plan §19.
+
+**Done and tested:**
+- **Product discovery:** crawlable listing pages (`?page=N`, self-canonical, 404 past the end; links hidden on page 1 where infinite scroll runs). "You May Also Like" rotates through the category. A link-only crawl of the 405-product local catalog now reaches **405/405** products within 3 clicks (was 71/405).
+- **robots.txt:** no longer hides the noindex on account and checkout.
+- **Trailing slash:** 301 on any web server.
+- **Listings:** keep the server `<title>` after scripts run; subcategory breadcrumbs show the category level.
+- **New structured data:** CollectionPage/ItemList, shipping details from the confirmed rule, ContactPage/WebPage for approved pages, Organization contact only when configured, category share image, image sitemap.
+- **deploy-check:** rejects a local or test `APP_URL`.
+
+**Test results:**
+- PHPUnit 255/255 (2182 assertions, 0 skipped).
+- Browser SEO check: 54/54 (perf catalog) and 42/42 with 2 SKIP (seed DB, as CI).
+- Smoke test: 51/51.
+- Mobile performance: unchanged within 0–2.5% (local, synthetic).
+
+**Still pending:**
+- Google Search Console and Rich Results checks (need the owner and the live site).
+- About page (no content).
+- Policy pages approval.
+- Ratings, return-policy and delivery-time markup (decisions).
+- Field Core Web Vitals.
+- **Admin integration** is still the release blocker.

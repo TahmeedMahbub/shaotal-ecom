@@ -77,8 +77,8 @@ class SeoTest extends TestCase
         $this->assertStringContainsString('Hand-embroidered cotton cushion cover', $html);
         $this->assertStringContainsString('Embroidered by artisans.', $html);   // full description accordion
         $this->assertStringContainsString('id="detail-offered-price">A$55.00<', $html);
-        $this->assertStringContainsString('In Stock — Ready to dispatch from Sydney', $html);
-        $this->assertMatchesRegularExpression('/<img id="main-product-image" src="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/w_800\/cld-sample-2\.jpg"[^>]*width="800" height="800" alt="Nakshi Kantha Cushion" fetchpriority="high"/', $html);
+        $this->assertMatchesRegularExpression('#availability-status-dot instock"><\/span>\s*<span>In Stock<\/span>#', $html);   // no unconfirmed dispatch location
+        $this->assertMatchesRegularExpression('/<img id="main-product-image" src="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/f_auto,q_auto,c_limit,w_800\/cld-sample-2\.jpg"[^>]*width="800" height="800" alt="Nakshi Kantha Cushion" fetchpriority="high"/', $html);
         $this->assertStringContainsString('<a href="/products?category=home-decor" id="detail-breadcrumb-category-link">Home &amp; Living</a>', $html);
         // Related products are real links (also in the card the script renders).
         $this->assertMatchesRegularExpression('/id="related-products-grid">.*<a href="\/products\/[a-z-]+">/s', $html);
@@ -228,7 +228,8 @@ class SeoTest extends TestCase
     {
         $cases = [
             '/products' => '/products',
-            '/products?sort=price-low&utm_source=mail&page=3' => '/products',
+            // Part 7: ?page=N is part of a listing's canonical (crawlable pagination, SeoCrawlabilityTest); page 1 is the bare URL.
+            '/products?sort=price-low&utm_source=mail&page=1' => '/products',
             '/products?category=fashion' => '/products?category=fashion',
             '/products?sort=newest&category=fashion&gclid=x' => '/products?category=fashion',
             '/products?subcategory=t-shirts&category=fashion' => '/products?category=fashion&subcategory=t-shirts',
@@ -326,7 +327,8 @@ class SeoTest extends TestCase
         $this->assertStringStartsWith('text/plain', $res->headers->get('Content-Type'));
         $body = $res->getContent();
 
-        foreach (['Disallow: /account', 'Disallow: /checkout', 'Disallow: /auth/', 'Sitemap: '.self::BASE.'/sitemap.xml'] as $line) {
+        // Part 7: /account and /checkout are no longer disallowed, so crawlers can read their noindex (SeoCrawlabilityTest).
+        foreach (['Disallow: /auth/', 'Sitemap: '.self::BASE.'/sitemap.xml'] as $line) {
             $this->assertStringContainsString($line."\n", $body);
         }
         $this->assertDoesNotMatchRegularExpression('/^Disallow: \/(assets|products|css|js|$)/m', $body);

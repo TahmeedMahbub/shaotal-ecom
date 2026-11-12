@@ -4,12 +4,12 @@
 @section('robots', 'noindex, nofollow')
 @push('head')
 <link rel="stylesheet" href="{{ \App\Support\Assets::url('assets/css/order-detail.css') }}">
+<link rel="stylesheet" href="{{ \App\Support\Assets::url('assets/css/info-pages.css') }}">
 @endpush
 @php
   $money = fn ($v) => config('storefront.currency_symbol').number_format((float) $v, 2);
-  // Stored in UTC; shown in the configured display zone (storefront.display_timezone).
-  $tz = config('storefront.display_timezone') ?: 'UTC';
-  $when = fn ($at) => $at ? \Illuminate\Support\Carbon::parse($at, 'UTC')->setTimezone($tz)->format('j M Y, g:i a').($tz === 'UTC' ? ' UTC' : '') : null;
+  // Stored in UTC; shown once-converted in the display zone with its abbreviation (AEST/AEDT).
+  $when = fn ($at) => \App\Support\DisplayTime::dateTime($at);
   $t = $order['totals'];
   $a = $order['address'];
 @endphp
@@ -124,6 +124,31 @@
             </div>
           @endif
         </div>
+
+        @if ($order['returnRequest'])
+          <div class="account-card-panel" id="order-return-box">
+            <div class="account-panel-header"><h2 class="account-panel-title">Return</h2></div>
+            <div class="order-info-block">
+              <strong>{{ $order['returnRequest']['label'] }}</strong><br>
+              Reason: {{ $order['returnRequest']['reason'] }}<br>
+              Requested {{ \App\Support\DisplayTime::dateTime($order['returnRequest']['requestedAt']) }}
+            </div>
+          </div>
+        @elseif ($order['canRequestReturn'])
+          <div class="account-card-panel order-cancel-box" id="order-return-box">
+            <div class="account-panel-header"><h2 class="account-panel-title">Problem with this order?</h2></div>
+            <p>Send a return request. Our team reviews every request and will contact you; it is not an automatic approval or refund. See <a href="/returns">Returns</a>.</p>
+            <form id="order-return-form" data-order="{{ $order['number'] }}" class="contact-form">
+              <div class="auth-form-group"><label class="auth-label" for="return-reason">Reason</label>
+                <select id="return-reason" name="reason" class="auth-input" required>
+                  @foreach (config('storefront.returns.reasons') as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
+                </select>
+              </div>
+              <div class="auth-form-group"><label class="auth-label" for="return-details">Details (optional)</label><textarea id="return-details" name="details" class="auth-input" maxlength="2000" rows="3"></textarea></div>
+              <button type="submit" class="btn btn-outline btn-sm" id="order-return-btn" style="width: 100%;">Request a Return</button>
+            </form>
+          </div>
+        @endif
 
         @if ($order['canCancel'])
           <div class="account-card-panel order-cancel-box" id="order-cancel-box">

@@ -1,0 +1,26 @@
+/* Information & policy pages (contact, shipping, returns, terms, privacy). Design tokens only. */
+.info-page { max-width: 820px; margin: var(--space-lg) auto var(--space-2xl); }
+.info-page .account-card-panel { margin-bottom: var(--space-lg); }
+.info-page h1 { font-family: var(--font-heading); font-size: var(--fs-h2); color: var(--color-dark); margin: 0 0 var(--space-xs); }
+.info-lead { color: var(--color-grey-700); font-size: var(--fs-body-lg); margin: 0 0 var(--space-md); }
+.info-prose { color: var(--color-grey-700); font-size: var(--fs-body); line-height: 1.7; }
+.info-prose h2 { font-family: var(--font-heading); font-size: var(--fs-h4); color: var(--color-dark); margin: var(--space-lg) 0 var(--space-xs); }
+.info-prose h2:first-child { margin-top: 0; }
+.info-prose p, .info-prose ul { margin: 0 0 var(--space-sm); }
+.info-prose ul { padding-left: 1.25rem; }
+.info-prose li { margin-bottom: 4px; }
+.info-prose a { color: var(--color-brand); text-decoration: underline; }
+.info-draft-notice {
+  display: flex; gap: var(--space-sm); align-items: flex-start; padding: var(--space-sm) var(--space-md);
+  border: 1px solid hsl(38, 70%, 80%); background: hsl(40, 80%, 95%); color: hsl(30, 60%, 25%);
+  border-radius: var(--radius-md); font-size: var(--fs-small); margin-bottom: var(--space-md);
+}
+.info-links { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); font-size: var(--fs-small); margin-top: var(--space-md); }
+.info-links a { color: var(--color-brand); }
+.contact-form .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.contact-form .auth-form-group { margin-bottom: var(--space-sm); }
+.contact-form textarea.auth-input { min-height: 140px; resize: vertical; }
+.contact-form .form-status { margin-top: var(--space-sm); font-size: var(--fs-small); }
+.contact-form .form-status.is-error { color: var(--color-danger); }
+.contact-form .form-status.is-ok { color: var(--color-success); }
+@media (max-width: 600px) { .contact-form .form-row-2col { grid-template-columns: 1fr; } }

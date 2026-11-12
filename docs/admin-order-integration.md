@@ -2,6 +2,8 @@
 
 _Written 2026-11-12 (Part 5A). **Not applied and not verified**: the admin codebase was not available on the machine where the storefront work was done. Everything below is a specification for the admin developer. Storefront references are to this repository._
 
+_Part 6 additions (2026-11-12): §7 return-request review (**proposed**: the tables are not in the shared database and the feature is off) and §8 contact messages and sourcing photos. **This integration remains a release blocker**: none of it has been built or tested against the admin app._
+
 ## Why
 - The storefront shows the order's status and timeline live from the shared tables (`orders`, `order_timeline`). See `App\Models\CustomerOrders` and `App\Support\OrderStatus`.
 - Customers can cancel their own order while it is `pending`. The storefront does this with a row lock plus a compare-and-set: `UPDATE … WHERE order_status = 'pending'`.
@@ -75,7 +77,7 @@ Rules:
 ## 4. Time zone
 - The storefront now opens MySQL sessions with `time_zone = '+00:00'` (`config/database.php`, `DB_TIMEZONE`), and `APP_TIMEZONE` is UTC.
 - The admin app should do the same, so `TIMESTAMP` columns (`order_timeline.created_at`) and `DATETIME` columns (`cancelled_at`, `placed_at`, `paid_at`) mean the same instant in both apps.
-- Display zone: the storefront uses `STOREFRONT_DISPLAY_TIMEZONE`. The admin should use the same business zone once the owner confirms it.
+- Display zone: the owner confirmed **Australia/Sydney** (Part 6). The storefront shows customer dates in that zone with an AEST/AEDT label (`STOREFRONT_DISPLAY_TIMEZONE`, default `Australia/Sydney`; `App\Support\DisplayTime`). The admin should display the same zone, so staff and customers see the same time for each event, while storing UTC.
 
 ## 5. Catalog cache version (makes admin edits appear within ~10 s instead of ~1–6 min)
 After **any** save that changes what customers see, bump one `site_settings` row:
@@ -99,3 +101,71 @@ DB::table('site_settings')->updateOrInsert(
 6. Admin: mark the order paid. The storefront order page shows "Paid"; the delivery status is unchanged.
 7. Admin: edit a product price. Within ~10 s the storefront product page and checkout show the new price (product page and checkout already read live; listings follow the cache version).
 8. Stock: after all of the above, every `stock_qty` touched by the order is unchanged.
+
+## 7. Return-request review (proposed; NOT active)
+**Status:**
+- The storefront code exists, is tested, and is **off** (`STOREFRONT_RETURNS_ENABLED=false`).
+- It stays off until:
+  - (a) the owner approves a returns policy;
+  - (b) the DB owner applies `sql/proposed_changes.sql` §4 to the shared database;
+  - (c) the admin screens below exist.
+- The storefront also hides the form automatically while the tables are missing.
+- No eligibility rules beyond the ones below have been decided. **Do not add any in either app without the owner's written policy.**
+
+**What the storefront does (when on)** (`App\Models\CustomerReturns`, `POST /account/orders/{number}/return`):
+- A signed-in customer can request a return for **their own** order whose `order_status` is `delivered`, **once** per order (`UNIQUE order_id`).
+- The customer picks one of the reasons in `config('storefront.returns.reasons')` and can add up to 2,000 characters of details.
+- If `STOREFRONT_RETURNS_WINDOW_DAYS` is set, the request must arrive within that many days of the `order_timeline` row that moved the order to `delivered`. Without that row it is refused. The window is not set (owner decision pending).
+- It inserts one `order_return_requests` row (`status='requested'`) and one `order_return_request_events` row (`old_status NULL → requested`, `changed_by_admin_id NULL`), in one transaction.
+- It changes **nothing else**: not `orders.order_status`, `payment_status`, `stock_qty`, or any payment row.
+- The customer's order page then shows the request's status label:
+
+  | `status` | Label shown to the customer |
+  |---|---|
+  | `requested` | Return Requested |
+  | `approved` | Return Approved |
+  | `rejected` | Return Not Approved |
+  | `completed` | Return Completed |
+
+**What the admin app needs (proposed):**
+1. **List:** a "Return requests" page, newest first, filterable by `status` (index `status, created_at`). Show the order number, customer, reason, details, and the request time in Australia/Sydney.
+2. **Review:** from the request (or its order page), staff can move the status only along these transitions (same table as `CustomerReturns::canTransition`):
+
+   | From | Allowed next status |
+   |---|---|
+   | `requested` | `approved` or `rejected` |
+   | `approved` | `completed` |
+   | `rejected` | none (final) |
+   | `completed` | none (final) |
+
+3. **Write each change as a compare-and-set:**
+   - `UPDATE order_return_requests SET status=?, status_changed_at=NOW(), changed_by_admin_id=?, admin_note=? WHERE id=? AND status=?`
+   - If it affects 0 rows, refuse with "This request was changed by someone else."
+   - Otherwise insert one `order_return_request_events` row (old → new, `note`, `changed_by_admin_id`), in the same transaction.
+4. **Keep refunds and stock separate and manual:**
+   - Approving or completing a return must not change `orders.payment_status`, refund anything or touch `stock_qty`.
+   - Stock management is V2, and online refunds wait for Stripe (future).
+   - Whether the order itself moves to `returned` is a staff decision made with the existing order-status action (§1/§2), not a side effect.
+5. **Communicate:** today the customer only sees the label on their order page. There are no emails, because none were approved. Any customer message (email, `admin_note` shown to the customer) needs approved wording first.
+
+**Verification (manual, local `*_test` DB only, after (b) and (c)):**
+1. With `STOREFRONT_RETURNS_ENABLED=true` on a local storefront, request a return on a delivered test order.
+2. Admin: the request appears. Approve it, then complete it. The storefront shows each label, and there are three event rows.
+3. A second request on the same order is refused.
+4. Admin: try `rejected → approved`. It is refused.
+5. The order's payment status and the product stock are unchanged.
+
+## 8. Other storefront inputs staff must see (Part 6)
+- **Contact messages:**
+  - `/contact` writes to `contact_messages` (existing table: `status` `new/in_progress/resolved/spam`, `admin_notes`).
+  - The subject may end in "· Order INV-…" when the customer gave an order number.
+  - The admin app needs a list with those statuses.
+  - The storefront has no inbox and sends no email.
+- **Sourcing-request photos:**
+  - `sourcing_request_images.image_url` holds a full URL under `{APP_URL}/storage/sourcing-requests/<uuid>.<jpg|png|webp>`.
+  - Each file is a re-encoded copy of the customer's upload (metadata stripped, random name, at most 5 per request).
+  - They load only if `php artisan storage:link` was run on the storefront server (deployment checklist §1 step 6).
+  - If the admin app runs on a different server, it must display the URL and not expect the file on its own disk.
+- **Spam:**
+  - Public forms have a hidden honeypot field, a limit of 3 links per message, a limit of 5 submissions per contact per hour, and per-IP rate limits.
+  - Spam that gets through can be marked `spam` (contact messages) or closed by staff. Nothing is auto-deleted.

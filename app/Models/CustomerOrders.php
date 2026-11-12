@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Payments\PaymentMethods;
+use App\Support\DisplayTime;
 use App\Support\OrderStatus;
 use Illuminate\Support\Facades\DB;
 
@@ -40,7 +41,7 @@ class CustomerOrders
             'orders' => $rows->map(fn ($o) => [
                 'id' => $o->order_number,
                 'url' => self::url($o->order_number),
-                'date' => substr((string) ($o->placed_at ?? $o->created_at), 0, 10),
+                'date' => DisplayTime::date($o->placed_at ?? $o->created_at),   // calendar date in Australia/Sydney
                 'total' => (float) $o->grand_total,
                 'status' => OrderStatus::label($o->order_status),
                 'statusClass' => OrderStatus::badgeClass($o->order_status),
@@ -93,6 +94,8 @@ class CustomerOrders
             'paymentStatus' => OrderStatus::paymentLabel($o->payment_status, $o->payment_method, $o->order_status),
             'timeline' => OrderStatus::timeline($o->order_status, $history, $o->placed_at ?? $o->created_at, $o->cancelled_at),
             'canCancel' => in_array($o->order_status, self::cancellableStatuses(), true),
+            'returnRequest' => CustomerReturns::forOrder($o->id),
+            'canRequestReturn' => CustomerReturns::enabled() && CustomerReturns::ineligibleReason($o) === null,
             'items' => $items->map(fn ($i) => [
                 'name' => $i->product_name, 'sku' => $i->sku, 'image' => $i->image_url, 'color' => $i->variant_color, 'size' => $i->variant_size,
                 'listPrice' => (float) $i->unit_price, 'price' => (float) $i->unit_selling_price, 'quantity' => (int) $i->quantity,

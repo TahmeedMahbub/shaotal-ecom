@@ -82,8 +82,68 @@ class Seo
         if ($same) {
             $org['sameAs'] = $same;
         }
+        // Only details the owner configured (STOREFRONT_CONTACT_*); nothing is emitted while they are empty.
+        $contact = array_filter([
+            'email' => trim((string) config('storefront.contact.email')),
+            'telephone' => trim((string) config('storefront.contact.phone')),
+        ]);
+        if ($contact) {
+            $org['contactPoint'] = ['@type' => 'ContactPoint', 'contactType' => 'customer service'] + $contact + ['areaServed' => config('storefront.country_code')];
+        }
 
         return $org;
+    }
+
+    /** ContactPage/WebPage for an approved information page (drafts get no structured data). */
+    public static function webPage(string $type, string $path, string $name, string $description): array
+    {
+        return [
+            '@context' => 'https://schema.org',
+            '@type' => $type,
+            'name' => $name,
+            'url' => self::abs($path),
+            'description' => $description,
+            'inLanguage' => 'en-AU',
+            'isPartOf' => ['@id' => self::base().'/#website'],
+        ];
+    }
+
+    /**
+     * CollectionPage + ItemList for one listing page: exactly the products rendered on that page, in order, with their
+     * position in the whole listing (so page 2 starts after page 1).
+     *
+     * @param  array<int, array{slug:string, name:string}>  $products
+     */
+    public static function collectionPage(string $canonical, string $name, string $description, array $products, int $offset, int $total): array
+    {
+        $items = [];
+        foreach (array_values($products) as $i => $p) {
+            $items[] = ['@type' => 'ListItem', 'position' => $offset + $i + 1, 'url' => self::abs(self::productUrl($p['slug'])), 'name' => $p['name']];
+        }
+
+        return [
+            '@context' => 'https://schema.org',
+            '@type' => 'CollectionPage',
+            'name' => $name,
+            'url' => $canonical,
+            'description' => $description,
+            'inLanguage' => 'en-AU',
+            'isPartOf' => ['@id' => self::base().'/#website'],
+            'mainEntity' => ['@type' => 'ItemList', 'numberOfItems' => $total, 'itemListElement' => $items],
+        ];
+    }
+
+    /**
+     * Shipping for one unit, from the owner-confirmed rule only (Part 6): Australia only, A$10 below the threshold, free
+     * at or above it. No delivery time (none approved) and no carrier.
+     */
+    private static function shipping(float $price): array
+    {
+        return [
+            '@type' => 'OfferShippingDetails',
+            'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => self::money(Delivery::freeShipping($price) ? 0.0 : (float) config('storefront.shipping_flat')), 'currency' => 'AUD'],
+            'shippingDestination' => ['@type' => 'DefinedRegion', 'addressCountry' => config('storefront.country_code')],
+        ];
     }
 
     public static function website(): array
@@ -135,7 +195,9 @@ class Seo
             $offers = ['@type' => 'AggregateOffer', 'lowPrice' => self::money(min($prices)), 'highPrice' => self::money(max($prices)), 'offerCount' => count($p['variants'])] + $base;
         } else {
             $price = (! empty($p['hasVariants']) && $prices) ? $prices[0] : (float) $p['price'];
-            $offers = ['@type' => 'Offer', 'price' => self::money($price)] + $base;
+            // One price: the shipping cost for one unit is known exactly. (A price range can straddle the free-shipping
+            // threshold, so AggregateOffer gets no shipping details.)
+            $offers = ['@type' => 'Offer', 'price' => self::money($price)] + $base + ['shippingDetails' => self::shipping($price)];
         }
 
         $data = [

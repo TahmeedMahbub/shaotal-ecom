@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureCustomer;
+use App\Http\Middleware\RedirectTrailingSlash;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\ValidateCustomerSession;
 use Illuminate\Foundation\Application;
@@ -17,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Global so 404s (thrown before route middleware) and other error pages get the headers too.
         $middleware->append(SecurityHeaders::class);
+        // One URL per page whatever the web server: "/path/" → 301 "/path" (inside SecurityHeaders, so redirects get them).
+        $middleware->append(RedirectTrailingSlash::class);
         // After StartSession: ends sessions of deleted/blocked customers and of sessions older than a password change.
         $middleware->appendToGroup('web', ValidateCustomerSession::class);
         $middleware->alias(['customer' => EnsureCustomer::class]);

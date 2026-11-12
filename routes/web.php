@@ -49,6 +49,7 @@ Route::get('/checkout', [PageController::class, 'checkout'])->middleware('custom
 Route::get('/account', [PageController::class, 'account'])->name('account');
 Route::get('/bulk-order', [PageController::class, 'bulkOrder'])->name('bulk-order');
 Route::get('/request', [PageController::class, 'sourcing'])->name('request');
+Route::get('/{slug}', [PageController::class, 'info'])->whereIn('slug', array_keys(PageController::INFO_PAGES))->name('info');
 
 // Auth
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1,auth-register');
@@ -69,6 +70,7 @@ Route::middleware('customer')->group(function () {
     Route::get('/account/orders', [OrderController::class, 'index']);
     // Order numbers are short tokens (INV-123456); the pattern keeps odd paths out of the DB lookup.
     Route::get('/account/orders/{number}', [OrderController::class, 'show'])->where('number', '[A-Za-z0-9\-]{1,40}')->name('account.order');
+    Route::post('/account/orders/{number}/return', [OrderController::class, 'requestReturn'])->where('number', '[A-Za-z0-9\-]{1,40}')->middleware('throttle:5,1,order-return');
     Route::post('/account/orders/{number}/cancel', [OrderController::class, 'cancel'])->where('number', '[A-Za-z0-9\-]{1,40}')->middleware('throttle:10,1,order-cancel');
     Route::get('/account/requests', [AccountController::class, 'requests']);
     Route::put('/account/cart', [AccountController::class, 'saveCart']);
@@ -86,4 +88,5 @@ Route::middleware('customer')->group(function () {
 // Requests & newsletter
 Route::post('/bulk-order', [RequestController::class, 'bulk'])->middleware('throttle:10,1,bulk-order');
 Route::post('/request', [RequestController::class, 'sourcing'])->middleware('throttle:10,1,sourcing');
+Route::post('/contact', [RequestController::class, 'contact'])->middleware('throttle:5,1,contact');
 Route::post('/newsletter', [RequestController::class, 'newsletter'])->middleware('throttle:10,1,newsletter');

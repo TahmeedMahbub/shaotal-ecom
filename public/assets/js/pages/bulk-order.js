@@ -44,7 +44,7 @@
         if (window.jQuery) {
           return window.jQuery(
             `<div style="display: flex; align-items: center; gap: 10px; padding: 4px 0;">
-              <img src="${escapeHtml(img || window.PLACEHOLDER_IMG)}" style="width: 36px; height: 36px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-grey-200);" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+              <img src="${escapeHtml(img || window.PLACEHOLDER_IMG)}" style="width: 36px; height: 36px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-grey-200);">
               <div style="flex: 1; overflow: hidden;">
                 <div style="font-weight: 600; font-size: 0.9rem; color: var(--color-dark); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(option.text)}</div>
                 ${meta ? `<div style="font-size: 0.75rem; color: var(--color-grey-600); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin-top: 1px;">${meta}</div>` : ''}
@@ -476,6 +476,7 @@
         });
 
         const payload = {
+          company_url: (document.querySelector('#bulk-order-form .form-hp') || {}).value || '',
           customerName: nameInput.value.trim(),
           contactInfo: contactInput.value.trim(),
           postcode: postcodeInput.value.trim(),

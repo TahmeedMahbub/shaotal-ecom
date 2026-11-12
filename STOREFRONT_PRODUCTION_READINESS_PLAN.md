@@ -1,6 +1,6 @@
 # Shaotal Storefront — Production Readiness Plan
 
-_Created 2026-11-11 (Part 1 of 8), updated after Part 2 (security hardening and checkout reliability) on 2026-11-12 after Parts 3 (order lifecycle and customer tracking) and 4 (SEO and server-side rendering), and after Part 5 (admin integration spec, production configuration, delivery wording, performance). Living checklist: update **Status** as items close. Part 3/4 details: §11 and §12. Part 5: §14–§17. Deployment: [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md)._
+_Created 2026-11-11 (Part 1 of 8), updated after Part 2 (security hardening and checkout reliability) on 2026-11-12 after Parts 3 (order lifecycle and customer tracking) and 4 (SEO and server-side rendering), after Part 5 (admin integration spec, production configuration, delivery wording, performance), after Part 6 (security hardening, business policies, release preparation), and after Part 7 (SEO audit and optimisation). Living checklist: update **Status** as items close. Part 3/4 details: §11 and §12. Part 5: §14–§17. Part 6: §18. Part 7: §19 and [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Deployment: [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md)._
 
 Status values:
 - **Fixed**: code plus regression test, verified.
@@ -12,7 +12,7 @@ Status values:
 
 Scope: `shaotal` storefront (Laravel 13.36, PHP 8.4). The admin app (`admin-shaotal`) shares MySQL `hishabiz_ecom`; it is read-only reference here. Source audit: `STOREFRONT_PAGE_AND_FLOW_AUDIT.md` (checked against the code in Part 1).
 
-**Data safety (Parts 1–5):** no query was run against the remote `hishabiz_ecom` database (Parts 3–5 ran on a macOS machine with no remote credentials at all: the `.env` was created from `.env.example`, SQLite default). Part 5 used only local `shaotal_storefront_test` and `shaotal_perf_test`. `shaotal_local` was only read (a schema-only `mysqldump --no-data` in Part 1); none of its data was changed. Tests and browser checks used only the local isolated DBs `shaotal_storefront_test` and `shaotal_ci_test`.
+**Data safety (Parts 1–7):** no query was run against the remote `hishabiz_ecom` database (Parts 3–5 ran on a macOS machine with no remote credentials at all: the `.env` was created from `.env.example`, SQLite default). Part 5 used only local `shaotal_storefront_test` and `shaotal_perf_test`. Part 6 added a throwaway local `shaotal_browser_test`; the proposed return tables were applied **only** to these local `*_test` DBs. `shaotal_local` was only read (a schema-only `mysqldump --no-data` in Part 1); none of its data was changed. Tests and browser checks used only the local isolated DBs `shaotal_storefront_test` and `shaotal_ci_test`.
 
 ---
 
@@ -69,13 +69,13 @@ Parts 1–2 ran on Windows/Laragon. Parts 3–4 ran on macOS (PHP 8.4.21 with `p
 
 ## 1. Results
 
-| Run | Part 1 | Part 2 | Parts 3–4 (macOS) | Part 5 (macOS) |
-|---|---|---|---|---|
-| Full PHP suite, local MySQL | 52/52 | **123/123** (692 assertions) | **177/177** (1152 assertions); `composer test` exit 0 | **206/206** (1388 assertions); `composer test` exit 0 |
-| Default `phpunit.xml` (SQLite) | 16 pass / 36 skip / 0 fail | 47 pass / 76 skip / 0 fail | 57 pass / 120 skip / 0 fail | 57 pass / 149 skip / 0 fail |
-| JS | 9/9 | **17/17** | **17/17** (no JS test added; see I4) | **17/17** + `node --check` on every script |
-| Pint (changed PHP files) | — | pass (as LF copies) | **pass** | **pass** (all changed + new PHP files) |
-| Real browser (headless Chrome over CDP, local test DB) | not done | **48/48** checks (§6) | **18/18** (Part 3) + **28/28** (Part 4), §11.7 / §12.7 | **37/37** committed smoke (`tests/browser/smoke.mjs`) + performance runs (§14) |
+| Run | Part 1 | Part 2 | Parts 3–4 (macOS) | Part 5 (macOS) | Part 6 (macOS) | Part 7 (macOS) |
+|---|---|---|---|---|---|---|
+| Full PHP suite, local MySQL | 52/52 | **123/123** (692 assertions) | **177/177** (1152 assertions); `composer test` exit 0 | **206/206** (1388 assertions); `composer test` exit 0 | **238/238** (1882 assertions, 0 skipped); `composer test` exit 0 | **255/255 (2182 assertions, 0 skipped)**; `composer test` exit 0 |
+| Default `phpunit.xml` (SQLite) | 16 pass / 36 skip / 0 fail | 47 pass / 76 skip / 0 fail | 57 pass / 120 skip / 0 fail | 57 pass / 149 skip / 0 fail | 57 pass / 181 skip / 0 fail | 57 pass / 198 skip / 0 fail |
+| JS | 9/9 | **17/17** | **17/17** (no JS test added; see I4) | **17/17** + `node --check` on every script | **17/17** + `node --check` on every changed script | **17/17** + `node --check` |
+| Pint (changed PHP files) | — | pass (as LF copies) | **pass** | **pass** (all changed + new PHP files) | **pass** (all changed + new PHP files) | **pass** |
+| Real browser (headless Chrome over CDP, local test DB) | not done | **48/48** checks (§6) | **18/18** (Part 3) + **28/28** (Part 4), §11.7 / §12.7 | **37/37** committed smoke (`tests/browser/smoke.mjs`) + performance runs (§14) | **51/51** smoke (also as a CI job, not yet run on GitHub) + **13/13** targeted checks (upload, returns, 419), §18.4 | **54/54** SEO browser check (`tests/browser/seo.mjs`, perf catalog) + **42/42** with 2 SKIP (seed DB, as CI); smoke **51/51** on both; link-only crawl 405/405 products (§19) |
 
 Mutation checks (fix removed, test fails; fix restored, test passes):
 - Part 1: the customer middleware and the duplicate-order guard.
@@ -83,6 +83,8 @@ Mutation checks (fix removed, test fails; fix restored, test passes):
 - Part 3: dropping the `customer_id` scope from the order-details query makes `test_another_customer_gets_404_for_details_and_cancel` fail.
 - Part 4: dropping `JSON_HEX_TAG` from the JSON-LD encoder makes `test_json_ld_and_meta_cannot_be_broken_out_of` fail.
 - Part 5: removing the throttle key prefixes from the catalog, CSRF and login routes makes `test_catalog_browsing_does_not_use_up_the_sign_in_rate_limit` fail.
+- Part 7: restoring "first 4 related products" makes `test_related_products_rotate_through_the_category_so_no_product_is_orphaned` fail. Building the trailing-slash redirect from the raw path makes `test_trailing_slash_redirect_cannot_be_used_as_an_open_redirect` fail.
+- Part 6: putting `'unsafe-inline'` back into `script-src` makes `test_script_csp_has_no_unsafe_inline_and_blocks_inline_handlers` fail. Removing the backslash/control-character rejection from `safeReturnPath` makes `test_return_paths_cannot_leave_the_site` fail.
 
 ---
 
@@ -97,14 +99,17 @@ Mutation checks (fix removed, test fails; fix restored, test passes):
 | A4 | H | No security headers. Added `SecurityHeaders` (global): CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, and HSTS only over HTTPS in production. CSP exceptions are in §4. | `ErrorPagesAndHeadersTest`; browser: 0 CSP violations on 10 pages incl. bulk-order CDNs and checkout | **Fixed (browser)**. Follow-up A12. |
 | A5 | M | Admin rich text was rendered as raw HTML. Fixed: `App\Support\SafeHtml` allowlist sanitizer (DOM-based, no new package), applied to `desc`/`fullDesc` when the catalog is built. | `SafeHtmlTest` (16 payloads, formatting, idempotency), `CatalogOutputSafetyTest`; browser: `<strong>` kept, script/handler/`javascript:` gone | **Fixed (browser)** |
 | A6 | M | Catalog text in `innerHTML` (§5 lists all sinks). The browser run found one sink missed by review: the **footer Shop column is built from DB categories**. | Browser: `__xss=0` on every page and in cart/search/wishlist | **Fixed (browser)** |
-| A7 | M | Guest sourcing uploads/spam: 5×5 MB per request, 10/min/IP. | — | Open |
+| A7 | M | Guest sourcing uploads/spam: 5×5 MB per request, 10/min/IP. **Part 6:** `App\Support\ImageUpload` (content check: JPEG/PNG/WebP only, SVG/GIF/HTML/PHP refused whatever the extension; 5 MB each, 15 MB total, 5 files, ≤6000 px per side; re-encoded with GD so metadata and appended payloads are dropped; random UUID file names). `App\Support\SpamGuard` on sourcing, bulk, contact and newsletter (honeypot `company_url`, ≤3 links, 5 per contact per hour) plus per-route IP throttles. | `UploadAndSpamTest` (8); browser: polyglot JPEG stored as a clean re-encoded file, `.jpg`-named PHP refused with a readable message (§18.4) | **Fixed (browser)**. Deploy: GD + `storage:link` required |
 | A8 | L | Dead guest-checkout code (inline address). | — | Decision |
 | A9 | H | `APP_DEBUG=true`/`LOG_LEVEL=debug` in `.env`; dev points at the production DB. Part 5: `php artisan storefront:deploy-check` fails on debug, non-https `APP_URL`, insecure cookies, unusable cache/session store; `.env.production.example` template. | `ProductionReadinessTest` | **Deploy (tooling ready)** |
-| A10 | M | `/bulk-order` loads jQuery and Select2 from CDNs **without SRI**. | — | Open |
+| A10 | M | `/bulk-order` loads jQuery and Select2 from CDNs **without SRI**. **Part 6:** exact versioned URLs with `integrity` (sha384) + `crossorigin`; the CSP allows those exact files **only on `/bulk-order`** (not the whole CDN host, not other pages). | `SecurityHardeningTest`; smoke: Select2 works under SRI | **Fixed (browser)** |
 | A11 | M | Admin URLs (hero buttons, mega-menu, social, footer) could be `javascript:`. Fixed: `safeUrl()` (URL-parser allowlist). | Browser: hero `javascript:` CTA renders `#` | **Fixed (browser)** |
 | A13 | H | **New (Part 5):** every `throttle:N,M` route shared ONE per-IP bucket (Laravel keys unnamed limiters by IP only). CSRF refreshes, newsletter, order cancel and (new) catalog browsing used up the 10/min sign-in allowance. Fixed: a distinct key prefix per route. | `test_catalog_browsing_does_not_use_up_the_sign_in_rate_limit` (mutation-checked) | **Fixed** |
 | A14 | M | **New (Part 5):** `/robots.txt` and the sitemaps (Part 4) were sent `Cache-Control: public` **with a session Set-Cookie**: a shared cache could hand one visitor's session cookie to others. Public routes now run without session/cookie/CSRF middleware. | `test_public_endpoints_send_no_cookies_and_are_publicly_cacheable` | **Fixed** |
-| A12 | M | CSP still needs `script-src 'unsafe-inline'`, because the design's JS emits inline handlers. To harden: move handlers to `addEventListener`, then use nonces and drop `'unsafe-inline'`. | — | Open |
+| A12 | M | CSP still needs `script-src 'unsafe-inline'`, because the design's JS emits inline handlers. **Part 6:** every inline handler and inline script removed (`data-action` delegation, a global image-fallback listener, page data as a JSON block, `error-page.js`); now `script-src 'self'` + `script-src-attr 'none'`; no nonces needed. | `SecurityHardeningTest` (mutation-checked; scans 14 rendered pages for handlers/inline scripts); smoke: 0 CSP violations on 13 pages × 2 widths | **Fixed (browser)** |
+| A15 | H | **New (Part 6 audit): open redirect.** The sign-in `return` path accepted `/\evil.example` and tab/newline variants, which browsers treat as `//evil.example`. Fixed on both sides: `GoogleAuthController::safeReturnPath` (no `//`, backslash or control characters) and a client-side same-origin `URL` check. | `test_return_paths_cannot_leave_the_site` (mutation-checked) | **Fixed** |
+| A16 | M | **New (Part 6 audit): link injection.** Sourcing/bulk `productLink` accepted `javascript:`/`data:` URLs, later shown to staff as links. Now `url:http,https` only. | `test_product_links_in_requests_must_be_http_urls` | **Fixed** |
+| A17 | info | **Part 6 audit, checked with no issue found:** raw SQL is static or bound; unescaped Blade output is static or sanitised; the session is regenerated on every sign-in; no `$request->all()` mass writes; orders, addresses and returns are scoped to the signed-in customer (IDOR); client-sent payment fields are ignored. | Code review + existing tests | Noted |
 
 ### B. Authentication and session management
 | ID | Sev | Issue → fix | Verification | Status |
@@ -145,7 +150,7 @@ Mutation checks (fix removed, test fails; fix restored, test passes):
 ### E. Navigation and pages
 | ID | Sev | Item | Status |
 |---|---|---|---|
-| E1 | H | No Contact, Shipping, Returns, Terms or Privacy pages. Content is needed from the owner. | Blocked (content) |
+| E1 | H | No Contact, Shipping, Returns, Terms or Privacy pages. Content is needed from the owner. **Part 6:** all five pages exist as **drafts** built only from decided facts (no invented terms, dispatch locations, refund promises or contact details). They show "Being finalised", are `noindex` and stay out of the sitemap until listed in `STOREFRONT_APPROVED_PAGES`. `/contact` has a working form (→ `contact_messages`). | **Drafts. Blocked on owner approval + legal review (terms/privacy) + contact details** |
 | E2 | H | Error pages. Added branded 403/404/419/429/500/503 on a standalone layout (no DB/session access, so they work when MySQL is down), `noindex`, links back to shopping. AJAX errors stay JSON. 500s never show exception text when `APP_DEBUG=false`. Verified by `ErrorPagesAndHeadersTest` (11) and screenshots at 375 px and 1280 px (no horizontal scroll). | **Fixed (browser)** |
 | E3 | M | Footer duplicates/placeholders. | Open |
 
@@ -159,7 +164,7 @@ Mutation checks (fix removed, test fails; fix restored, test passes):
 | F5 | H | **New:** CSS/JS served uncompressed and without long cache headers. Guarded rules added to `public/.htaccess` + Nginx snippet. Measured mobile LCP 1.7–2.0 s → 0.6–0.9 s with gzip (§14). | **Deploy (rules ready)** |
 | F6 | M | Unmeasured pages. All 11 page types measured, desktop + throttled mobile (§14). | **Fixed** |
 | F7 | M | Layout shift: account 0.76 (mobile), checkout 0.13, product 0.08. Server-rendered state. Now ≤ 0.05 everywhere measured. | **Fixed (browser)** |
-| F8 | L | Home hero: an admin URL that already carries a Cloudinary width (as in the test data) cannot be resized; mobile still downloads the desktop image (home mobile LCP ~4–5 s locally). Mobile source added (`mobile_image_url`, else a 768 px transform); upload hero images without a fixed width, or set a mobile image. | **Decision (content)** |
+| F8 | L | Home hero: an admin URL that already carries a Cloudinary width (as in the test data) cannot be resized; mobile still downloads the desktop image (home mobile LCP ~4–5 s locally). Mobile source added (`mobile_image_url`, else a 768 px transform); upload hero images without a fixed width, or set a mobile image. **Part 6:** first slide is a `<picture>` with a mobile `<source>`, `srcset`/`sizes`, fixed 1600×533 box, `fetchpriority=high` and matching `imagesrcset` preloads; `Img` (PHP + JS) now also resizes a width-only Cloudinary transform such as `w_1600`. **LCP not re-measured.** | **Fixed (code); content decision remains** |
 | F9 | L | Listing pages filter the cached catalog in PHP. Fine for thousands of products; beyond ~5k move the filters into SQL. | Noted |
 
 Part 2 cost:
@@ -180,10 +185,16 @@ Part 2 cost:
 | G8 | M | Home "Popular", "Shop by Category" and the header mega-menu are now server-rendered (Part 5); the script keeps the server's popular pick. | **Fixed (browser)** |
 | G9 | L | `aggregateRating` not emitted: the rating appears only after script runs, and Google requires rated content to be visible. Decide whether to server-render reviews first. | **Decision** |
 | G10 | M | Product page design copy not backed by data. "Free AU Shipping over A$299" now uses the threshold actually charged (A$100). The other lines are configurable but unchanged (§16). | Fixed (threshold) / **Decision** (copy) |
-| G11 | — | No Search Console data: no indexing/ranking claims are made. | Noted |
+| G11 | — | No Search Console data: no indexing/ranking claims are made. Part 7: manual Search Console checklist in [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md) §12. | **Pending (owner access)** |
+| G12 | H | **New (Part 7): orphan products.** Listings linked only their first 8 products (the rest came from JS infinite scroll), and "You May Also Like" always took the first 4 of the category. Link-only crawl of the 405-product catalog: **71/405 reachable**. Fixed: crawlable self-canonical `?page=N` listing pages (404 past the end) with page links that infinite scroll hides on page 1, and related products that rotate through the category. Now **405/405 within 3 clicks**. | `SeoCrawlabilityTest` (reachability + rotation, mutation-checked); browser `seo.mjs` | **Fixed (browser)** |
+| G13 | M | **New (Part 7): robots.txt hid noindex.** `Disallow: /account` and `/checkout` stopped crawlers from reading those pages' noindex. They're now crawlable but noindex (meta + header) and server-protected. | `test_robots_txt_lets_crawlers_read_noindex_on_private_pages` | **Fixed** |
+| G14 | M | **New (Part 7): trailing slash depended on Apache.** `RedirectTrailingSlash` global middleware: `GET`/`HEAD` 301 to the slash-free URL with the query kept, target built from `APP_URL` (no open redirect). | Unit + live server + browser | **Fixed (browser)** |
+| G15 | L | **New (Part 7): rendered vs server mismatches.** The listing script replaced the server `<title>` on first render; the subcategory visible breadcrumb lacked the category level that the JSON-LD has. Both fixed. | `seo.mjs` (title kept, breadcrumb parent), `test_subcategory_breadcrumb…` | **Fixed (browser)** |
+| G16 | M | **New (Part 7): structured data gaps.** CollectionPage + ItemList on indexable listings; OfferShippingDetails from the confirmed shipping rule on single-price offers; ContactPage/WebPage on approved info pages; Organization `contactPoint` only from configured contact details; category share image; image sitemap. No invented ratings, return policy or delivery times. | `SeoCrawlabilityTest` | **Fixed** |
+| G17 | L | **New (Part 7):** deploy-check now fails a local/test `APP_URL` host (it would be published in canonicals and the sitemap). Logo `<img>` got `width`/`height`. | `test_deploy_check_rejects_a_local_or_test_app_url` | **Fixed** |
 
 ### H. Stripe-ready payments
-H1 (payment seam): `App\Payments\PaymentMethod` interface + `CashOnDelivery` + `PaymentMethods` registry. Checkout validates against implemented methods only (a configured but unimplemented `card` is rejected and not shown), stores `provider`/initial status from the method, and never sets `paid` at placement (§11.5). **Fixed (seam only, no Stripe).** H2–H5 unchanged.
+H1 (payment seam): `App\Payments\PaymentMethod` interface + `CashOnDelivery` + `PaymentMethods` registry. Checkout validates against implemented methods only (a configured but unimplemented `card` is rejected and not shown), stores `provider`/initial status from the method, and never sets `paid` at placement (§11.5). **Fixed (seam only, no Stripe).** H2–H5 unchanged. Part 6: the review and the Stripe plan are in [docs/payments-architecture.md](docs/payments-architecture.md) (status mapping, webhook signature + idempotency via a proposed `payment_events` table, secrets, CSP). Stripe is future scope (owner decision); nothing is installed.
 - Before Stripe, the CSP will need `https://js.stripe.com` in `script-src`/`frame-src` and `https://api.stripe.com` in `connect-src`.
 - The `payment=` Permissions-Policy is left unrestricted for Stripe.
 
@@ -194,7 +205,7 @@ H1 (payment seam): `App\Payments\PaymentMethod` interface + `CashOnDelivery` + `
 | I2 | C | Remote-DB guard + cache isolation; Part 2 made it run before any connection and forced `$_SERVER` | **Fixed** |
 | I3 | H | `pdo_sqlite` missing. `composer test` now runs the MySQL suite and SQLite is optional (documented). | **Fixed** |
 | I4 | H | Coverage: auth, session, address, coupon, headers, errors and XSS added; Part 3 orders/tracking/cancel/COD/stock policy; Part 4 SEO. Still missing: quote edge cases, requests/newsletter, profile, cart/wishlist sync, a JS unit test for the account order list. | Open (partial) |
-| I5 | M | Browser checks. Part 5 committed a dependency-free CDP smoke suite (`tests/browser/smoke.mjs`, 37 checks) and the performance harness (`tests/browser/perf.mjs`, `tests/Support/perf-*.php`). Not in CI yet (needs Chrome + a served app). | **Partial** |
+| I5 | M | Browser checks. Part 5 committed a dependency-free CDP smoke suite (`tests/browser/smoke.mjs`, 37 checks) and the performance harness (`tests/browser/perf.mjs`, `tests/Support/perf-*.php`). **Part 6:** smoke is now 51 checks and runs as a separate `browser` CI job (own `shaotal_browser_test` DB, fixtures, PHP server, Chrome, screenshots + server log uploaded on failure). | **Fixed (not yet run on GitHub)** |
 | I6 | M | CI workflow added | **Fixed (not yet run on GitHub)** |
 | I7 | L | Pint `line_ending`: the repo stores CRLF blobs. All Part 2 PHP files pass Pint when checked as LF copies. Decide on a `.gitattributes` / one-off normalisation commit. | Decision |
 | I8 | L | Schema drift: `subcategories.section` and `customer_social_accounts` are missing from `sql/ecom.sql`. CI uses `tests/Support/ci-schema-drift.sql`. | Decision |
@@ -221,24 +232,45 @@ H1 (payment seam): `App\Payments\PaymentMethod` interface + `CashOnDelivery` + `
 
 ## 4. Security headers and CSP exceptions
 
-Headers sent on every response, error pages included:
+_Rewritten in Part 6 (A10, A12). The Part 2 policy with `script-src 'unsafe-inline'` and whole CDN hosts is gone._
+
+Headers sent on every response, error pages included (taken from the running app):
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com;
-  img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+Content-Security-Policy: default-src 'self'; script-src 'self'; script-src-attr 'none';
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com;
+  img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self';
+  form-action 'self'; frame-ancestors 'self'          (+ upgrade-insecure-requests in production only)
+/bulk-order only adds to script-src:  https://code.jquery.com/jquery-3.7.1.min.js
+                                      https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js
+                     and to style-src: https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css
 X-Frame-Options: SAMEORIGIN · X-Content-Type-Options: nosniff · Referrer-Policy: strict-origin-when-cross-origin
 Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=() · Cross-Origin-Opener-Policy: same-origin-allow-popups
 Strict-Transport-Security: max-age=31536000; includeSubDomains   (HTTPS + APP_ENV=production only; never on local HTTP)
 ```
 | Exception | Why |
 |---|---|
-| `script-src 'unsafe-inline'` | The design's JS generates inline `onclick=`/`onerror=` handlers, and the layout has one inline bootstrap script. Nonces cannot cover inline handlers, and adding a nonce makes browsers *ignore* `'unsafe-inline'`, which would break those handlers. XSS is handled at the sinks instead (A3/A5/A6/A11); removal is planned in A12. |
-| `code.jquery.com`, `cdn.jsdelivr.net` (script/style) | jQuery 3.7.1 + Select2 on `/bulk-order` (SRI missing: A10) |
-| `style-src 'unsafe-inline'`, `fonts.googleapis.com`, `fonts.gstatic.com` | Inline `style=""` throughout the design; Google Fonts |
+| The three pinned CDN files on `/bulk-order` | jQuery 3.7.1 + Select2 4.1.0-rc.0, each with an `integrity` sha384 hash + `crossorigin`. The jQuery hash matches its officially published one, and the Select2 hash is identical on jsDelivr and unpkg. If a CDN file changes, the browser refuses it and the Select2 picker stops working (post-deploy check in the deployment checklist §3). |
+| `style-src 'unsafe-inline'`, `fonts.googleapis.com`, `fonts.gstatic.com` | Inline `style=""` throughout the design; Google Fonts. Kept on purpose: style injection is far lower risk than script, and removing it would mean restyling the design. |
 | `img-src https:` | Product/category/hero images are admin-entered URLs (Cloudinary, Unsplash, others) |
 | `form-action 'self'` | No external form posts. Google sign-in is a GET navigation, not a form. |
 
-Browser result: **0 CSP violations and 0 JS errors** on `/`, `/products`, a category, two product pages, `/bulk-order`, `/request`, `/account`, `/checkout` and the 404 page.
+How the design's JS works without inline scripts:
+- Clicks go through `data-action` attributes with one delegated listener.
+- Broken images go through one capturing `error` listener in `data.js`.
+- Page data is in `<script type="application/json" id="page-data">`, which is not executed.
+- Error pages use `/assets/js/error-page.js`.
+
+Before Stripe, `https://js.stripe.com` must be added to `script-src`/`frame-src` and `https://api.stripe.com` to `connect-src` (see `docs/payments-architecture.md`).
+
+Browser results (Part 6):
+- **Smoke test:** 0 CSP violations and 0 JS errors at 375 px and 1280 px on 13 pages:
+  - `/`
+  - `/products`, a category, a search and a product page
+  - `/bulk-order` (Select2 under SRI)
+  - `/request`, `/account`, `/contact`
+  - `/shipping`, `/returns`, `/terms`, `/privacy`
+- **Targeted checks (§18.4):** no violations on the 419 page or on a signed-in order page with the return form.
+- **PHP tests:** checkout, the order page and the 404 page are checked for inline JavaScript (`SecurityHardeningTest`).
 
 ## 5. Output safety (XSS) audit
 
@@ -307,8 +339,8 @@ Browser result: **0 CSP violations and 0 JS errors** on `/`, `/products`, a cate
 5. Performance. ✅ Measured on all 11 page types (§14): page-scoped data, server-rendered state, CLS ≤ 0.05. ⏳ CSS/JS compression and cache headers on the server (F5: rules ready, deploy), hero image content (F8).
 6. SEO. ✅ G1–G7 (Part 4). ⏳ G8, G9/G10 decisions.
 7. Payments seam. ✅ H1 seam. ⏳ Stripe itself (H2–H5).
-8. Security. Headers ✅, XSS ✅ (browser), session ✅. ⏳ `unsafe-inline` removal (A12), SRI (A10), uploads (A7), deploy config (A9/B4).
-9. Tests in CI. ✅ Workflow + recipe validated locally; ⏳ first GitHub run.
+8. Security. Headers ✅, XSS ✅ (browser), session ✅, strict script CSP (A12) ✅, SRI (A10) ✅, uploads and spam (A7) ✅, open redirect (A15) ✅, link injection (A16) ✅. ⏳ Deploy config (A9/B4).
+9. Tests in CI. ✅ PHPUnit and browser-smoke jobs, both validated locally; ⏳ first GitHub run.
 10. No regressions. ✅ All Part 1 tests still pass. One Part 1 test payload changed: phone `'1'` → `'0400 000 000'`, because the stricter phone rule now applies before the ownership check.
 
 ## 9. Recommended order (written after Part 2; see §13 for the Part 5 starting point)
@@ -399,6 +431,8 @@ The scripts still render the interactive versions on load (same markup), so inte
 `/sitemap.xml` (index) → `/sitemap-pages.xml` (home, `/products`, `/bulk-order`, `/request`, categories and subcategories **that list at least one product**) + `/sitemap-products-{n}.xml` (5,000 per file, active + visible products in active categories). `application/xml`, absolute URLs, `lastmod` from `updated_at`, de-duplicated, `&` escaped. Cached 10 min on the file store; ≤ 5 queries cold, 0 warm (tested). Never account, checkout, cart, order, search or filter URLs.
 
 ### 12.4 robots.txt
+_Part 7 changed this (§19, G13): `/account` and `/checkout` are no longer disallowed, so crawlers can read their noindex._
+
 Dynamic route (the static `public/robots.txt` was removed, since a web server would serve it instead): `Disallow` `/account`, `/checkout`, `/auth/`, `/size-guides/`, search and brand query URLs; `Allow: /`; `Sitemap: {APP_URL}/sitemap.xml`. Assets, products and categories are not blocked. Private pages also send `noindex` and are protected server-side.
 
 ### 12.5 Structured data
@@ -524,7 +558,7 @@ Storefront-side, customer cancellation is already compare-and-set (Part 3). **Re
 ### 15.2 Production configuration (5B)
 - `php artisan storefront:deploy-check` (read-only, prints no secrets, exit 1 on any FAIL).
 - `.env.production.example` (placeholders only; parsed with the project's dotenv to confirm it reads correctly).
-- [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md): install, no migrations (SQL-first), the four Laravel caches, storage link (not needed), catalog refresh, post-deploy curl checks, rollback, logs and personal data.
+- [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md): install, no migrations (SQL-first), the four Laravel caches, storage link (not needed in Part 5; **required since Part 6**, §18.5), catalog refresh, post-deploy curl checks, rollback, logs and personal data.
 - **Code:**
   - secure session cookie by default for an https `APP_URL`;
   - `TRUSTED_PROXIES`;
@@ -535,6 +569,8 @@ Storefront-side, customer cancellation is already compare-and-set (Part 3). **Re
 - `.env` is gitignored; no secrets in the diff.
 
 ## 16. Part 5: delivery information and time zone (5C)
+
+_**Superseded by Part 6 (§18.2).** The owner decided: free shipping **at or above** A$100 (A$100.00 exactly now ships free); Australia only; no express service; no carrier or tracking claims; no 30-day/free-returns promise; display zone Australia/Sydney (now the default). The table below is the Part 5 audit, kept for history._
 
 **Source of truth:** `config/storefront.php` → `shipping_flat` (A$10) and `free_shipping_over` (A$100). Checkout charges exactly this; free delivery needs a subtotal **over** A$100, so A$100.00 exactly pays A$10.
 
@@ -568,11 +604,156 @@ Storefront-side, customer cancellation is already compare-and-set (Part 3). **Re
 - `STOREFRONT_DISPLAY_TIMEZONE` defaults to UTC, and order pages label times "UTC" until it is set.
 - **Recommendation:** set it to the dispatch location's zone (`Australia/Sydney` if Sydney) once confirmed, and use the same zone in the admin app.
 
-## 17. Part 6 starting point
+## 17. Part 6 starting point (written after Part 5; done, see §18)
 1. **Deploy:** production `.env` from the template, then `storefront:deploy-check` green and the checklist. Enable CSS/JS compression and cache headers (F5: biggest mobile win). Set `TRUSTED_PROXIES` if behind a proxy.
 2. **Admin:** apply and verify [docs/admin-order-integration.md](docs/admin-order-integration.md) (transitions, compare-and-set, `cancelled_at`, catalog version bump, UTC session), then run its 8 steps.
 3. **Owner decisions:** delivery copy (§16), display time zone, returns, hero images uploaded without a fixed width or with a mobile image (F8), E1 policy pages, Stripe (H2/H3).
 4. **Code:** A12 (inline handlers → CSP nonces), A10 SRI, A7 upload limits, run the browser smoke in CI (I5), D4 remove `welcome.blade.php`, I4 remaining coverage, F9 if the catalog grows past a few thousand products.
+
+---
+
+## 18. Part 6: security hardening, business policies, release preparation
+
+_2026-11-12. All Part 6 work is uncommitted in the working tree. Nothing ran against `hishabiz_ecom`._
+
+### 18.1 Task status
+| # | Task | Status | Evidence |
+|---|---|---|---|
+| 1 | Admin verification | **BLOCKED: release blocker.** The admin codebase is still not on this machine. The spec grew §7 (return-request review) and §8 (contact messages, sourcing photos). Nothing was simulated as verified. | [docs/admin-order-integration.md](docs/admin-order-integration.md) |
+| 2 | CSP + SRI | **Done.** A12 and A10 (§4). | `SecurityHardeningTest` (mutation-checked), smoke |
+| 3 | Uploads + spam | **Done.** A7. | `UploadAndSpamTest`, browser (§18.4) |
+| 4 | Returns workflow | **Built, switched OFF, blocked for release** (§18.3). | `ReturnRequestTest` (7), browser (§18.4) |
+| 5 | Policy pages | **Drafts** (E1). No About page: the only story content is the two sentences already on the home page. | `BusinessPolicyTest`, smoke |
+| 6 | Australia/Sydney time | **Done.** `App\Support\DisplayTime`: UTC stored, converted once, AEST/AEDT label. Covers order history, order details and timeline, request dates, "member since". | DST tests in both directions (`BusinessPolicyTest`) |
+| 7 | Hero image | **Done in code** (F8). LCP not re-measured. Content still needed (§18.5). | `ProductionReadinessTest` hero test, smoke |
+| 8 | Payment architecture | **Done (document only, by design).** COD unchanged. | `docs/payments-architecture.md`; COD tests pass |
+| 9 | Security audit | **Done.** A15 open redirect and A16 link injection fixed; A7 uploads; A17 checks with no issue found. | `SecurityHardeningTest` |
+| 10 | CI browser tests | **Added** (I5): a `browser` job in `.github/workflows/tests.yml`. **Never run on GitHub.** | The same steps pass locally, 51/51 |
+
+### 18.2 Business decisions applied (owner, Part 6)
+- **Shipping:** A$10 below A$100, **free at or above A$100** (`Delivery::freeShipping`, `>=`; checkout and all wording read `shipping_flat` / `free_shipping_over`).
+- **Where:** Australia only. No express service.
+- **Carrier:** no Australia Post, carrier or live-tracking claims.
+- **Returns:** no 30-day or free-returns promise. The returns text says the policy is being finalised.
+- **Dates:** shown in Australia/Sydney, stored in UTC.
+- **Hero:** responsive, with a mobile source.
+- **Future scope:** Stripe. Stock management is V2: no stock is read, reserved or changed by any Part 6 code, returns included.
+
+### 18.3 Returns: current configuration and activation
+- **Default state:** off (`STOREFRONT_RETURNS_ENABLED` unset or `false`). The form is also hidden automatically while the tables are missing. The `/returns` page makes no promise.
+- **Rules enforced when on** (no other rules invented):
+  - the customer's own order;
+  - `order_status = delivered`;
+  - one request per order;
+  - a reason from the configured list;
+  - optionally `STOREFRONT_RETURNS_WINDOW_DAYS` after the recorded delivery time (unset: owner decision pending).
+- **Side effects:** none on the order status, payment status, stock or payments.
+- **Tables:** proposed in `sql/proposed_changes.sql` §4 (`order_return_requests` with `UNIQUE order_id` and statuses requested/approved/rejected/completed; `order_return_request_events`). They are **not** in `sql/ecom.sql` or the shared DB, and exist only in local `*_test` DBs via `tests/Support/proposed-schema.sql`.
+- **Pending before activation, in order:**
+  1. Owner-approved policy and window.
+  2. The DB owner applies §4.
+  3. Admin review UI (admin doc §7).
+  4. Then the switch is set, with `config:cache` and `deploy-check` (deployment checklist §7).
+
+### 18.4 Verification (Phase A, local only)
+| Check | Result |
+|---|---|
+| PHPUnit, local MySQL `shaotal_storefront_test` | **238/238**, 1882 assertions, 0 skipped (after the Phase B deploy-check change, which added 2 tests and extended 1) |
+| PHPUnit default (SQLite) | 57 pass / 181 skip / 0 fail |
+| `composer test` | exit 0 |
+| JS unit | 17/17 |
+| Browser smoke (`tests/browser/smoke.mjs`, `shaotal_browser_test`) | **51/51** |
+| Targeted browser checks (headless Chrome over CDP) | **13/13**: see the three groups below |
+| `storefront:deploy-check` on local dev settings | exits 1 as expected (APP_ENV, APP_DEBUG, APP_URL, secure cookie, session driver, `public/storage` missing). New rows all report correctly: GD OK, Sydney OK, pages/contact WARN, returns off OK. With returns switched on and the tables present: WARN. |
+
+The 13 targeted checks:
+- **Upload:**
+  - A JPEG and a JPEG with appended PHP were both accepted.
+  - They were stored as identical re-encoded files under UUID names, with no `<?php` in any stored file.
+  - A PHP file named `.jpg` was refused: "Images must be JPEG, PNG or WebP."
+  - No CSP or JS errors.
+- **Returns** (a second local server with returns switched on by environment variable only):
+  - The form shows on a delivered order with the 4 reasons.
+  - After a request: "Return Requested" with an AEDT time.
+  - A duplicate request gets 422.
+  - There is no form on the normal server.
+- **419:**
+  - A cross-site POST from a neutral `data:` page gives the branded page: noindex, no CSP violations.
+  - "Go Back" works through `error-page.js`.
+  - Laravel 13 accepts same-origin POSTs via `Sec-Fetch-Site` (B8), and our own `form-action 'self'` blocks posting from another of our origins, so the real 419 needs a third-party page.
+
+**Not verified:**
+- CI on GitHub (both jobs).
+- Hero LCP after Task 7 (`tests/browser/perf.mjs`).
+- Anything in the admin app.
+
+### 18.5 Remaining release blockers and owner approvals
+**Release blockers:**
+1. **Admin integration** (unchanged; must not be released without it). Staff must be able to:
+   - process orders with the compare-and-set transitions;
+   - see contact messages and sourcing/bulk requests, including their photos.
+
+   Return review is needed only once returns are switched on.
+2. **Production deployment:** `.env` from the template, a green `storefront:deploy-check`, and the checklist. Now includes `storage:link` (**required**), the GD extension (**required**) and the new `STOREFRONT_*` settings.
+3. **Policy pages approved** before launch, or launch knowingly with draft (noindex) pages. That is the owner's call.
+
+**Owner approvals (none given yet):**
+- returns policy and window;
+- wording of shipping, returns and contact;
+- **legal review** of terms and privacy;
+- public contact email, phone and hours;
+- hero images: desktop 3:1 at least 1920×640, mobile 2:1 at least 1080×540, uploaded without a fixed width or as `mobile_image_url`;
+- Stripe, when it is scheduled (H2/H3).
+
+**DB owner approvals:**
+- `sql/proposed_changes.sql` §4, needed only for returns;
+- earlier proposals, unchanged.
+
+**Carried over, still open:**
+- F5 compression/caching at the web server (deploy);
+- B6, C6, D2–D5, E3, I4, I7–I9.
+
+---
+
+## 19. Part 7: SEO audit and optimisation
+
+_2026-11-12. Full detail, policies and the Search Console checklist: [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Uncommitted, on top of Part 6. Only local `*_test` databases were used._
+
+### 19.1 Audit result (before changes)
+- **Part 4 work was confirmed working; not rebuilt:**
+  - metadata, canonical rules, noindex policy;
+  - sitemap index with chunked product files;
+  - dynamic robots.txt;
+  - Product/Offer (availability from the admin flag), BreadcrumbList, Organization and WebSite;
+  - server-rendered product and listing content, one H1 per indexable page, `lang="en-AU"`;
+  - slug-case 301, real 404s.
+- **Gaps found** by a raw-HTML crawl of 24 URLs and a link-only crawl of the 405-product catalog:
+  - G12: orphan products (71/405 reachable);
+  - G13: robots.txt hid noindex;
+  - G14: trailing slash depended on Apache;
+  - G15: rendered title and breadcrumb mismatches;
+  - G16: structured-data gaps;
+  - G17: local `APP_URL` not rejected; logo without dimensions.
+
+### 19.2 Classification
+| Finding | Status |
+|---|---|
+| G12 product discovery (pagination + related rotation) | **Completed and verified** (tests, mutation check, browser 54/54, crawl 405/405) |
+| G13 robots.txt / noindex conflict | **Completed and verified** (test + live server) |
+| G14 trailing-slash 301 (any server, no open redirect) | **Completed and verified** (unit, mutation check, live server, browser) |
+| G15 title kept after scripts, breadcrumb parent | **Completed and verified** (browser) |
+| G16 CollectionPage/ItemList, shipping details, ContactPage/WebPage, contactPoint, category share image, image sitemap | **Implemented, verified locally.** Not yet checked with Google's Rich Results Test (needs the public site). |
+| G17 deploy-check local host, logo dimensions | **Completed and verified** |
+| Core Web Vitals | **Implemented but not fully verified:** local synthetic only, no measurable change (§19.3); no field data, no Lighthouse |
+| About / Our Story page (S1) | **Blocked** (no approved content) |
+| Policy pages indexable (S2), ratings (S3), return-policy / delivery-time markup (S4) | **Pending approval** |
+| Search Console, Rich Results, field CWV (G11, S6, S11) | **Pending external access** |
+
+### 19.3 Measurements (local, synthetic)
+- **Mobile (4× CPU, 150 ms RTT, 1.6 Mbps):** LCP within 0–2.5% of baseline on every page type (for example, home 1796 → 1812–1820 ms, product 2088 → 2084–2088 ms). CLS equal or lower. TTFB unchanged. 0 errors, 0 CSP violations, 0 ms total blocking time.
+- **Desktop unthrottled:** not conclusive. Two runs of identical code differed by about 55 ms in DOMContentLoaded.
+- **HTML:** listing pages grew by ≤ 0.3 KB (the page links).
+- Raw data: `docs/SEO_AUDIT.md` §9.
 
 ---
 
@@ -669,3 +850,36 @@ Storefront-side, customer cancellation is already compare-and-set (Part 3). **Re
 | `tests/Feature/CatalogPayloadTest.php` (15), `tests/Feature/ProductionReadinessTest.php` (14) (new) | Part 5 regression tests |
 | `tests/browser/cdp.mjs`, `smoke.mjs`, `perf.mjs`, `tests/Support/perf-server.php`, `perf-router.php`, `perf-catalog-seed.php` (new) | Committed browser smoke + reproducible performance harness |
 | `docs/perf/2026-11-12-*.json` (new) | Raw before/after measurements |
+
+### Part 6
+| File | Change |
+|---|---|
+| `app/Http/Middleware/SecurityHeaders.php` | Strict script CSP (`'self'`, `script-src-attr 'none'`); per-page pinned CDN files with SRI constants; `upgrade-insecure-requests` in production |
+| `public/assets/js/data.js`, `app.js`, `product-detail.js`, `pages/*.js`, `error-page.js` (new), `pages/contact.js` (new) | Inline handlers replaced by `data-action` delegation and a global image-fallback listener; page data read from a JSON block; return-request form; honeypot; client-side safe return path; width-only image transform |
+| `resources/views/layouts/store.blade.php`, `errors/*`, `pages/*` | No inline JS; SRI tags on `/bulk-order`; `<picture>` hero with preloads; delivery copy from config; return panel; Sydney dates |
+| `resources/views/pages/info/*` (new), `public/assets/css/info-pages.css` (new), `partials/footer.blade.php` | Draft contact, shipping, returns, terms and privacy pages; footer links |
+| `app/Support/ImageUpload.php`, `SpamGuard.php`, `Delivery.php`, `DisplayTime.php` (new) | Upload checks and re-encoding; spam guard; delivery wording; display time zone |
+| `app/Models/CustomerReturns.php` (new), `OrderController`, `CustomerOrders` | Return requests (switched off) |
+| `GoogleAuthController`, `RequestController`, `PageController`, `SeoController`, `AccountController` | `safeReturnPath`; `productLink` http(s) only; upload/spam/contact; info pages; sitemap of approved pages; Sydney dates |
+| `app/Models/Checkout.php`, `Storefront.php`, `Catalog.php`, `app/Support/Img.php` | Free shipping at or above A$100; dispatch wording; hero srcset; width-only transform |
+| `config/storefront.php` | `delivery_copy` updates, `returns`, `approved_pages`, `contact`, `display_timezone` default `Australia/Sydney` |
+| `routes/web.php` | Info pages, `POST /contact`, `POST /account/orders/{number}/return`, throttle prefixes |
+| `routes/console.php` | `deploy-check`: `storage:link` symlink required (was: any `public/storage` failed), GD, `storage/app/public` writable, time zone validity, approved-pages names, contact details, returns switch and tables, window days |
+| `sql/proposed_changes.sql` §4, `tests/Support/proposed-schema.sql` (new) | Proposed return-request tables (not executed on any shared DB) |
+| `tests/Feature/SecurityHardeningTest`, `UploadAndSpamTest`, `ReturnRequestTest`, `BusinessPolicyTest` (new); `CustomerOrdersTest`, `ProductionReadinessTest`, `SeoTest`; `tests/browser/smoke.mjs`; `tests/Support/browser-fixtures.php` (new) | Part 6 regression tests; smoke test 37 → 51 checks |
+| `.github/workflows/tests.yml`, `.gitignore` | Browser CI job; proposed tables in the CI test DB; ignore browser artifacts |
+| `docs/payments-architecture.md` (new), `docs/admin-order-integration.md` §7–§8, `docs/PROGRESS.md`, `STOREFRONT_DEPLOYMENT_CHECKLIST.md`, `.env.production.example`, this plan | Part 6 documentation |
+
+### Part 7
+| File | Change |
+|---|---|
+| `app/Http/Controllers/PageController.php` | `?page=N` listing pages (self-canonical, title/description, 404 past the end, page links), CollectionPage JSON-LD, category share image, visible breadcrumb parent, related products rotate through the category, ContactPage/WebPage for approved info pages |
+| `app/Support/Seo.php` | `collectionPage()`, `webPage()`, OfferShippingDetails from the confirmed shipping rule, Organization `contactPoint` from configured details |
+| `app/Http/Controllers/SeoController.php` | robots.txt no longer disallows `/account` and `/checkout`; image sitemap (main image per product) |
+| `app/Http/Middleware/RedirectTrailingSlash.php` (new), `bootstrap/app.php` | Global trailing-slash 301 (GET/HEAD, query kept, `APP_URL`-based target) |
+| `routes/console.php` | deploy-check: `APP_URL host` fails on local/test hosts |
+| `resources/views/pages/products.blade.php`, `public/assets/css/sections.css`, `public/assets/js/products.js` | Page links (hidden on page 1 once infinite scroll runs), breadcrumb parent, server title kept on first render |
+| `resources/views/partials/header.blade.php`, `footer.blade.php`, `public/assets/js/app.js` | Logo `width`/`height` |
+| `tests/Feature/SeoCrawlabilityTest.php` (new, 17 tests), `tests/Feature/SeoTest.php` (2 tests updated for the intended robots/paging changes) | Part 7 regression tests |
+| `tests/browser/seo.mjs` (new), `.github/workflows/tests.yml` | Rendered-DOM SEO browser check, also in the CI browser job |
+| `docs/SEO_AUDIT.md` (new), this plan, `docs/PROGRESS.md`, `SESSION_HANDOFF.md`, `STOREFRONT_DEPLOYMENT_CHECKLIST.md` | Part 7 documentation |

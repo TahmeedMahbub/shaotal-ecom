@@ -30,8 +30,12 @@ class Img
             if (! preg_match('#^(/[^/]+/image/upload/)(.+)$#', $p['path'] ?? '', $m)) {
                 return $url;
             }
-            $first = explode('/', $m[2], 2)[0];
-            if (preg_match(self::CLD_TRANSFORM, $first)) {
+            [$first, $rest] = array_pad(explode('/', $m[2], 2), 2, null);
+            // A plain width (e.g. "w_1600", as admins often paste) only fixes the size: replace it with ours. Any other
+            // transformation (crop, effect, quality…) was set on purpose and is kept untouched.
+            if ($rest !== null && preg_match('/^w_\d+$/', $first)) {
+                $m[2] = $rest;
+            } elseif (preg_match(self::CLD_TRANSFORM, $first)) {
                 return $url; // already transformed on purpose
             }
 

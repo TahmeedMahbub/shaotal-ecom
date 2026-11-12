@@ -137,6 +137,7 @@
           fd.append('colorSize', (document.getElementById('request-variant') || {}).value || '');
           fd.append('qty', parseInt(quantityInput.value, 10));
           fd.append('details', (document.getElementById('request-details') || {}).value || '');
+          fd.append('company_url', (form.querySelector('.form-hp') || {}).value || '');
           selectedFiles.forEach(f => fd.append('images[]', f));
 
           const submitBtn = form.querySelector('button[type="submit"]');

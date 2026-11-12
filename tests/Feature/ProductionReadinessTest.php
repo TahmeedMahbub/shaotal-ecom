@@ -50,10 +50,54 @@ class ProductionReadinessTest extends TestCase
         $this->artisan('storefront:deploy-check')->assertFailed();
     }
 
+    /** A throwaway web root (outside the project) whose `storage` entry is $link; restored by tearDown via a fresh app. */
+    private function webRoot(?string $linkTarget): void
+    {
+        $dir = sys_get_temp_dir().'/shaotal-webroot-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        if ($linkTarget !== null) {
+            symlink($linkTarget, $dir.'/storage');
+        }
+        $this->app->usePublicPath($dir);
+        $this->beforeApplicationDestroyed(function () use ($dir) {
+            @unlink($dir.'/storage');
+            @rmdir($dir);
+        });
+    }
+
     public function test_deploy_check_passes_with_production_settings(): void
     {
         $this->productionConfig();
+        $this->webRoot(storage_path('app/public'));   // php artisan storage:link
         $this->artisan('storefront:deploy-check')->expectsOutputToContain('No blocking problems.')->assertSuccessful();
+    }
+
+    public function test_deploy_check_requires_the_storage_link_and_nothing_else_in_the_web_root(): void
+    {
+        $this->productionConfig();
+        $this->webRoot(null);
+        $this->artisan('storefront:deploy-check')->expectsOutputToContain('run php artisan storage:link')->assertFailed();
+
+        $this->productionConfig();
+        $this->webRoot(storage_path());               // the whole storage directory exposed: logs, sessions, cache
+        $this->artisan('storefront:deploy-check')->expectsOutputToContain('must be only the storage:link symlink')->assertFailed();
+    }
+
+    public function test_deploy_check_validates_new_storefront_settings(): void
+    {
+        $this->productionConfig();
+        $this->webRoot(storage_path('app/public'));
+        config(['storefront.approved_pages' => ['shipping', 'refunds']]);
+        $this->artisan('storefront:deploy-check')->expectsOutputToContain('unknown page(s): refunds')->assertFailed();
+
+        config(['storefront.approved_pages' => [], 'storefront.display_timezone' => 'Mars/Olympus']);
+        $this->artisan('storefront:deploy-check')->expectsOutputToContain('not a valid time zone')->assertFailed();
+
+        config(['storefront.display_timezone' => 'Australia/Sydney', 'storefront.returns.window_days' => 0]);
+        $this->artisan('storefront:deploy-check')->assertFailed();
+
+        config(['storefront.returns.window_days' => null]);
+        $this->artisan('storefront:deploy-check')->expectsOutputToContain('off (default')->assertSuccessful();
     }
 
     public function test_deploy_check_flags_debug_and_http_individually(): void
@@ -109,14 +153,14 @@ class ProductionReadinessTest extends TestCase
     public function test_product_page_threshold_comes_from_the_charged_configuration(): void
     {
         $html = $this->get('/products/nakshi-kantha-cushion')->assertOk()->getContent();
-        $this->assertStringContainsString('Free AU Shipping over A$100', $html);
-        $this->assertStringContainsString('Flat rate A$10 shipping for orders under A$100.', $html);
+        $this->assertStringContainsString('Free shipping on orders of A$100 or more', $html);
+        $this->assertStringContainsString('A flat A$10 shipping fee applies to orders under A$100.', $html);
         $this->assertStringNotContainsString('A$299', $html);
 
         config(['storefront.free_shipping_over' => 150, 'storefront.shipping_flat' => 12.5]);
         $html = $this->get('/products/nakshi-kantha-cushion')->getContent();
-        $this->assertStringContainsString('Free AU Shipping over A$150', $html);
-        $this->assertStringContainsString('Flat rate A$12.5 shipping', $html);
+        $this->assertStringContainsString('Free shipping on orders of A$150 or more', $html);
+        $this->assertStringContainsString('A flat A$12.5 shipping fee', $html);
     }
 
     public function test_delivery_copy_is_configurable_and_used_consistently(): void
@@ -149,12 +193,11 @@ class ProductionReadinessTest extends TestCase
         DB::table('order_timeline')->insert(['order_id' => $oid, 'new_status' => 'pending', 'created_at' => '2026-11-02 00:00:00']);
 
         $utc = $this->withSession($this->signedInSession($id))->get('/account/orders/INV-TZ0001')->getContent();
-        $this->assertStringContainsString('2 Nov 2026, 12:00 am UTC', $utc);
+        $this->assertStringContainsString('2 Nov 2026, 11:00 am AEDT', $utc);   // default display zone: Australia/Sydney
 
-        config(['storefront.display_timezone' => 'Australia/Sydney']);   // AEDT (+11) in November
+        config(['storefront.display_timezone' => 'UTC']);   // the zone stays configurable
         $syd = $this->withSession($this->signedInSession($id))->get('/account/orders/INV-TZ0001')->getContent();
-        $this->assertStringContainsString('2 Nov 2026, 11:00 am', $syd);
-        $this->assertStringNotContainsString('UTC', strip_tags(substr($syd, strpos($syd, 'Placed'), 200)));
+        $this->assertStringContainsString('2 Nov 2026, 12:00 am UTC', $syd);
     }
 
     /* ── 5D: server-rendered state (no layout shift) ── */
@@ -197,8 +240,11 @@ class ProductionReadinessTest extends TestCase
     {
         DB::table('hero_slides')->update(['image_url' => 'https://res.cloudinary.com/demo/image/upload/sample.jpg', 'mobile_image_url' => null]);
         $html = $this->get('/')->getContent();
-        $this->assertStringContainsString('href="https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,c_limit,w_1280/sample.jpg" media="(min-width: 769px)"', $html);
-        $this->assertStringContainsString('href="https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,c_limit,w_768/sample.jpg" media="(max-width: 768px)"', $html);
-        $this->assertStringContainsString("--hero-bg-m: url('https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,c_limit,w_768/sample.jpg')", $html);
+        $cld = 'https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,c_limit,';
+        $this->assertMatchesRegularExpression('#<link rel="preload" as="image" href="'.preg_quote($cld.'w_1280/sample.jpg', '#').'"\s+imagesrcset="[^"]*w_1920/sample.jpg 1920w"[^>]*media="\(min-width: 769px\)" fetchpriority="high">#', $html);
+        $this->assertMatchesRegularExpression('#<link rel="preload" as="image" href="'.preg_quote($cld.'w_768/sample.jpg', '#').'"\s+imagesrcset="[^"]*w_1080/sample.jpg 1080w"\s+imagesizes="100vw"\s+media="\(max-width: 768px\)"#', $html);
+        $this->assertStringContainsString('<source media="(max-width: 768px)" srcset="'.$cld.'w_480/sample.jpg 480w', $html);
+        $this->assertMatchesRegularExpression('#<img class="hero-slide-img" src="'.preg_quote($cld.'w_1280/sample.jpg', '#').'"[^>]*width="1600" height="533" alt="" fetchpriority="high"#', $html);
+        $this->assertStringNotContainsString('loading="lazy" class="hero', $html);
     }
 }

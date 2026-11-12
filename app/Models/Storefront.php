@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Http\Controllers\GoogleAuthController;
+use App\Support\Delivery;
+use App\Support\DisplayTime;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -152,7 +154,7 @@ class Storefront
                 'tagline' => config('storefront.tagline'),
                 'currency' => config('storefront.currency_symbol'),
                 'countryCode' => config('storefront.country_code'),
-                'dispatchStatus' => config('storefront.delivery_copy.dispatch_status') ?? 'In Stock',
+                'dispatchStatus' => Delivery::text('dispatch_status') ?? 'In Stock',
             ],
             'user' => $user,
             'cart' => $cart,
@@ -180,7 +182,7 @@ class Storefront
             'name' => trim($c->first_name.' '.($c->last_name ?? '')),
             'email' => $c->email,
             'phone' => $c->phone ?? '',
-            'joinedDate' => substr((string) $c->created_at, 0, 10),
+            'joinedDate' => DisplayTime::date($c->created_at),
             'address' => $addr ? trim(implode(', ', array_filter([$addr->street_address, $addr->suburb, $addr->state]))) : '',
             'postcode' => $addr->postcode ?? '',
         ];

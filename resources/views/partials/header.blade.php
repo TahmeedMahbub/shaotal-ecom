@@ -7,7 +7,7 @@
 
       
       <a href="/" class="navbar-brand" aria-label="Shaotal">
-        <img src="/assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+        <img src="/assets/logos/logo.png" alt="Shaotal" class="navbar-logo" width="365" height="66">
       </a>
 
       
@@ -54,7 +54,7 @@
 <div class="mobile-nav" id="mobile-nav">
     <div class="mobile-nav-header">
       <a href="/" class="mobile-nav-brand" aria-label="Shaotal">
-        <img src="/assets/logos/logo.png" alt="Shaotal" class="navbar-logo">
+        <img src="/assets/logos/logo.png" alt="Shaotal" class="navbar-logo" width="365" height="66">
       </a>
       <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&times;</button>
     </div>

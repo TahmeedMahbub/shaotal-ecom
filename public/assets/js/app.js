@@ -19,8 +19,17 @@
       return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(raw, window.location.origin).protocol) ? raw : '#';
     } catch (e) { return '#'; }
   };
+  // Return path after sign-in (?signin=…, Google return): resolved with the browser's own URL parser and kept only when
+  // it stays on this site. A prefix check alone is not enough: "/\\evil.example" and "/<tab>/evil.example" both leave it.
+  const safeReturnPath = path => {
+    try {
+      const u = new URL(String(path || ''), window.location.origin);
+      return u.origin === window.location.origin ? u.pathname + u.search + u.hash : null;
+    } catch (e) { return null; }
+  };
   window.escHtml = escHtml;
   window.safeUrl = safeUrl;
+  window.safeReturnPath = safeReturnPath;
   window.PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500"><rect width="400" height="500" fill="#efe9e0"/></svg>');
 
   function setCsrf(token) {
@@ -176,12 +185,21 @@
 
     if (!Array.isArray(HERO_SLIDES) || HERO_SLIDES.length === 0) return;
     // Phones get the smaller/mobile source (same choice the server-rendered first slide makes in CSS).
-    const phone = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
-    const bgOf = slide => (phone && slide.imageSrcMobile) || slide.imageSrc || slide.image || '';
+    const HERO_SIZES = '(max-width: 992px) 100vw, (max-width: 1400px) 75vw, 1000px';
+    // <picture> per slide: mobile source for phones, responsive candidates otherwise. Slide 1 loads now (LCP);
+    // the others carry data-* sources that are applied after the page has loaded.
+    const pictureOf = (slide, eager) => {
+      const p = eager ? '' : 'data-';
+      const mobile = slide.srcsetMobile || slide.imageSrcMobile || slide.imageSrc || slide.image || '';
+      return `<picture>
+          <source media="(max-width: 768px)" ${p}srcset="${escHtml(mobile)}" ${slide.srcsetMobile ? 'sizes="100vw"' : ''}>
+          <img class="hero-slide-img" ${p}src="${escHtml(slide.imageSrc || slide.image || '')}" ${slide.srcset ? `${p}srcset="${escHtml(slide.srcset)}" sizes="${HERO_SIZES}"` : ''} width="1600" height="533" alt="" decoding="async" ${eager ? 'fetchpriority="high"' : ''}>
+        </picture>`;
+    };
 
     let slidesHTML = HERO_SLIDES.map((slide, i) => `
       <a href="${escHtml(safeUrl(slide.ctaLink))}" class="hero-slide ${i === 0 ? 'active' : ''}" data-slide="${i}" role="group" aria-roledescription="slide" aria-label="Slide ${i + 1} of ${HERO_SLIDES.length}: ${escHtml(slide.headline)}" aria-hidden="${i === 0 ? 'false' : 'true'}">
-        <div class="hero-slide-bg" ${i === 0 ? `style="background-image: url('${escHtml(bgOf(slide))}')"` : `data-bg="${escHtml(bgOf(slide))}"`}></div>
+        <div class="hero-slide-bg">${pictureOf(slide, i === 0)}</div>
         <div class="hero-slide-overlay"></div>
         <div class="hero-content">
           <div class="hero-text">
@@ -218,9 +236,9 @@
     heroEl.innerHTML = slidesHTML + indicatorsHTML + arrowsHTML;
 
     // Load the remaining slide backgrounds once the page (and the first, LCP image) has finished loading.
-    const loadHeroBackgrounds = () => heroEl.querySelectorAll('.hero-slide-bg[data-bg]').forEach(el => {
-      el.style.backgroundImage = `url('${el.dataset.bg}')`;
-      el.removeAttribute('data-bg');
+    const loadHeroBackgrounds = () => heroEl.querySelectorAll('[data-src], [data-srcset]').forEach(el => {
+      if (el.dataset.srcset) { el.srcset = el.dataset.srcset; el.removeAttribute('data-srcset'); }
+      if (el.dataset.src) { el.src = el.dataset.src; el.removeAttribute('data-src'); }
     });
     if (document.readyState === 'complete') setTimeout(loadHeroBackgrounds, 300);
     else window.addEventListener('load', () => setTimeout(loadHeroBackgrounds, 300), { once: true });
@@ -427,7 +445,7 @@
     return `
       <div class="product-card fade-up visible" data-product-id="${product.id}">
         <div class="product-card-image">
-          <img src="${imgUrl(imgPath, 480)}" ${imgSrcset(imgPath, [320, 480, 640, 800]) ? `srcset="${imgSrcset(imgPath, [320, 480, 640, 800])}" sizes="(max-width: 640px) 50vw, (max-width: 1100px) 40vw, 260px"` : ''} width="400" height="450" alt="${escHtml(product.name || 'Product')}" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src=window.PLACEHOLDER_IMG;">
+          <img src="${imgUrl(imgPath, 480)}" ${imgSrcset(imgPath, [320, 480, 640, 800]) ? `srcset="${imgSrcset(imgPath, [320, 480, 640, 800])}" sizes="(max-width: 640px) 50vw, (max-width: 1100px) 40vw, 260px"` : ''} width="400" height="450" alt="${escHtml(product.name || 'Product')}" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async">
           <div class="product-card-badge">${product.soldOut ? '<span class="badge badge-limited">Sold Out</span>' : (BADGE_MAP[product.badge] || '')}</div>
           <button class="product-card-wishlist ${state.wishlist.includes(product.id) ? 'active' : ''}" data-wishlist-id="${product.id}" aria-label="Add to wishlist">
             ${state.wishlist.includes(product.id) ? ICONS.heartFill : ICONS.heart}
@@ -907,10 +925,10 @@
         `;
       }).join('') + `
         <div class="mobile-nav-item" style="padding: 0.5rem 0 0.25rem 0">
-          <a href="/bulk-order" class="btn btn-outline" style="width:100%" onclick="document.getElementById('mobile-nav-close').click()">Bulk & Corporate Orders</a>
+          <a href="/bulk-order" class="btn btn-outline" style="width:100%" data-action="close-mobile-nav">Bulk & Corporate Orders</a>
         </div>
         <div class="mobile-nav-item" style="padding: 0.25rem 0 1rem 0">
-          <a href="/request" class="btn btn-primary" style="width:100%" onclick="document.getElementById('mobile-nav-close').click()">Request Custom Sourcing</a>
+          <a href="/request" class="btn btn-primary" style="width:100%" data-action="close-mobile-nav">Request Custom Sourcing</a>
         </div>
       `;
 
@@ -1178,7 +1196,7 @@
   /** True when signed in; otherwise opens the sign-in modal that continues to `path` afterwards. */
   function requireLogin(path) {
     if (state.currentUser) return true;
-    authReturn = path;
+    authReturn = safeReturnPath(path);
     openAuthModal('login');
     return false;
   }
@@ -1325,7 +1343,7 @@
       if (errEl) errEl.style.display = 'none';
     };
     const afterAuth = (message) => {
-      const dest = authReturn;
+      const dest = safeReturnPath(authReturn);
       showToast(message);
       closeAuthModal();
       if (dest) { window.location.href = dest; return; }
@@ -1455,7 +1473,7 @@
     footerGrid.innerHTML = `
       <div class="footer-brand">
         <a href="/" class="footer-logo-link" aria-label="${SITE.brandName}">
-          <img src="/assets/logos/logo.png" alt="${SITE.brandName}" class="footer-logo">
+          <img src="/assets/logos/logo.png" alt="${SITE.brandName}" class="footer-logo" width="365" height="66" loading="lazy">
         </a>
         <p>An Australian ecommerce brand offering thoughtfully curated lifestyle pieces — from fashion and handcrafted decor to natural jute items and gifts.</p>
         <div class="footer-social">
@@ -2897,7 +2915,7 @@
     const signinPath = new URLSearchParams(location.search).get('signin');
     if (signinPath) {
       history.replaceState(null, '', location.pathname);
-      if (signinPath.startsWith('/') && !signinPath.startsWith('//')) requireLogin(signinPath);
+      if (safeReturnPath(signinPath)) requireLogin(signinPath);
     }
 
     // Event bindings

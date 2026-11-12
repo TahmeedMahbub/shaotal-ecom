@@ -34,7 +34,7 @@ function renderAccountPage() {
             <div class="account-user-email">Sign in to manage your Australian orders & wishlist</div>
           </div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openAuthModal('login')">Sign In / Register</button>
+        <button class="btn btn-primary btn-sm" data-action="open-auth" data-auth-tab="login">Sign In / Register</button>
       `;
     }
     if (unauthView) unauthView.style.display = 'block';
@@ -102,7 +102,7 @@ function renderAccountPage() {
         <div class="order-items-body">
           ${ord.items.map(item => `
             <div class="order-item-row">
-              <img class="order-item-thumb" src="${accountEsc(window.imgUrl(item.image, 160) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+              <img class="order-item-thumb" src="${accountEsc(window.imgUrl(item.image, 160) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(item.name)}" width="44" height="44" loading="lazy">
               <div class="order-item-info">
                 <div class="order-item-title">${accountEsc(item.name)}</div>
                 <div class="order-item-variant">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(item.color || 'Default')} · Qty: ${Number(item.quantity) || 0}</div>
@@ -164,12 +164,12 @@ function renderAccountPage() {
       wProducts.map(product => `
         <div class="product-card" style="box-shadow:none; border:1px solid var(--color-grey-200);">
           <div class="product-card-image">
-            <img src="${accountEsc(window.imgUrl(product.image, 480) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(product.name)}" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+            <img src="${accountEsc(window.imgUrl(product.image, 480) || window.PLACEHOLDER_IMG)}" alt="${accountEsc(product.name)}">
           </div>
           <div class="product-card-content" style="padding:var(--space-sm);">
             <h4 class="product-card-title">${accountEsc(product.name)}</h4>
             <div class="product-card-price" style="margin:4px 0">$${product.price.toFixed(2)} AUD</div>
-            <button class="btn btn-primary btn-sm" style="width:100%" onclick="openVariantModal(PRODUCTS.find(p=>p.id===${product.id}))">Add to Cart</button>
+            <button class="btn btn-primary btn-sm" style="width:100%" data-action="open-variant" data-product-id="${Number(product.id)}">Add to Cart</button>
           </div>
         </div>`).join('') + '</div>';
   }
@@ -190,7 +190,7 @@ function renderAccountPage() {
       <div style="display:flex; flex-direction:column; gap:var(--space-sm)">
         ${cItems.map(item => `
           <div class="cart-item" style="border:1px solid var(--color-grey-200); border-radius:var(--radius-md); padding:var(--space-sm)">
-            <img src="${accountEsc(item.image || window.PLACEHOLDER_IMG)}" style="width:50px; height:50px; border-radius:var(--radius-sm); object-fit:cover;" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+            <img src="${accountEsc(item.image || window.PLACEHOLDER_IMG)}" style="width:50px; height:50px; border-radius:var(--radius-sm); object-fit:cover;">
             <div style="flex:1; margin-left:var(--space-sm)">
               <div style="font-weight:bold; font-size:var(--fs-small)">${accountEsc(item.name)}</div>
               <div style="font-size:var(--fs-xs); color:var(--color-grey-600)">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(window.COLOR_NAMES[item.color] || item.color || 'Default')} · Qty: ${item.quantity || 1}</div>
@@ -199,7 +199,7 @@ function renderAccountPage() {
           </div>`).join('')}
         <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--color-grey-200); padding-top:var(--space-sm); margin-top:var(--space-sm)">
           <span style="font-weight:bold">Total Subtotal: $${totalVal.toFixed(2)} AUD</span>
-          <button class="btn btn-primary" onclick="toggleCart()">Checkout via Cart</button>
+          <button class="btn btn-primary" data-action="toggle-cart">Checkout via Cart</button>
         </div>
       </div>`;
   }
@@ -229,7 +229,7 @@ function renderAccountPage() {
           <div class="request-hist-header" style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;">
             <div>
               <span class="request-hist-title" style="font-weight:bold; color:var(--color-brand);">${accountEsc(br.requestNumber)} (${br.totalUnits} Units)</span>
-              <div class="request-hist-meta" style="font-size:var(--fs-xs); color:var(--color-grey-600);">Submitted ${new Date(br.createdAt.replace(' ', 'T')).toLocaleDateString('en-AU')}</div>
+              <div class="request-hist-meta" style="font-size:var(--fs-xs); color:var(--color-grey-600);">Submitted ${accountEsc(br.date)}</div>
             </div>
             <span class="order-status-badge ${accountEsc(statusClass(br.status))}" style="padding:0.2rem 0.6rem; border-radius:99px; font-weight:bold; font-size:var(--fs-xs);">${accountEsc(br.status)}</span>
           </div>

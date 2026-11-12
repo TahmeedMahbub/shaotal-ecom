@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Storefront;
+use App\Support\DisplayTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -115,10 +116,10 @@ class AccountController extends Controller
         return response()->json([
             'sourcing' => $sourcing->map(fn ($r) => [
                 'id' => $r->request_number, 'title' => $r->product_name, 'link' => $r->product_url, 'qty' => (int) $r->requested_quantity,
-                'details' => $r->details, 'status' => $label($r->status), 'date' => substr((string) $r->created_at, 0, 10),
+                'details' => $r->details, 'status' => $label($r->status), 'date' => DisplayTime::date($r->created_at),
             ])->values(),
             'bulk' => $bulk->map(fn ($r) => [
-                'requestNumber' => $r->request_number, 'status' => $label($r->status), 'createdAt' => $r->created_at,
+                'requestNumber' => $r->request_number, 'status' => $label($r->status), 'createdAt' => $r->created_at, 'date' => DisplayTime::date($r->created_at),
                 'totalUnits' => (int) ($bulkItems[$r->id] ?? collect())->sum('quantity'),
                 'items' => ($bulkItems[$r->id] ?? collect())->map(fn ($i) => [
                     'name' => $i->product_name,

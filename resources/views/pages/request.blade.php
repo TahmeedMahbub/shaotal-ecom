@@ -36,6 +36,8 @@
             </h2>
 
             <form id="sourcing-request-form" novalidate>
+              {{-- Spam honeypot (App\Support\SpamGuard): hidden from people and assistive tech; bots fill it. --}}
+              <div style="position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden;" aria-hidden="true"><label>Company website<input type="text" name="company_url" class="form-hp" tabindex="-1" autocomplete="off"></label></div>
               
               
               <div style="margin-bottom: 1.5rem;">
@@ -203,8 +205,8 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width:22px; height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5"/></svg>
               </div>
               <div>
-                <h4 style="font-family: var(--font-heading); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">Australia Express Shipping</h4>
-                <p style="font-size: var(--fs-xs); color: var(--color-grey-600); line-height: 1.5; margin: 0;">Full door-to-door tracking with Australian customs clearance handled seamlessly for you.</p>
+                <h4 style="font-family: var(--font-heading); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">Delivery Within Australia</h4>
+                <p style="font-size: var(--fs-xs); color: var(--color-grey-600); line-height: 1.5; margin: 0;">Sourced items are delivered to addresses within Australia. We confirm delivery details with you when we quote.</p>
               </div>
             </div>
           </div>

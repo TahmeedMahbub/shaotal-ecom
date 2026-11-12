@@ -81,24 +81,69 @@ class PageController extends Controller
         } elseif ($sub !== '') {
             $indexable = false;
         }
+        $parentCrumb = count($crumbs) === 4 ? ['name' => $crumbs[2][0], 'url' => $crumbs[2][1]] : null;   // subcategory page
         $crumbs[array_key_last($crumbs)][1] = null;   // current page
 
-        // First page server-side (same filters the script sends to /catalog/feed); only these products are embedded.
+        // The requested page server-side (same filters the script sends to /catalog/feed); only these products are
+        // embedded. ?page=N makes every product reachable through plain links: the script continues from page N+1.
         $filters = Listing::filters($request->query());
-        $first = Listing::page($filters, 1);
+        $pageNo = $this->pageNumber($request);
+        $data = Listing::page($filters, $pageNo);
+        $last = max(1, (int) ceil($data['total'] / Listing::PAGE_SIZE));
+        abort_if($pageNo > $last, 404);   // no empty (soft 404) pages beyond the end
+
+        // Links point at the canonical form of the listing (no sort/tracking parameters); noindex views keep their query.
+        $linkBase = $indexable ? $canonicalPath : '/products'.(($q = http_build_query(array_diff_key($request->query(), ['page' => 1]))) !== '' ? '?'.$q : '');
+        $pageUrl = fn (int $n) => $n === 1 ? $linkBase : $linkBase.(str_contains($linkBase, '?') ? '&' : '?').'page='.$n;
+        $selfPath = $pageUrl($pageNo);
+        $pageDesc = Seo::text(($pageNo > 1 ? "Page {$pageNo} of {$last}. " : '').$desc);
+        $heading = $subRow && $cat && $subRow['category'] === $cat['slug'] ? $subRow['name'] : $title;
+        if ($pageNo > 1) {
+            $title .= " — Page {$pageNo}";
+        }
 
         return view('pages.products', [
             'pageTitle' => $title,
-            'pageDescription' => Seo::text($desc),
+            'pageDescription' => $pageDesc,
             'robots' => $indexable ? 'index, follow' : 'noindex, follow',
-            'canonical' => $indexable ? Seo::abs($canonicalPath) : null,
-            'heading' => $subRow && $cat && $subRow['category'] === $cat['slug'] ? $subRow['name'] : $title,
-            'initialProducts' => $first['products'],
-            'totalCount' => $first['total'],
-            'listingData' => $first + ['facets' => Listing::facets(), 'filters' => $filters],
-            'catalogProducts' => array_column($first['products'], 'id'),
-            'jsonLd' => $indexable ? [Seo::breadcrumbs($crumbs)] : [],
+            'canonical' => $indexable ? Seo::abs($selfPath) : null,
+            // Share image: the category's own admin image when it has one (else the layout's logo default).
+            'ogImage' => $cat && ! empty($cat['image']) ? Seo::abs(Img::url($cat['image'], 1200)) : null,
+            'heading' => $heading,
+            'parentCrumb' => $parentCrumb,
+            'initialProducts' => $data['products'],
+            'totalCount' => $data['total'],
+            'pagination' => [
+                'page' => $pageNo, 'last' => $last,
+                'prev' => $pageNo > 1 ? $pageUrl($pageNo - 1) : null,
+                'next' => $pageNo < $last ? $pageUrl($pageNo + 1) : null,
+                'links' => array_map(fn ($n) => ['n' => $n, 'url' => $pageUrl($n)], $this->pageWindow($pageNo, $last)),
+            ],
+            'listingData' => $data + ['facets' => Listing::facets(), 'filters' => $filters],
+            'catalogProducts' => array_column($data['products'], 'id'),
+            'jsonLd' => $indexable ? [
+                Seo::breadcrumbs($crumbs),
+                Seo::collectionPage(Seo::abs($selfPath), $title, $pageDesc, $data['products'], ($pageNo - 1) * Listing::PAGE_SIZE, $data['total']),
+            ] : [],
         ]);
+    }
+
+    /** ?page=N as a positive integer without leading zeros; anything else is page 1 (same canonical as no parameter). */
+    private function pageNumber(Request $request): int
+    {
+        $v = $request->query('page');
+
+        return is_string($v) && preg_match('/^[1-9][0-9]{0,5}$/', $v) ? (int) $v : 1;
+    }
+
+    /** Page numbers to link: all when few, else first, last and two either side of the current one. */
+    private function pageWindow(int $page, int $last): array
+    {
+        if ($last <= 9) {
+            return range(1, $last);
+        }
+
+        return array_values(array_unique(array_merge([1], range(max(2, $page - 2), min($last - 1, $page + 2)), [$last])));
     }
 
     public function product(string $slug)
@@ -204,11 +249,19 @@ class PageController extends Controller
         return (float) $p['price'];
     }
 
-    /** "You May Also Like": same rule as renderRelatedProducts() in product-detail.js. */
+    /**
+     * "You May Also Like": the next 4 products after this one in its category (or brand), wrapping around. Rotating
+     * instead of always taking the first 4 means every product is linked from the product before it, so no product page
+     * is an orphan for crawlers. The script (renderRelatedProducts in product-detail.js) shows the products embedded here.
+     */
     private function related(array $current): array
     {
-        $all = array_values(array_filter(Storefront::catalog()['products'], fn ($p) => $p['id'] !== $current['id']));
-        $matches = array_slice(array_values(array_filter($all, fn ($p) => $p['category'] === $current['category'] || ($current['brand'] && $p['brand'] === $current['brand']))), 0, 4);
+        $catalog = Storefront::catalog()['products'];
+        $pool = array_values(array_filter($catalog, fn ($p) => $p['id'] === $current['id'] || $p['category'] === $current['category'] || ($current['brand'] && $p['brand'] === $current['brand'])));
+        $at = array_search($current['id'], array_column($pool, 'id'), true);
+        $rotated = $at === false ? $pool : array_merge(array_slice($pool, $at + 1), array_slice($pool, 0, $at));
+        $all = array_values(array_filter($catalog, fn ($p) => $p['id'] !== $current['id']));
+        $matches = array_slice(array_values(array_filter($rotated, fn ($p) => $p['id'] !== $current['id'])), 0, 4);
         if (count($matches) < 4) {
             $ids = array_column($matches, 'id');
             $matches = array_merge($matches, array_slice(array_values(array_filter($all, fn ($p) => ! in_array($p['id'], $ids, true))), 0, 4 - count($matches)));
@@ -248,6 +301,37 @@ class PageController extends Controller
     public function account()
     {
         return response()->view('pages.account')->header('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /** Information pages: slug => [heading, meta description]. */
+    public const INFO_PAGES = [
+        'contact' => ['Contact Us', 'Send a message to the Shaotal team about an order, a product or a request.'],
+        'shipping' => ['Shipping', 'Where Shaotal delivers, shipping costs and how to follow your order.'],
+        'returns' => ['Returns', 'What to do if something is not right with your Shaotal order.'],
+        'terms' => ['Terms of Sale', 'How buying from Shaotal works: accounts, prices, payment and orders.'],
+        'privacy' => ['Privacy', 'What personal information the Shaotal website collects and how it is used.'],
+    ];
+
+    /** Pages whose wording the owner has approved (indexable, in the sitemap). */
+    public static function approvedInfoPages(): array
+    {
+        return array_values(array_intersect(array_keys(self::INFO_PAGES), (array) config('storefront.approved_pages')));
+    }
+
+    public function info(string $slug)
+    {
+        abort_unless(isset(self::INFO_PAGES[$slug]), 404);
+        [$heading, $desc] = self::INFO_PAGES[$slug];
+        $approved = in_array($slug, self::approvedInfoPages(), true);
+
+        return view('pages.info.'.$slug, [
+            'slug' => $slug, 'heading' => $heading, 'approved' => $approved,
+            'pageTitle' => $heading, 'pageDescription' => $desc,
+            // Drafts are not indexed until approved (they are still public and linked for customers).
+            'robots' => $approved ? 'index, follow' : 'noindex, follow',
+            'canonical' => $approved ? Seo::abs('/'.$slug) : null,
+            'jsonLd' => $approved ? [Seo::webPage($slug === 'contact' ? 'ContactPage' : 'WebPage', '/'.$slug, $heading, $desc)] : [],
+        ]);
     }
 
     public function bulkOrder()

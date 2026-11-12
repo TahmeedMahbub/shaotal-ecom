@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!lastQuote) {
       summaryItemsList.innerHTML = cart.map(i => `
         <div class="summary-item-row">
-          <img src="${esc(window.imgUrl(i.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(i.name)}" class="summary-item-img" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+          <img src="${esc(window.imgUrl(i.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(i.name)}" class="summary-item-img">
           <div class="summary-item-info">
             <div class="summary-item-title">${esc(i.name)}</div>
             <div class="summary-item-meta">Qty: ${Number(i.quantity) || 1}</div>
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const variantText = [l.size ? `Size: ${esc(l.size)}` : '', l.color ? `Color: ${esc(l.color)}` : ''].filter(Boolean).join(' | ');
       return `
         <div class="summary-item-row">
-          <img src="${esc(window.imgUrl(l.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(l.name)}" class="summary-item-img" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG;">
+          <img src="${esc(window.imgUrl(l.image, 160) || window.PLACEHOLDER_IMG)}" alt="${esc(l.name)}" class="summary-item-img">
           <div class="summary-item-info">
             <div class="summary-item-title">${esc(l.name)}</div>
             <div class="summary-item-meta">${variantText ? `${variantText} • ` : ''}Qty: ${l.quantity}</div>
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const breadcrumbCartLink = document.getElementById('breadcrumb-cart-link');
   if (breadcrumbCartLink) {
-    breadcrumbCartLink.addEventListener('click', () => { if (typeof openCart === 'function') openCart(); });
+    breadcrumbCartLink.addEventListener('click', e => { e.preventDefault(); if (typeof openCart === 'function') openCart(); });
   }
 
   /* ── Initial render ── */

@@ -12,6 +12,10 @@
           <span class="breadcrumb-sep">/</span>
           <a href="/products">Shop</a>
           <span class="breadcrumb-sep">/</span>
+          @if (! empty($parentCrumb))
+          <a href="{{ $parentCrumb['url'] }}" id="breadcrumb-parent">{{ $parentCrumb['name'] }}</a>
+          <span class="breadcrumb-sep" id="breadcrumb-parent-sep">/</span>
+          @endif
           <span class="breadcrumb-current" id="breadcrumb-current">{{ $heading ?? 'All Products' }}</span>
         </div>
 
@@ -142,6 +146,19 @@
             <div class="infinite-scroll-sentinel" id="infinite-scroll-sentinel">
               <div class="loading-spinner"></div>
             </div>
+
+            {{-- Crawlable page links (every product reachable without JavaScript). products.js hides this once infinite
+                 scroll takes over, so the design is unchanged for visitors; without JS it is the way to page. --}}
+            @if (($pagination['last'] ?? 1) > 1)
+            <nav class="listing-pagination" id="listing-pagination" aria-label="Product pages">
+              @if ($pagination['prev'])<a href="{{ $pagination['prev'] }}" rel="prev">Previous</a>@endif
+              @foreach ($pagination['links'] as $i => $link)
+                @if ($i > 0 && $link['n'] > $pagination['links'][$i - 1]['n'] + 1)<span class="listing-pagination-gap">…</span>@endif
+                @if ($link['n'] === $pagination['page'])<span aria-current="page">{{ $link['n'] }}</span>@else<a href="{{ $link['url'] }}">{{ $link['n'] }}</a>@endif
+              @endforeach
+              @if ($pagination['next'])<a href="{{ $pagination['next'] }}" rel="next">Next</a>@endif
+            </nav>
+            @endif
 
             
             <div class="listing-empty-state" id="listing-empty-state" style="display:none">
