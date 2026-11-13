@@ -1,4 +1,63 @@
-# Session handoff: Part 7 COMPLETE (uncommitted)
+# Session handoff: Part 8 COMPLETE (uncommitted)
+
+_Updated 2026-11-12 after Part 8 (final regression, payment review, release readiness), on the home PC (Windows/Laragon). Base commit: `c95ec27` "part 6", which contains Parts 6 **and** 7. Part 8 is uncommitted. Nothing was committed, pushed, stashed or reset. Authoritative record: STOREFRONT_PRODUCTION_READINESS_PLAN.md §20 (issue log §20.6)._
+
+**Part 8 changed (working tree):**
+- `tests/browser/journey.mjs` (new);
+- `.github/workflows/tests.yml` (journey step);
+- `docs/payments-architecture.md` (Part 8 review, P1–P8);
+- the plan (§0, §1, I5/I6, §8, §19 note, §20, change log);
+- `docs/SEO_AUDIT.md` §14, `docs/PROGRESS.md`, `STOREFRONT_DEPLOYMENT_CHECKLIST.md` (0.13, 0.14, §6), this file.
+
+No application code changed.
+
+**Results:**
+- **GitHub CI:** run #2 on `c95ec27` passed both jobs (first ever GitHub run of the browser job).
+- **PHPUnit:** MySQL 252/255, 0 skipped. The 3 errors are Windows `symlink()` permission; they pass on CI. SQLite: 49 pass / 206 skip / 0 fail.
+- **Other suites:**
+  - JS 17/17;
+  - smoke 51/51;
+  - SEO 42/42 + 2 SKIP (seed) and 54/54 (perf);
+  - **journey 32/32** (new);
+  - crawl 405/405.
+- **Perf, 11 pages × 2 profiles:** 0 errors, 0 CSP violations. Home mobile LCP 2.02 s.
+
+**Release blockers (plan §20.6):**
+1. **RB1** admin integration.
+2. **RB2 (new)** `composer audit` reports 8 advisories. Fix:
+   ```sh
+   composer update -W "symfony/*" phpseclib/phpseclib   # patch/minor only, per the dry run
+   ```
+   Then run the full suite and CI, and commit `composer.lock`.
+3. **RB3** production deployment.
+4. **RB4** owner decision on the policy pages.
+
+**New items:**
+- **C12** owner: free shipping is decided before the coupon discount.
+- **I11** tests log to the real `laravel.log`.
+- **I12** the private-disk `serve` route.
+- **P1–P8** Stripe design gaps.
+
+**Local environment at the end of Part 8 (home PC):**
+- Local test DBs only (all `127.0.0.1`, root, no password):
+  - `shaotal_storefront_test` (now with `proposed-schema.sql`);
+  - `shaotal_browser_test` (seed + fixtures; contains the journey/smoke test rows: 3 test orders, 3 journey customers, contact/sourcing/newsletter rows);
+  - `shaotal_perf_test` (405 products + perf customer and order).
+
+  All are safe to drop and rebuild with the CI recipe (plan §0).
+- No server is left running (port 8124 was stopped).
+- The file catalog cache is shared between local DBs: run `storefront:refresh-catalog` with the target `DB_*` and `CACHE_STORE=file` before switching.
+- Laragon PHP has no `pdo_sqlite`; pass `-d extension=pdo_sqlite` for the MySQL suite to run all 255 tests.
+- Browser suites on Windows: `CHROME_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe"`.
+- Not done (permission): running `config/route/view/event:cache` locally. Do it on the server (checklist §1.5) or in a scratch checkout.
+
+**Next:**
+- Apply RB2 and push (that also gives the journey step its first CI run).
+- RB1 when the admin code is available.
+- Owner decisions (§20.6).
+- No Part 9 brief exists. This was the last planned part (plan: "Part 1 of 8").
+
+_Part 7 record (kept for history; committed with Part 6 in `c95ec27` "part 6", so "uncommitted" below is no longer true):_
 
 _Updated 2026-11-12 after Part 7 (SEO audit and optimisation). Last commit is still `47920bf Part 3, 4, 5`. **All Part 6 and Part 7 work is uncommitted:** nothing was committed, pushed, stashed or reset. The authoritative records:_
 - _Part 7: STOREFRONT_PRODUCTION_READINESS_PLAN.md §19 and docs/SEO_AUDIT.md;_

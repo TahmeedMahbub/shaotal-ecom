@@ -2,6 +2,8 @@
 
 _Part 5 (2026-11-12). Commands are for the **production server**, run from the app directory as the deploy user, unless a step says otherwise. Nothing here was run against production. The commands were checked locally for syntax and behaviour only, never against the production database. Template: [`.env.production.example`](.env.production.example). Config check: `php artisan storefront:deploy-check` (read-only, prints no secrets, exit 1 on a blocking problem)._
 
+_Updated for Part 8 (2026-11-12): CI is green on GitHub; new item 0.14 (`composer audit`, a release blocker until the patch updates land); the release blockers are listed in plan §20.6._
+
 _Updated for Part 6 (2026-11-12): `storage:link` and the PHP `gd` extension are now **required**, new `STOREFRONT_*` settings (§7), return requests stay **off**, and new post-deploy checks. **Release is still blocked** by the admin app integration (plan §17, Part 6 blockers): staff must be able to see and act on orders, sourcing/bulk requests and contact messages before launch._
 
 ## 0. Before the first deploy (once)
@@ -19,7 +21,8 @@ _Updated for Part 6 (2026-11-12): `storage:link` and the PHP `gd` extension are 
 | 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), policy-page approval (`STOREFRONT_APPROVED_PAGES`), contact details (`STOREFRONT_CONTACT_*`), returns policy and window, Stripe (future). See §7. Never fill these in without written owner approval. |
 | 0.11 | PHP extensions | `gd` with JPEG, PNG and WebP support is **required**: sourcing-request photos are decoded and re-encoded with GD, and every upload is refused without it. Check: `php -r 'var_dump(function_exists("imagewebp"));'` → `true` (also reported by `storefront:deploy-check`). |
 | 0.12 | Uploaded photos are served as static files only | `storage/app/public` is exposed at `/storage` by `storage:link`. Uploads are already re-encoded images with random `.jpg/.png/.webp` names, but as defence in depth make sure the web server never executes PHP there. Nginx: `location ^~ /storage/ { try_files $uri =404; }` placed before the `\.php$` block. Apache: `php_flag engine off` (or `RemoveHandler .php`) for that directory. |
-| 0.13 | CI green on the release commit | `.github/workflows/tests.yml`: PHPUnit (MySQL) and the browser smoke job. **The workflow has not run on GitHub yet**: check the first run before relying on it. |
+| 0.13 | CI green on the release commit | `.github/workflows/tests.yml`: PHPUnit (MySQL) + JS, and the browser job (smoke, SEO, and since Part 8 the customer journey). Green on GitHub for `c95ec27` (run #2). The journey step runs from the next push on: check it before release. |
+| 0.14 | No known-vulnerable dependencies | `composer audit` must report no advisories on the release commit. **Part 8 found 8** (Symfony 8.1.7–8.1.9, phpseclib 4.0.2), fixed by patch updates: `composer update -W "symfony/*" phpseclib/phpseclib`, then the full test suite and CI, then commit `composer.lock` (plan §20.3, RB2). |
 
 ## 1. Deploy
 ```sh
@@ -151,7 +154,8 @@ Check `storage/logs/laravel-*.log` for new errors.
   - DB session zone, display zone other than `Australia/Sydney`, `TRUSTED_PROXIES` empty.
   - Policy pages not yet approved, no public contact details.
   - Returns switched on (confirm the policy approval and admin review before leaving it on).
-- **Not checked** (do these by hand): HTTPS/redirects, the web server not executing PHP under `/storage`, SMTP delivery, CI status, owner/legal approvals.
+- **Not checked** (do these by hand): HTTPS/redirects, the web server not executing PHP under `/storage`, SMTP delivery, CI status, `composer audit` (0.14), owner/legal approvals.
+- **Part 8 run with simulated production settings** (`APP_ENV=production`, https `APP_URL`, secure cookie, file cache and session, smtp, warning logs): every row OK except `public/storage` FAIL (`storage:link` not run on that machine; deploy step 6). Expected WARNs: `TRUSTED_PROXIES`, policy pages not approved, no contact details.
 
 ## 7. Storefront settings added in Part 6
 All are read in `config/storefront.php`. Defaults are safe for launch. Remember `php artisan config:cache` after any change.

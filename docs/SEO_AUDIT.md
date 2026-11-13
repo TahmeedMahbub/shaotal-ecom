@@ -250,3 +250,17 @@ Nothing below has been done. No verification token exists in this repository, an
 | S10 | www vs non-www and http → https redirects | **Pending** | Production web server / DNS |
 | S11 | Lighthouse not run; synthetic numbers are local only | **Pending** | Lighthouse or PageSpeed Insights against the deployed site |
 | S12 | The CI browser SEO job runs on the 5-product seed, so the pagination checks are SKIP there | Noted | Run locally on the perf catalog (done); optionally seed more products in CI |
+
+## 14. Part 8 final verification (2026-11-12, second machine)
+_No SEO code changed. Local `shaotal_perf_test` (405 products) and `shaotal_browser_test` (seed); details in plan §20.5._
+- **Browser SEO:** `seo.mjs` 54/54 on the perf catalog and 42/42 + 2 SKIP on the seed DB.
+- **GitHub CI:** the SEO step passed in run #2 (`c95ec27`).
+- **Link-only crawl** from `/` (no JavaScript, no sitemap): **405/405** products within 3 clicks, the same as Part 7.
+- **Sitemap and robots, live:** 405 product URLs with 405 `<image:loc>`; robots.txt as in §7.
+- **Canonicals and status codes:** `?page=2` self-canonical; `?page=999` → 404; sort and `utm_*` dropped from the canonical; search pages `noindex, follow`.
+- **Mobile LCP (throttled, local):** 1.86–2.22 s on all page types; home 2.02 s, with the hero image as the LCP element. CLS ≤ 0.053; 0 errors and 0 CSP violations.
+- **Comparing with §9:** these numbers come from a Windows machine, where PHP's built-in server has a single worker. Compare pages relative to each other, not against §9.
+- **Still pending, unchanged:**
+  - Search Console and the Rich Results Test (§12);
+  - field Core Web Vitals and Lighthouse (S6, S11);
+  - www/https redirects (S10).

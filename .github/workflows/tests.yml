@@ -135,6 +135,11 @@ jobs:
       - name: Browser SEO check
         run: CHROME_PATH="$(command -v google-chrome || command -v chromium)" BASE=http://127.0.0.1:8124 CDP_PORT=9361 node tests/browser/seo.mjs
 
+      # Full COD purchase path (Part 8): register, browse, cart, sign-in redirect, coupon, place (double click → one
+      # order), order page, cancel, sourcing photo, newsletter, sign-out. Creates test rows in this database only.
+      - name: Browser customer journey
+        run: CHROME_PATH="$(command -v google-chrome || command -v chromium)" BASE=http://127.0.0.1:8124 CDP_PORT=9370 node tests/browser/journey.mjs
+
       - name: Upload failure artifacts (screenshots + server log; test data only)
         if: failure()
         uses: actions/upload-artifact@v4

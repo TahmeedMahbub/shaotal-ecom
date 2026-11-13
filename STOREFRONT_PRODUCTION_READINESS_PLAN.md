@@ -1,6 +1,6 @@
 # Shaotal Storefront — Production Readiness Plan
 
-_Created 2026-11-11 (Part 1 of 8), updated after Part 2 (security hardening and checkout reliability) on 2026-11-12 after Parts 3 (order lifecycle and customer tracking) and 4 (SEO and server-side rendering), after Part 5 (admin integration spec, production configuration, delivery wording, performance), after Part 6 (security hardening, business policies, release preparation), and after Part 7 (SEO audit and optimisation). Living checklist: update **Status** as items close. Part 3/4 details: §11 and §12. Part 5: §14–§17. Part 6: §18. Part 7: §19 and [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Deployment: [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md)._
+_Created 2026-11-11 (Part 1 of 8), updated after Part 2 (security hardening and checkout reliability) on 2026-11-12 after Parts 3 (order lifecycle and customer tracking) and 4 (SEO and server-side rendering), after Part 5 (admin integration spec, production configuration, delivery wording, performance), after Part 6 (security hardening, business policies, release preparation), after Part 7 (SEO audit and optimisation), and after Part 8 (final regression, payment review, release readiness). Living checklist: update **Status** as items close. Part 3/4 details: §11 and §12. Part 5: §14–§17. Part 6: §18. Part 7: §19 and [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Part 8: §20 (final issue log §20.6). Deployment: [STOREFRONT_DEPLOYMENT_CHECKLIST.md](STOREFRONT_DEPLOYMENT_CHECKLIST.md)._
 
 Status values:
 - **Fixed**: code plus regression test, verified.
@@ -63,19 +63,19 @@ Parts 1–2 ran on Windows/Laragon. Parts 3–4 ran on macOS (PHP 8.4.21 with `p
 - Runs `composer test`, then the JS tests.
 - Runs Pint on changed files for pull requests.
 
-**It has not been executed on GitHub** (nothing was pushed). The recipe and both composer scripts were validated locally.
+**It has run on GitHub (Part 8 check):** run #1 on `fcc3a44` (Part 1 & 2) and run #2 on `c95ec27` both **succeeded**. In run #2 both jobs passed: `storefront` (build DB, PHPUnit MySQL, JS) and `browser` (smoke + SEO). Part 8 adds a third browser step, `journey.mjs`, which has **not yet run on GitHub**.
 
 ---
 
 ## 1. Results
 
-| Run | Part 1 | Part 2 | Parts 3–4 (macOS) | Part 5 (macOS) | Part 6 (macOS) | Part 7 (macOS) |
-|---|---|---|---|---|---|---|
-| Full PHP suite, local MySQL | 52/52 | **123/123** (692 assertions) | **177/177** (1152 assertions); `composer test` exit 0 | **206/206** (1388 assertions); `composer test` exit 0 | **238/238** (1882 assertions, 0 skipped); `composer test` exit 0 | **255/255 (2182 assertions, 0 skipped)**; `composer test` exit 0 |
-| Default `phpunit.xml` (SQLite) | 16 pass / 36 skip / 0 fail | 47 pass / 76 skip / 0 fail | 57 pass / 120 skip / 0 fail | 57 pass / 149 skip / 0 fail | 57 pass / 181 skip / 0 fail | 57 pass / 198 skip / 0 fail |
-| JS | 9/9 | **17/17** | **17/17** (no JS test added; see I4) | **17/17** + `node --check` on every script | **17/17** + `node --check` on every changed script | **17/17** + `node --check` |
-| Pint (changed PHP files) | — | pass (as LF copies) | **pass** | **pass** (all changed + new PHP files) | **pass** (all changed + new PHP files) | **pass** |
-| Real browser (headless Chrome over CDP, local test DB) | not done | **48/48** checks (§6) | **18/18** (Part 3) + **28/28** (Part 4), §11.7 / §12.7 | **37/37** committed smoke (`tests/browser/smoke.mjs`) + performance runs (§14) | **51/51** smoke (also as a CI job, not yet run on GitHub) + **13/13** targeted checks (upload, returns, 419), §18.4 | **54/54** SEO browser check (`tests/browser/seo.mjs`, perf catalog) + **42/42** with 2 SKIP (seed DB, as CI); smoke **51/51** on both; link-only crawl 405/405 products (§19) |
+| Run | Part 1 | Part 2 | Parts 3–4 (macOS) | Part 5 (macOS) | Part 6 (macOS) | Part 7 (macOS) | Part 8 (Windows) |
+|---|---|---|---|---|---|---|---|
+| Full PHP suite, local MySQL | 52/52 | **123/123** (692 assertions) | **177/177** (1152 assertions); `composer test` exit 0 | **206/206** (1388 assertions); `composer test` exit 0 | **238/238** (1882 assertions, 0 skipped); `composer test` exit 0 | **255/255 (2182 assertions, 0 skipped)**; `composer test` exit 0 | **252/255, 0 skipped**; the 3 errors are Windows `symlink()` permission in deploy-check tests (they pass on GitHub CI, Linux) |
+| Default `phpunit.xml` (SQLite) | 16 pass / 36 skip / 0 fail | 47 pass / 76 skip / 0 fail | 57 pass / 120 skip / 0 fail | 57 pass / 149 skip / 0 fail | 57 pass / 181 skip / 0 fail | 57 pass / 198 skip / 0 fail | 49 pass / 206 skip / 0 fail (no `pdo_sqlite` in Laragon php.ini) |
+| JS | 9/9 | **17/17** | **17/17** (no JS test added; see I4) | **17/17** + `node --check` on every script | **17/17** + `node --check` on every changed script | **17/17** + `node --check` | **17/17** + `node --check` |
+| Pint (changed PHP files) | — | pass (as LF copies) | **pass** | **pass** (all changed + new PHP files) | **pass** (all changed + new PHP files) | **pass** | no PHP changed (Pint flags only the Part 1 `AuthController` line endings, I7) |
+| Real browser (headless Chrome over CDP, local test DB) | not done | **48/48** checks (§6) | **18/18** (Part 3) + **28/28** (Part 4), §11.7 / §12.7 | **37/37** committed smoke (`tests/browser/smoke.mjs`) + performance runs (§14) | **51/51** smoke (also as a CI job, not yet run on GitHub) + **13/13** targeted checks (upload, returns, 419), §18.4 | **54/54** SEO browser check (`tests/browser/seo.mjs`, perf catalog) + **42/42** with 2 SKIP (seed DB, as CI); smoke **51/51** on both; link-only crawl 405/405 products (§19) | smoke **51/51**, SEO **42/42 + 2 SKIP** (seed) and **54/54** (perf catalog), new journey **32/32**, crawl 405/405 ≤ 3 clicks, perf all 11 pages × 2 profiles (§20) |
 
 Mutation checks (fix removed, test fails; fix restored, test passes):
 - Part 1: the customer middleware and the duplicate-order guard.
@@ -205,8 +205,8 @@ H1 (payment seam): `App\Payments\PaymentMethod` interface + `CashOnDelivery` + `
 | I2 | C | Remote-DB guard + cache isolation; Part 2 made it run before any connection and forced `$_SERVER` | **Fixed** |
 | I3 | H | `pdo_sqlite` missing. `composer test` now runs the MySQL suite and SQLite is optional (documented). | **Fixed** |
 | I4 | H | Coverage: auth, session, address, coupon, headers, errors and XSS added; Part 3 orders/tracking/cancel/COD/stock policy; Part 4 SEO. Still missing: quote edge cases, requests/newsletter, profile, cart/wishlist sync, a JS unit test for the account order list. | Open (partial) |
-| I5 | M | Browser checks. Part 5 committed a dependency-free CDP smoke suite (`tests/browser/smoke.mjs`, 37 checks) and the performance harness (`tests/browser/perf.mjs`, `tests/Support/perf-*.php`). **Part 6:** smoke is now 51 checks and runs as a separate `browser` CI job (own `shaotal_browser_test` DB, fixtures, PHP server, Chrome, screenshots + server log uploaded on failure). | **Fixed (not yet run on GitHub)** |
-| I6 | M | CI workflow added | **Fixed (not yet run on GitHub)** |
+| I5 | M | Browser checks. **Part 8:** CI run #2 passed the browser job on GitHub; `journey.mjs` added (full COD purchase path, 32 checks). Part 5 committed a dependency-free CDP smoke suite (`tests/browser/smoke.mjs`, 37 checks) and the performance harness (`tests/browser/perf.mjs`, `tests/Support/perf-*.php`). **Part 6:** smoke is now 51 checks and runs as a separate `browser` CI job (own `shaotal_browser_test` DB, fixtures, PHP server, Chrome, screenshots + server log uploaded on failure). | **Fixed (browser + GitHub CI)** |
+| I6 | M | CI workflow added | **Fixed: green on GitHub** (runs #1, #2) |
 | I7 | L | Pint `line_ending`: the repo stores CRLF blobs. All Part 2 PHP files pass Pint when checked as LF copies. Decide on a `.gitattributes` / one-off normalisation commit. | Decision |
 | I8 | L | Schema drift: `subcategories.section` and `customer_social_accounts` are missing from `sql/ecom.sql`. CI uses `tests/Support/ci-schema-drift.sql`. | Decision |
 | I9 | M | No error tracking or log rotation | Open |
@@ -332,7 +332,7 @@ Browser results (Part 6):
 ---
 
 ## 8. Acceptance criteria (status)
-1. Journeys. Browser-verified for sign-in → checkout → order, session expiry and re-sign-in, order history → details → cancel (Part 3). Not yet: committed E2E suite.
+1. Journeys. ✅ Committed E2E suite `tests/browser/journey.mjs` (Part 8): register → browse → cart → sign-in redirect → coupon → COD order (double click = one order) → order page → cancel → sourcing photo → newsletter → sign-out.
 2. Isolation. ✅ Tested per endpoint; deactivated, deleted and password-changed sessions are rejected.
 3. Server-side authorization. ✅
 4. Order integrity. ✅ Pricing, atomicity, duplicates, coupon limits, complete addresses, price snapshots, COD never paid at placement. Stock: decided out of scope (V2). ⏳ Price-change notice (C6).
@@ -340,7 +340,7 @@ Browser results (Part 6):
 6. SEO. ✅ G1–G7 (Part 4). ⏳ G8, G9/G10 decisions.
 7. Payments seam. ✅ H1 seam. ⏳ Stripe itself (H2–H5).
 8. Security. Headers ✅, XSS ✅ (browser), session ✅, strict script CSP (A12) ✅, SRI (A10) ✅, uploads and spam (A7) ✅, open redirect (A15) ✅, link injection (A16) ✅. ⏳ Deploy config (A9/B4).
-9. Tests in CI. ✅ PHPUnit and browser-smoke jobs, both validated locally; ⏳ first GitHub run.
+9. Tests in CI. ✅ PHPUnit and browser jobs green on GitHub (run #2, `c95ec27`). ⏳ the Part 8 journey step's first GitHub run.
 10. No regressions. ✅ All Part 1 tests still pass. One Part 1 test payload changed: phone `'1'` → `'0400 000 000'`, because the stricter phone rule now applies before the ownership check.
 
 ## 9. Recommended order (written after Part 2; see §13 for the Part 5 starting point)
@@ -614,7 +614,7 @@ _**Superseded by Part 6 (§18.2).** The owner decided: free shipping **at or abo
 
 ## 18. Part 6: security hardening, business policies, release preparation
 
-_2026-11-12. All Part 6 work is uncommitted in the working tree. Nothing ran against `hishabiz_ecom`._
+_2026-11-12. Committed with Part 7 in `c95ec27`. Nothing ran against `hishabiz_ecom`._
 
 ### 18.1 Task status
 | # | Task | Status | Evidence |
@@ -717,7 +717,7 @@ The 13 targeted checks:
 
 ## 19. Part 7: SEO audit and optimisation
 
-_2026-11-12. Full detail, policies and the Search Console checklist: [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Uncommitted, on top of Part 6. Only local `*_test` databases were used._
+_2026-11-12. Full detail, policies and the Search Console checklist: [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md). Committed together with Part 6 in `c95ec27` ("part 6"). Only local `*_test` databases were used._
 
 ### 19.1 Audit result (before changes)
 - **Part 4 work was confirmed working; not rebuilt:**
@@ -754,6 +754,181 @@ _2026-11-12. Full detail, policies and the Search Console checklist: [docs/SEO_A
 - **Desktop unthrottled:** not conclusive. Two runs of identical code differed by about 55 ms in DOMContentLoaded.
 - **HTML:** listing pages grew by ≤ 0.3 KB (the page links).
 - Raw data: `docs/SEO_AUDIT.md` §9.
+
+---
+
+## 20. Part 8: final regression, payment review, release readiness
+
+_2026-11-12, home PC (Windows 10, Laragon PHP 8.4.5, MySQL 8.0.30, Node 24, Chrome). Started from `c95ec27`; Parts 1–7 were verified present and were not reworked. The remote `hishabiz_ecom` was not contacted. Local `*_test` databases only:_
+- _`shaotal_storefront_test` got `tests/Support/proposed-schema.sql`;_
+- _`shaotal_browser_test` (seed) and `shaotal_perf_test` (405 products) were built with the CI recipe._
+
+_Stripe and returns stay off. COD and stock behaviour are unchanged. Nothing was committed or pushed._
+
+### 20.1 Scope and outcome
+| # | Workstream | Outcome |
+|---|---|---|
+| 1 | Stripe-ready payment review | **Done (review only).** The seam, placement and schema match [docs/payments-architecture.md](docs/payments-architecture.md). 8 design gaps (P1–P8) were added there, all for the future card path. COD is unaffected. |
+| 2 | Security regression | **Passed, with one new finding:** A18, 8 advisories in Symfony and phpseclib. Patch releases exist, but the lockfile was **not** changed in Part 8. |
+| 3 | Customer journey regression | **Passed.** New committed suite `tests/browser/journey.mjs`, 32/32. Order rows were checked in the database. |
+| 4 | Performance and SEO final verification | **Passed.** Re-confirmed on a second machine. Hero LCP re-measured (was open since Part 6). |
+| 5 | GitHub CI | **Green on GitHub** (runs #1 and #2). `journey.mjs` was added to the browser job; that step hasn't run on GitHub yet. |
+| 6 | Deployment readiness | **Tooling ready.** deploy-check with simulated production settings: 1 FAIL, `public/storage` (`storage:link` not run on this machine; it's deploy step 6), plus 3 expected owner WARNs. |
+| 7 | Release blockers and issue log | §20.6 |
+
+### 20.2 Test results (exact)
+| Check | Result |
+|---|---|
+| PHPUnit MySQL (`php -d extension=pdo_sqlite vendor/bin/phpunit -c phpunit.mysql.xml`) | **252/255, 0 skipped.** 3 errors: `symlink(): Permission denied` in `ProductionReadinessTest` deploy-check tests. This is Windows without Developer Mode, not the code: the same tests pass on GitHub CI (Linux). |
+| PHPUnit default (SQLite) | 49 pass / 206 skip / 0 fail. The 8 fewer passes than macOS are the SQLite-only size-guide tests: Laragon `php.ini` has no `pdo_sqlite`. |
+| JS unit | 17/17 |
+| Browser smoke, seed DB | **51/51** |
+| Browser SEO | seed DB **42/42 + 2 SKIP** (as CI); perf catalog **54/54** |
+| Browser journey (new) | **32/32**, seed DB |
+| Link-only crawl, perf catalog | **405/405** products reachable, max depth 3. 145 listing/info pages crawled. |
+| GitHub Actions | run #2 (`c95ec27`): `storefront` ✅ (PHPUnit MySQL, JS), `browser` ✅ (smoke, SEO). Pint step skipped (push, not PR). |
+| `composer audit` | **8 advisories** (A18) |
+| `npm audit` | not applicable: no `package-lock.json`, and the storefront ships no npm code (Vite only builds the unused `welcome.blade.php`) |
+
+### 20.3 Security regression (live server, seed DB)
+Verified with `curl` against the local server:
+- **Headers:** CSP `script-src 'self'; script-src-attr 'none'` everywhere. On `/bulk-order`, only the two pinned CDN files are added. `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` and COOP are present.
+- **Cookies:**
+  - the session cookie is `httponly; samesite=lax`;
+  - `secure` is set from an https `APP_URL`, which deploy-check enforces;
+  - `robots.txt` and the sitemaps set no cookies.
+- **Access control:**
+  - guest `GET /checkout` and `/account/orders` 302 to `/?signin=…`, and JSON requests get 401;
+  - `/account` is `noindex, nofollow` with `private` caching.
+- **Redirect safety:** `//evil.example/` → 301 to `http://127.0.0.1:8124/evil.example` (same host).
+- **Errors:** a cross-site POST without CSRF → 419. A 404 shows no stack trace. `.env` and `composer.json` are 404 from the web root, and unsigned `/storage/...` is 403.
+- **Secrets:**
+  - no `.env`, key or certificate file is tracked;
+  - the `.env*.example` files hold only placeholders;
+  - a pattern scan of tracked files (Stripe, AWS, Google, GitHub, private keys, Cloudinary URLs) found nothing.
+- **Full PHP security suites:** all green, including `SecurityHardeningTest`, `UploadAndSpamTest`, `AuthSecurityTest`, `SessionRevocationTest`, `CustomerAccessTest`, `CatalogOutputSafetyTest` and `ErrorPagesAndHeadersTest`.
+- **A18 (new, High, release blocker):** `composer audit` reports 8 advisories in installed packages:
+  - `symfony/routing`, `http-foundation` (×4), `http-kernel` and `mime`, all at 8.1.7–8.1.9;
+  - `phpseclib/phpseclib` 4.0.2 (via Socialite).
+
+  The ones closest to this app:
+  - "Generated URLs can point to a host chosen by the client";
+  - the `private_ranges` trusted-proxy bypass.
+
+  Our canonical/sitemap URLs use `APP_URL` and `TRUSTED_PROXIES` is an explicit list, which lowers but doesn't remove the exposure. A dry run (`composer update --dry-run -W "symfony/*" phpseclib/phpseclib`) shows **patch/minor updates only** (Symfony 8.1.9 → 8.1.11, phpseclib 4.0.2 → 4.0.3, plus contracts and polyfills). **Action:** run that update, then the full suite, browser suites and CI. Not done in Part 8, because the brief was verification and the lockfile is a release decision.
+
+### 20.4 Customer journey (`tests/browser/journey.mjs`, 32/32)
+- **Register:**
+  - a 7-character password is refused;
+  - a new account is signed in;
+  - the account page shows the signed-in view;
+  - the same email is refused.
+- **Browse and cart:** home → category (server link) → product. A simple item, plus a variant (Olive Green / M ×2) from its own page.
+- **Checkout:**
+  - a guest gets a 302 to `/?signin=/checkout` and the modal opens;
+  - after sign-in the checkout shows the guest cart, the saved address and **only COD**;
+  - coupon `10AUD` applies.
+- **Placing the order:**
+  - a **double click sends exactly one** `/checkout/place`;
+  - the success dialog shows `INV-nnnnnn` and "Order Total" (not "Amount Paid");
+  - the cart is emptied.
+- **Order page:**
+  - opened from "View My Orders";
+  - shows "Order Placed", Cash on Delivery, "Pay on delivery" and an AEDT time;
+  - lists both items and "Discount (10AUD)";
+  - has **no return form** (returns off), offers Cancel, and is `noindex`;
+  - the order history lists the order.
+- **Cancel:** the page reloads as "Cancelled" without the button.
+- **Other forms:**
+  - a sourcing request with a real PNG through the form is accepted;
+  - the footer newsletter accepts an address.
+- **Mobile:** at 375 px, the order page, account and checkout have no errors, CSP violations or overflow.
+- **Sign-out:** the order API returns 401, and the order page 302s to sign-in.
+- **Database check of the order** (`shaotal_browser_test`):
+  - order: subtotal 107.00, discount 10.00, shipping 0.00, total 97.00;
+  - `order_items` snapshot name, SKU (`TEE-001-OG-M`), colour "Olive Green", size "M" and prices;
+  - `payments`: `provider NULL, cod, 97.00, pending, paid_at NULL`;
+  - timeline: `→ pending "Order placed"`, then `pending → cancelled "Cancelled by customer"`;
+  - **stock unchanged** (cushion 20, OG-M 10: stock is V2);
+  - 0 paid orders.
+- **New owner question (C12, Low):** free shipping is decided on the subtotal **before** the coupon. A$107 − A$10 = A$97 still shipped free. The rule "free at A$100 or more" doesn't say which amount; confirm.
+
+### 20.5 Performance and SEO (perf catalog, 405 products, local)
+- **SEO, live:**
+  - `robots.txt` matches SEO_AUDIT §7;
+  - the sitemap index has pages + products-1 with **405 products / 405 images**;
+  - `?page=2` is self-canonical, and `?page=999` → 404;
+  - sort and `utm_*` are dropped from the canonical;
+  - search is `noindex, follow`.
+- **Server-side** (`tests/Support/perf-server.php`, 3 runs):
+  - warm 25–80 ms, 0–8 queries per page;
+  - cold 108–206 ms, 13–21 queries;
+  - boot JSON sizes equal the Part 5 figures (home 85 KB, listings 13–19 KB, product 11 KB).
+- **Browser** (`tests/browser/perf.mjs`, median of 3, CSS/JS not gzipped):
+
+| Profile | LCP | CLS | Errors / CSP / `/null` |
+|---|---|---|---|
+| Desktop | 348–952 ms (subcategory highest; home 624 ms, LCP element `hero-slide-img`) | ≤ 0.044 | 0 / 0 / 0 on all 11 pages |
+| Mobile (4× CPU, 150 ms RTT, 1.6 Mbps) | 1.86–2.22 s; **home 2.02 s** | ≤ 0.053 | 0 / 0 / 0 on all 11 pages |
+
+- **Hero LCP (F8, open since Part 6):** home mobile LCP is **2.02 s, was 5.38 s** in the Part 5 baseline (before the Part 6 `<picture>` / mobile source / `w_1600` resize). The hero image is the LCP element.
+- **Machine difference (don't compare absolute numbers with Parts 5–7):**
+  - On Windows, PHP's built-in server runs a single worker (`PHP_CLI_SERVER_WORKERS` is unsupported), so TTFB is ~180–280 ms (macOS ~150 ms).
+  - The 4× CPU throttle on this CPU gives mobile TBT 35–157 ms (macOS 0 ms).
+  - Script time per page is unchanged (≤ 15 ms).
+- **Still the biggest production win:** gzip and cache headers for CSS/JS at the web server (F5, rules ready).
+
+### 20.6 Final unresolved issues and release blockers (running log)
+**Release blockers (must be closed before launch):**
+| ID | Item | Owner | Since |
+|---|---|---|---|
+| RB1 | **Admin app integration** ([docs/admin-order-integration.md](docs/admin-order-integration.md)). Staff must be able to:<br>- process orders (compare-and-set transitions, catalog-version bump);<br>- see sourcing/bulk requests with photos and contact messages.<br>Admin code has never been available to these sessions. Also needed: S9 (`updated_at` for sitemap `lastmod`) and P8. | Admin team | Part 3 |
+| RB2 | **A18 dependency advisories:** apply the Symfony/phpseclib patch updates, re-run the suites and CI. | Dev | Part 8 |
+| RB3 | **Production deployment per the checklist:**<br>- production `.env`;<br>- `storefront:deploy-check` green (incl. `storage:link`, GD);<br>- HTTPS and http→https / www redirects (S10);<br>- F5 gzip + cache headers;<br>- OPcache;<br>- SMTP (password reset; C8 order email);<br>- `TRUSTED_PROXIES` if behind a proxy;<br>- `config/route/view/event:cache` run on the server (not exercised in Part 8: writing `bootstrap/cache` was not permitted here). | Ops | Part 5 |
+| RB4 | **Launch decision on policy pages:** approve them (`STOREFRONT_APPROVED_PAGES`, legal review of terms/privacy, contact details), or launch knowingly with noindex drafts. | Owner | Part 6 |
+
+**Owner / business decisions (not blocking a COD launch unless noted):**
+- Returns policy and window (returns stay off).
+- Delivery copy (§16) and C12 (free-shipping basis).
+- Hero images (desktop 3:1 ≥ 1920×640, mobile 2:1 ≥ 1080×540).
+- G9 ratings in markup.
+- S1 About page content.
+- Stripe H2/H3 + P1–P8.
+- I7 line endings.
+- I8 schema drift into `sql/ecom.sql`.
+- DB owner: `sql/proposed_changes.sql` (§4 only for returns).
+
+**Open code items (Low/Medium, not blockers):**
+- B6 register race returns 500;
+- C6 silent price change between quote and order;
+- C7 6-digit random order numbers;
+- D2 single address field in Profile;
+- D3 `/account` shell for guests;
+- D4 unused `welcome.blade.php`;
+- D5 "Our Story" anchor;
+- E3 footer placeholders;
+- F3 minification;
+- F9 PHP-side listing filters beyond ~5k products;
+- I4 remaining coverage (quote edge cases, profile, cart/wishlist sync);
+- I9 no error tracking or log rotation policy;
+- S5–S8 (SEO_AUDIT §13);
+- **I11 (new, Low):** PHPUnit writes its intentional error-path logs to the real `storage/logs/laravel.log`. Use a `testing` log channel (`LOG_CHANNEL=null` in `phpunit*.xml`).
+- **I12 (new, Low):** Laravel's private `local` disk has `'serve' => true` (closure route `storage/{path}`, signed URLs only, unsigned = 403). The storefront never issues such URLs. Consider `'serve' => false` to keep `/storage` purely static.
+
+**Pending external access (after launch):** Google Search Console and the Rich Results Test (G11), field Core Web Vitals and Lighthouse (S6, S11), real devices (iOS Safari, Android Chrome), real Google sign-in, real SMTP delivery.
+
+**Verification gaps carried forward:**
+- `journey.mjs` hasn't run on GitHub yet.
+- The 3 deploy-check tests can't run on this Windows machine (they pass on CI).
+- Returns UI was last browser-checked in Part 6 (switch stays off).
+
+### 20.7 Readiness verdict
+- **Storefront code: ready for a COD launch.**
+  - Every automated suite is green: PHP, JS, smoke, SEO, journey and GitHub CI.
+  - No regressions from Parts 1–7.
+  - No customer data leaks were found.
+  - COD orders are correct end to end.
+- **Release: NOT ready.** RB1 (admin integration) and RB2 (dependency patches) are open, RB3 is ops work on the target server, and RB4 needs the owner's call. Stripe and returns stay off by design.
 
 ---
 
@@ -883,3 +1058,13 @@ _2026-11-12. Full detail, policies and the Search Console checklist: [docs/SEO_A
 | `tests/Feature/SeoCrawlabilityTest.php` (new, 17 tests), `tests/Feature/SeoTest.php` (2 tests updated for the intended robots/paging changes) | Part 7 regression tests |
 | `tests/browser/seo.mjs` (new), `.github/workflows/tests.yml` | Rendered-DOM SEO browser check, also in the CI browser job |
 | `docs/SEO_AUDIT.md` (new), this plan, `docs/PROGRESS.md`, `SESSION_HANDOFF.md`, `STOREFRONT_DEPLOYMENT_CHECKLIST.md` | Part 7 documentation |
+
+### Part 8
+| File | Change |
+|---|---|
+| `tests/browser/journey.mjs` (new) | Customer journey regression (32 checks): register, browse, cart, sign-in redirect, coupon, COD order (double click → one order), order page, cancel, sourcing photo, newsletter, mobile, sign-out |
+| `.github/workflows/tests.yml` | Browser job: new "Browser customer journey" step (not yet run on GitHub) |
+| `docs/payments-architecture.md` | Part 8 Stripe-readiness review: confirmed seam/placement/schema; gaps P1–P8 |
+| This plan (§0 CI, §1, I5/I6, §8, §20), `docs/SEO_AUDIT.md`, `docs/PROGRESS.md`, `SESSION_HANDOFF.md`, `STOREFRONT_DEPLOYMENT_CHECKLIST.md` | Part 8 documentation, final issue log |
+
+No application code changed in Part 8 (no PHP, Blade, CSS or app JS).

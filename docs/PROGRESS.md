@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-12 (production-readiness Parts 3–7: see STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§19, docs/SEO_AUDIT.md, STOREFRONT_DEPLOYMENT_CHECKLIST.md and SESSION_HANDOFF.md)_
+_Last updated: 2026-11-12 (production-readiness Parts 3–8: see STOREFRONT_PRODUCTION_READINESS_PLAN.md §11–§20, docs/SEO_AUDIT.md, STOREFRONT_DEPLOYMENT_CHECKLIST.md and SESSION_HANDOFF.md)_
 
 ## Architecture (how the design was kept)
 The prepared design is rendered as Blade pages (`resources/views/pages`, shared shell in `layouts/store` + `partials/`). Its CSS/JS live in `public/assets` and run unchanged in spirit: the catalog, categories, hero and nav are read from MySQL (`App\Models\Catalog` / `Storefront`, cached 60s on the file store) and injected as `window.__BOOT__`; `public/assets/js/data.js` turns that into the globals the design scripts expect. Cart/wishlist use localStorage for guests and are synced to `carts`/`cart_items`/`wishlist_items` for signed-in customers. All prices, stock, coupons and totals are recomputed server-side (`App\Models\Checkout`). Customer sessions use Laravel's session (`customers` table), no Eloquent models/migrations.
@@ -97,3 +97,27 @@ Details: [docs/SEO_AUDIT.md](SEO_AUDIT.md) and plan §19.
 - Ratings, return-policy and delivery-time markup (decisions).
 - Field Core Web Vitals.
 - **Admin integration** is still the release blocker.
+
+## Final regression, payment review & release readiness (2026-11-12, Part 8)
+Details: STOREFRONT_PRODUCTION_READINESS_PLAN.md §20 (final issue log §20.6). No application code changed.
+
+**Verified:**
+- **GitHub CI:** green. Run #2 on `c95ec27` passed both jobs: PHPUnit/JS and browser smoke + SEO.
+- **PHPUnit:** 252/255, 0 skipped. The 3 errors are a Windows symlink permission issue; those tests pass on CI.
+- **Other suites:**
+  - JS 17/17;
+  - smoke 51/51;
+  - SEO 42/42 (seed) and 54/54 (405 products);
+  - link-only crawl 405/405.
+- **New customer journey test** `tests/browser/journey.mjs`: **32/32**. It covers registration through COD order, cancel, sourcing photo, newsletter and sign-out. Database rows are correct, stock is unchanged, nothing is `paid`. Added to the CI browser job; not yet run on GitHub.
+- **Security, live:** headers, cookies, access control, redirects, 419 and 404 all as designed. No secrets in the repository.
+- **Payments:** the Stripe-ready seam was confirmed. 8 design gaps for the future card path were added to `docs/payments-architecture.md`. Stripe and returns are still off.
+- **Hero LCP** re-measured: home mobile 2.02 s (5.38 s in Part 5).
+
+**Release blockers:**
+1. Admin integration.
+2. **New:** `composer audit` reports 8 advisories (Symfony, phpseclib). Patch updates are available but not yet applied.
+3. Production deployment per the checklist.
+4. Owner decision on the policy pages.
+
+**New owner question:** is free shipping decided before or after the coupon discount? Today it's before.

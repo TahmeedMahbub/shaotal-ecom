@@ -60,6 +60,37 @@ _Part 6 review (2026-11-12). **Stripe is future scope: nothing here is installed
    - How long does an unpaid intent stay valid, and what cancels it?
    - Are refunds issued from the Stripe dashboard or from the admin app?
 
+## Part 8 review (2026-11-12): Stripe readiness
+_Review only. Nothing was installed, configured or switched on. COD and stock behaviour are unchanged._
+
+**Confirmed against the code and `sql/ecom.sql`:**
+- **Method allowlist:** `PaymentMethods::enabled()` = configured ∩ implemented, which today is `cod` only. Checkout validates `paymentMethod` with `Rule::in(enabled())`, and the page renders only enabled options. In the browser, the checkout offered exactly `cod` (`tests/browser/journey.mjs`).
+- **Placement:**
+  - `Checkout::place` writes the order, items, timeline and one `payments` row in one transaction.
+  - `orders.payment_status` is always `pending`.
+  - The payment row takes `provider()` and `initialPaymentStatus()` from the method, with no `paid_at`.
+  - Checked in the Part 8 journey: a COD order of A$97.00 → `payments` row `provider NULL, cod, 97.00, pending, paid_at NULL`. 0 orders in the database are `paid`.
+- **Schema anchors exist:**
+  - `UNIQUE(provider, provider_transaction_id)` and `INDEX(order_id, status)` on `payments`;
+  - the `payments.status` enum includes `authorized` and `cancelled`;
+  - `orders.payment_status` has no `cancelled` (the mapping above already keeps it `pending`).
+- **Headers:**
+  - `Permissions-Policy` doesn't restrict `payment`;
+  - `Cross-Origin-Opener-Policy: same-origin-allow-popups` allows 3-D Secure pop-ups;
+  - the CSP has no Stripe hosts yet (correct while Stripe is off).
+
+**Gaps to design before Stripe is built (none affects COD today):**
+| # | Gap | Proposed rule (owner/dev to confirm) |
+|---|---|---|
+| P1 | Customers can cancel any `pending` order themselves (`CustomerOrders::cancel`). That check ignores `payment_status`, so a card order that is already **paid** could be cancelled with no refund. | Allow self-cancel only while `payment_status` is `pending` or `failed`. A paid order needs staff (refund) or an automatic refund. Add a test when Stripe lands. |
+| P2 | An order can total **A$0.00**: a coupon can cover the whole subtotal, with free shipping at ≥ A$100. Stripe rejects charges below A$0.50. | Skip the payment step for a zero total (mark `paid` server-side with provider `none`), or block card for totals under A$0.50. |
+| P3 | Totals are PHP floats (`round(…, 2)`). | Convert to cents once, from the stored `DECIMAL` `grand_total` string (e.g. `(int) bcmul($total, '100')`). Never float × 100. Webhook amounts compare in cents. |
+| P4 | `site_settings.currency_code` is seeded `NULL`. | Use a fixed `aud` from config for Stripe, the same as `Seo` (`AUD`). Don't read the currency from `site_settings` for charging. |
+| P5 | The customer's server cart is converted (cleared) at placement, before any card payment. | Keep the cart until payment succeeds, or rebuild it from the order on a failed or abandoned payment (H3). |
+| P6 | Placement commits before the PaymentIntent is created. If Stripe is unreachable, a pending card order exists without an intent. | Create the intent right after commit with the idempotency key `order:<order_number>`. A retry endpoint re-uses the same key. Unpaid orders expire per H3. |
+| P7 | A webhook route must avoid session, CSRF and the per-route throttles. | Register it beside the public sessionless routes in `routes/web.php` (no `web` session middleware). `RedirectTrailingSlash` only touches `GET`/`HEAD`, so a `POST` webhook is unaffected. |
+| P8 | The admin app sets order status. It must not mark card orders `paid` by hand. | Admin doc: `payment_status` for provider `stripe` is webhook-owned and read-only in the admin. |
+
 ### Proposed table for webhook idempotency (future)
 ```sql
 CREATE TABLE payment_events (
