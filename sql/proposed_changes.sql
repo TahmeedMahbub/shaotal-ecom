@@ -85,17 +85,11 @@ CREATE TABLE IF NOT EXISTS failed_jobs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Gift wrapping: dedicated columns (OPTIONAL, NOT EXECUTED; the storefront works without them)
--- Today gift wrapping needs no schema change: the fee is an extra order_items row (sku 'GIFT-WRAP', product_id NULL,
--- included in orders.subtotal) and the wrapped items + gift message are a readable block in orders.customer_note
--- (marker "--- GIFT WRAPPING ---"; see App\Support\GiftWrap). If the admin wants first-class fields (print a gift
--- slip, filter gift orders), add these and change GiftWrap::composeNote/split + Checkout::place to fill them:
---   ALTER TABLE orders
---     ADD COLUMN is_gift TINYINT(1) NOT NULL DEFAULT 0 AFTER customer_note,
---     ADD COLUMN gift_message VARCHAR(300) NULL AFTER is_gift,
---     ADD COLUMN gift_wrap_total DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER gift_message;
---   ALTER TABLE order_items ADD COLUMN gift_wrap_qty INT UNSIGNED NOT NULL DEFAULT 0 AFTER quantity;
--- (CHECK gift_wrap_qty <= quantity; keep the fee row too, or drop it and add gift_wrap_total to grand_total.)
+-- Gift wrapping: DONE, owned by the Admin app (its sql/proposed_changes.sql "GIFT WRAPPING" block; do not re-run from here).
+-- The storefront now writes orders.gift_wrap_requested / gift_wrap_items_count / gift_wrap_fee / gift_message and
+-- order_items.gift_wrap_qty; subtotal is goods only and grand_total includes gift_wrap_fee once. Orders placed before
+-- that (GIFT-WRAP order line + note block) are still read by App\Support\GiftWrap::split / CustomerOrders.
+-- Likewise the 11-value orders.order_status enum (ready_for_dispatch, in_transit, arrived_at_hub, out_for_delivery) is Admin-owned.
 
 -- 7. Online payment = pre-booking (20% deposit now, balance later). PROPOSED, NOT EXECUTED; the storefront works without it.
 -- Today the storefront needs NO schema change: the deposit is a `payments` row (provider "stripe", amount = deposit,
@@ -109,3 +103,12 @@ CREATE TABLE IF NOT EXISTS failed_jobs (
 --     ADD COLUMN online_discount_total DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER discount_total;
 --   (balance due = grand_total - amount_paid; keep CHECK(amount_paid>=0).) Admin settings for the rates would be two
 --   site_settings rows (e.g. online_payment_discount_percent, online_payment_deposit_percent) read in OnlinePaymentPlan::settings().
+
+-- ── 6. Queue tables for a real queue (OPTIONAL, NOT EXECUTED) ──────────────────────────────────────────────────────
+-- The order confirmation email works without them (ORDER_MAIL_QUEUE_CONNECTION=deferred, default). To use a database queue
+-- (ORDER_MAIL_QUEUE_CONNECTION=database or failover) with `php artisan queue:work`, create Laravel's standard tables:
+--   CREATE TABLE jobs (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, queue VARCHAR(255) NOT NULL, payload LONGTEXT NOT NULL,
+--     attempts TINYINT UNSIGNED NOT NULL, reserved_at INT UNSIGNED NULL, available_at INT UNSIGNED NOT NULL, created_at INT UNSIGNED NOT NULL,
+--     KEY jobs_queue_index (queue)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--   CREATE TABLE failed_jobs (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, uuid VARCHAR(255) NOT NULL UNIQUE, connection TEXT NOT NULL,
+--     queue TEXT NOT NULL, payload LONGTEXT NOT NULL, exception LONGTEXT NOT NULL, failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

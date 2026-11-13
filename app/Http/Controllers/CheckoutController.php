@@ -8,6 +8,7 @@ use App\Models\CustomerOrders;
 use App\Payments\PaymentMethods;
 use App\Payments\Stripe;
 use App\Support\GiftWrap;
+use App\Support\OrderEmails;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\JsonResponse;
@@ -74,7 +75,6 @@ class CheckoutController extends Controller
         abort_unless($customerId, 401, 'Please sign in to checkout.');
         $rules = $this->itemRules() + [
             'paymentMethod' => ['required', Rule::in(PaymentMethods::enabled())],
-            'note' => ['nullable', 'string', 'max:1000'],
             'addressId' => ['nullable', 'integer'],
             'address' => ['nullable', 'array'],
             'address.fullName' => ['required_without:addressId', 'string', 'max:180'],
@@ -90,8 +90,7 @@ class CheckoutController extends Controller
         // REPLAY_SECONDS (double click, network retry, second tab) gets the order already created, not a second one.
         $cache = Cache::store('file');
         $replayKey = 'checkout:placed:'.hash('sha256', json_encode([
-            $customerId, $data['items'], $data['addressId'] ?? null, $data['address'] ?? null, $data['coupon'] ?? null, $data['paymentMethod'], $data['note'] ?? null,
-            $data['gift'] ?? null,
+            $customerId, $data['items'], $data['addressId'] ?? null, $data['address'] ?? null, $data['coupon'] ?? null, $data['paymentMethod'], $data['gift'] ?? null,
         ]));
         $lock = $cache->lock('checkout:place:'.$customerId, 30);
         try {
@@ -136,6 +135,9 @@ class CheckoutController extends Controller
         if ($totals['couponError']) {
             return response()->json(['message' => $totals['couponError']], 422);
         }
+        if ($totals['giftError']) {
+            return response()->json(['message' => $totals['giftError'], 'errors' => ['gift' => [$totals['giftError']]]], 422);
+        }
         if (! empty($data['gift']['enabled']) && ! $totals['gift']) {
             return response()->json(['message' => 'Choose at least one item to gift wrap, or turn off "Send as a gift".'], 422);
         }
@@ -147,10 +149,16 @@ class CheckoutController extends Controller
             return response()->json(['message' => 'The online payment deposit must be at least '.config('storefront.currency_symbol').'0.50. Please choose another payment method.'], 422);
         }
 
-        $order = Checkout::place($priced['lines'], $totals, $address, PaymentMethods::get($data['paymentMethod']), $customerId, GiftWrap::composeNote($data['note'] ?? null, $totals['gift']));
+        $order = Checkout::place($priced['lines'], $totals, $address, PaymentMethods::get($data['paymentMethod']), $customerId, null, request()->attributes->get('customer.email'));
         $payload = $order + [
             'address' => "{$address['fullName']}, {$address['street']}, {$address['suburb']} {$address['state']} {$address['postcode']}",
         ];
+
+        // COD: the order is committed, so queue its confirmation email (after the response; see OrderEmails). A card order is
+        // confirmed by email only once Stripe has verified the payment (CardPayments::markPaid).
+        if (! $card) {
+            OrderEmails::queue($order['orderNumber']);
+        }
 
         // Card: the order exists (pending, unpaid); send the customer to Stripe's hosted page. If Stripe can't be reached
         // the order is kept and the customer can pay from the order page ("Pay now"), never a second order.
@@ -160,6 +168,10 @@ class CheckoutController extends Controller
                 $payload['redirectUrl'] = CardPayments::start($customerId, $order['orderNumber'])['redirectUrl'];
             } catch (HttpException $e) {
                 $payload['paymentError'] = $e->getMessage();
+            } catch (\Throwable $e) {
+                // Anything unexpected after the order is saved must not become a 500 (the customer would retry and order twice).
+                report($e);
+                $payload['paymentError'] = 'We could not open the payment page. Your order is saved: you can pay from your order page.';
             }
         }
         $cache->put($replayKey, $payload, self::REPLAY_SECONDS);

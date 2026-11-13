@@ -71,11 +71,37 @@
   function getStoredCart() { return readList('bongo_cart'); }
   function getStoredWishlist() { return readList('bongo_wishlist'); }
 
+  // Cart / wishlist are saved to the server 400 ms after the last change (one request per burst of clicks). A change that
+  // is still waiting when the page is left (link click, reload, back) used to be lost, and the next page then loaded the
+  // OLD saved cart over the browser copy. Pending saves are therefore flushed with a keepalive request when the page is hidden.
   const syncTimers = {};
+  const syncPending = {};
   function syncToServer(key, url, body) {
     clearTimeout(syncTimers[key]);
-    syncTimers[key] = setTimeout(() => api('PUT', url, body), 400);
+    syncPending[key] = { url, body };
+    syncTimers[key] = setTimeout(() => { delete syncPending[key]; api('PUT', url, body); }, 400);
   }
+  function flushSyncs() {
+    Object.keys(syncPending).forEach(key => {
+      const { url, body } = syncPending[key];
+      clearTimeout(syncTimers[key]);
+      delete syncPending[key];
+      try {
+        fetch(url, {
+          method: 'PUT', keepalive: true, credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify(body),
+        });
+      } catch (e) { /* page is going away; nothing more to do */ }
+    });
+  }
+  // The next page's HTML (with its saved-cart snapshot) is requested BEFORE pagehide fires, so flush as early as possible:
+  // on a link click (capture phase, before the browser navigates), on beforeunload (reloads, address-bar and script
+  // navigation) and, as the last resort, on pagehide.
+  document.addEventListener('click', e => { if (e.target && e.target.closest && e.target.closest('a[href]')) flushSyncs(); }, true);
+  window.addEventListener('beforeunload', flushSyncs);
+  window.addEventListener('pagehide', flushSyncs);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSyncs(); });
 
   function variantPrice(product, color, size) {
     if (!product.hasVariants) return product.price;
@@ -102,19 +128,6 @@
     });
     return out;
   }
-
-  /* Optional order note typed in the cart; carried to checkout via localStorage and sent with the order. */
-  function getOrderNote() {
-    try { return localStorage.getItem('bongo_order_note') || ''; } catch (e) { return ''; }
-  }
-  function setOrderNote(v) {
-    try {
-      if (v && v.trim()) localStorage.setItem('bongo_order_note', v.slice(0, 1000));
-      else localStorage.removeItem('bongo_order_note');
-    } catch (e) { /* storage unavailable */ }
-  }
-  window.bongoGetOrderNote = getOrderNote;
-  window.bongoSetOrderNote = setOrderNote;
 
   /* Optional gift wrapping chosen in the cart; kept in localStorage (like the order note), so it survives moving between
      cart and checkout, and sent with the order. Shape: { enabled, message, items: { "productId|color|size": qtyToWrap } }.
@@ -1093,6 +1106,7 @@
       localStorage.removeItem('bongo_cart');
       localStorage.removeItem('bongo_wishlist');
     } catch (e) { /* storage unavailable */ }
+    // A note saved by an older version of the cart is not used any more; drop it.
     try { localStorage.removeItem('bongo_order_note'); } catch (e) { /* storage unavailable */ }
     window.bongoClearGift();
     // Always land on the storefront homepage (never back on checkout, account or a login prompt), from any page.
@@ -2493,10 +2507,6 @@
             <span class="total-amount">${SITE.currency}${total.toFixed(2)}</span>
           </div>
         </div>
-        <div class="order-note">
-          <label class="order-note-label" for="cart-order-note">Order note <span>(optional)</span></label>
-          <textarea class="order-note-input" id="cart-order-note" rows="2" maxlength="1000" placeholder="Special instructions, e.g. delivery notes">${getOrderNote().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
-        </div>
         <button class="btn btn-primary btn-lg cart-checkout-btn" id="checkout-btn">Proceed to Checkout</button>
         <button class="cart-continue-shopping" id="cart-drawer-continue">Continue Shopping</button>
       `;
@@ -2523,9 +2533,6 @@
         removeFromCart(idx);
       });
     });
-
-    const noteInput = document.getElementById('cart-order-note');
-    if (noteInput) noteInput.addEventListener('input', () => setOrderNote(noteInput.value));
 
     const checkoutBtn = document.getElementById('checkout-btn');
     if (checkoutBtn) {

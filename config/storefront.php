@@ -108,4 +108,8 @@ return [
     // worker (sent right after the response); "database" (jobs table, sql/proposed_changes.sql) or "redis" need a running
     // `php artisan queue:work`; "failover" tries the real queue, then "deferred". The browser never waits for SMTP.
     'auth_mail_queue' => env('AUTH_MAIL_QUEUE_CONNECTION', 'deferred'),
+
+    // Queue connection for the order confirmation email (App\Jobs\SendOrderConfirmationEmail, rules in App\Support\OrderEmails).
+    // Same options as above; defaults to the auth-mail connection. sql/ecom.sql has no jobs table, so "database" needs it added first.
+    'order_mail_queue' => env('ORDER_MAIL_QUEUE_CONNECTION', env('AUTH_MAIL_QUEUE_CONNECTION', 'deferred')),
 ];

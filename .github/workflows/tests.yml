@@ -49,7 +49,7 @@ jobs:
       # Same recipe validated locally: SQL source of truth + Google login table + schema drift + test seed.
       - name: Build test database from sql/
         run: |
-          for f in sql/ecom.sql sql/google_login.sql tests/Support/ci-schema-drift.sql tests/Support/proposed-schema.sql sql/local_test_seed.sql; do
+          for f in sql/ecom.sql sql/google_login.sql tests/Support/ci-schema-drift.sql tests/Support/proposed-schema.sql tests/Support/admin-contract-schema.sql sql/local_test_seed.sql; do
             echo "loading $f"
             mysql -h 127.0.0.1 -u root shaotal_storefront_test < "$f"
           done
@@ -116,7 +116,7 @@ jobs:
 
       - name: Build browser test database
         run: |
-          for f in sql/ecom.sql sql/google_login.sql tests/Support/ci-schema-drift.sql tests/Support/proposed-schema.sql sql/local_test_seed.sql; do
+          for f in sql/ecom.sql sql/google_login.sql tests/Support/ci-schema-drift.sql tests/Support/proposed-schema.sql tests/Support/admin-contract-schema.sql sql/local_test_seed.sql; do
             mysql -h 127.0.0.1 -u root shaotal_browser_test < "$f"
           done
           php tests/Support/browser-fixtures.php

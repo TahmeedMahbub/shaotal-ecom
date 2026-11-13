@@ -186,26 +186,16 @@ DB::table('site_settings')->updateOrInsert(
   - Public forms have a hidden honeypot field, a limit of 3 links per message, a limit of 5 submissions per contact per hour, and per-IP rate limits.
   - Spam that gets through can be marked `spam` (contact messages) or closed by staff. Nothing is auto-deleted.
 
-## 9. Gift wrapping on orders (no admin change required; read this when printing packing slips)
+## 9. Gift wrapping on orders (dedicated columns, Admin contract)
 
-Gift wrapping is optional per order and needs **no schema change**. How an order with gift wrapping looks in the shared tables:
+The storefront writes gift data into the columns the Admin added (`sql/proposed_changes.sql` GIFT WRAPPING block there; the Admin only reads them):
 
-- **Fee**: one extra `order_items` row: `product_name` = "Gift wrapping (N items)", `sku` = `GIFT-WRAP`, `product_id` and `variant_id` NULL, `quantity` 1, `unit_price` = `unit_selling_price` = `line_total` = the fee. It is **included in `orders.subtotal`**, so `subtotal - discount_total + shipping_total + tax_total = grand_total` and `subtotal = SUM(order_items.line_total)` both still hold. Treat sku `GIFT-WRAP` as a service line (no stock, no return, no product link).
-- **Which items to wrap and the message**: a block at the end of `orders.customer_note`, after the customer's own note:
-
-  ```
-  <customer's own note, if any>
-
-  --- GIFT WRAPPING ---
-  Wrapping fee: A$2.99 for 3 items
-  - 2 x Nakshi Kantha Cushion
-  - 1 x Scarf (M / Red)
-  Gift message: Happy birthday!
-  ```
-  The customer's own note and the gift message are separate in the storefront; staff see them in one text field.
-- **Pricing rule** (storefront config `storefront.gift_wrap`): A$1.99 covers up to 2 wrapped items, then A$1.00 per extra wrapped item, counted on the items selected for wrapping (not the whole cart).
-- **Online payment**: the fee is part of the base the online discount and deposit are calculated on (only shipping is excluded). Gift wrapping never counts toward the free-shipping threshold or coupon eligibility.
-- Optional dedicated columns are proposed (not executed) in `sql/proposed_changes.sql`.
+- `orders.gift_wrap_requested` (0/1), `gift_wrap_items_count` (= `SUM(order_items.gift_wrap_qty)`), `gift_wrap_fee` (computed once at checkout, stored), `gift_message` (VARCHAR 500, max 300 accepted; separate from `customer_note`).
+- `order_items.gift_wrap_qty`: wrapped units of that line (0..quantity). No `GIFT-WRAP` order line is written any more.
+- **Totals:** `orders.subtotal` is goods only; `grand_total = subtotal - discount_total + shipping_total + tax_total + gift_wrap_fee` (the fee is in `grand_total` exactly once). Online (Stripe) discount/deposit are computed on goods + fee − coupon, as before.
+- **Pricing rule** (`storefront.gift_wrap`): A$1.99 for 1-2 wrapped items, +A$1.00 per further item; never counts toward free shipping or coupon eligibility.
+- **Historical orders** (before the columns): fee as a `GIFT-WRAP` order line inside `subtotal`, items + message as a block in `customer_note` (marker `--- GIFT WRAPPING ---`), gift columns at their defaults. The storefront still displays them correctly.
+- **Order status:** `orders.order_status` has 11 values (pending, confirmed, processing, ready_for_dispatch, shipped, in_transit, arrived_at_hub, out_for_delivery, delivered, cancelled, returned); the storefront labels/timeline use the same table as the Admin's `OrderStatus`. Payment status is independent. Older orders that recorded the four finer stages only in `order_timeline` are still refined from there.
 
 
 ## Online payment = pre-booking (deposit) — what the admin app sees

@@ -102,40 +102,41 @@ class GiftWrapCheckoutTest extends TestCase
 
     public function test_cod_order_stores_fee_selection_and_message_and_stays_admin_consistent(): void
     {
-        $res = $this->postJson('/checkout/place', $this->body(3, $this->gift(2, "Happy birthday!\nLove, A")) + ['note' => 'Leave at the gate'])->assertCreated();
+        $res = $this->postJson('/checkout/place', $this->body(3, $this->gift(2, "Happy birthday!\nLove, A")))->assertCreated();
         $o = $this->order($res->json('orderNumber'));
 
         $this->assertSame(['cod', 'pending'], [$o->payment_method, $o->payment_status]);
-        $this->assertSame('166.99', $o->subtotal);                 // 165.00 goods + 1.99 gift line
+        $this->assertSame('165.00', $o->subtotal);                 // goods only: the fee is not inside subtotal
         $this->assertSame('0.00', $o->discount_total);
         $this->assertSame('12.00', $o->shipping_total);            // 165 < 299
-        $this->assertSame('178.99', $o->grand_total);
-        // The admin app's identity: subtotal - discount + shipping + tax = grand total, and subtotal = sum of lines.
-        $this->assertEquals($o->grand_total, $o->subtotal - $o->discount_total + $o->shipping_total + $o->tax_total);
+        $this->assertSame('178.99', $o->grand_total);              // 165 + 12 + 1.99 fee, exactly once
+        // The Admin contract: subtotal - discount + shipping + tax + gift_wrap_fee = grand total.
+        $this->assertEquals($o->grand_total, $o->subtotal - $o->discount_total + $o->shipping_total + $o->tax_total + $o->gift_wrap_fee);
+        $this->assertSame([1, 2, '1.99', "Happy birthday!\nLove, A"], [$o->gift_wrap_requested, $o->gift_wrap_items_count, $o->gift_wrap_fee, $o->gift_message]);
+        $this->assertNull($o->customer_note, 'the gift no longer lives in customer_note');
         $items = DB::table('order_items')->where('order_id', $o->id)->orderBy('id')->get();
+        $this->assertCount(1, $items, 'no GIFT-WRAP order line');
+        $this->assertSame([3, 2], [(int) $items[0]->quantity, (int) $items[0]->gift_wrap_qty]);
         $this->assertEquals($o->subtotal, $items->sum('line_total'));
-        $this->assertSame(['Gift wrapping (2 items)', 'GIFT-WRAP', null, '1.99'], [$items[1]->product_name, $items[1]->sku, $items[1]->product_id, $items[1]->line_total]);
+        $this->assertSame($o->gift_wrap_items_count, (int) $items->sum('gift_wrap_qty'));
         $this->assertSame('178.99', DB::table('payments')->where('order_id', $o->id)->value('amount'));
-
-        $this->assertStringContainsString('Leave at the gate', $o->customer_note);
-        $this->assertStringContainsString('2 x ', $o->customer_note);
-        $this->assertStringContainsString("Happy birthday!\nLove, A", $o->customer_note);
     }
 
     public function test_order_page_shows_gift_separately_from_the_note_and_items(): void
     {
-        $res = $this->postJson('/checkout/place', $this->body(3, $this->gift(3, 'With love')) + ['note' => 'Leave at the gate'])->assertCreated();
+        $res = $this->postJson('/checkout/place', $this->body(3, $this->gift(3, 'With love')))->assertCreated();
         $number = $res->json('orderNumber');
 
         $view = CustomerOrders::find($this->customerId, $number);
-        $this->assertSame('Leave at the gate', $view['note']);
-        $this->assertCount(1, $view['items'], 'the fee line is not listed as a product');
+        $this->assertNull($view['note']);
+        $this->assertCount(1, $view['items']);
+        $this->assertSame(['3 x '.$view['items'][0]['name']], $view['gift']['items']);
         $this->assertSame(3, array_sum(array_column($view['items'], 'quantity')));
         $this->assertSame(2.99, $view['gift']['fee']);
         $this->assertSame('With love', $view['gift']['message']);
         $this->assertSame([165.0, 2.99, 12.0, 179.99], [$view['totals']['subtotal'], $view['totals']['giftFee'], $view['totals']['shipping'], $view['totals']['total']]);
 
-        $this->get("/account/orders/$number")->assertOk()->assertSee('Gift wrapping')->assertSee('With love')->assertSee('Leave at the gate');
+        $this->get("/account/orders/$number")->assertOk()->assertSee('Gift wrapping')->assertSee('With love');
         $list = CustomerOrders::page($this->customerId, 1)['orders'][0];
         $this->assertSame(3, $list['itemCount']);
     }
@@ -151,7 +152,10 @@ class GiftWrapCheckoutTest extends TestCase
         $view = CustomerOrders::find($this->customerId, $plain->json('orderNumber'));
         $this->assertNull($view['gift']);
         $this->assertSame(0.0, $view['totals']['giftFee']);
-        $this->assertSame(1, DB::table('order_items')->where('order_id', $this->order($plain->json('orderNumber'))->id)->count());
+        $plainOrder = $this->order($plain->json('orderNumber'));
+        $this->assertSame([0, 0, '0.00', null], [(int) $plainOrder->gift_wrap_requested, $plainOrder->gift_wrap_items_count, $plainOrder->gift_wrap_fee, $plainOrder->gift_message]);
+        $this->assertSame([1, 0], [DB::table('order_items')->where('order_id', $plainOrder->id)->count(), (int) DB::table('order_items')->where('order_id', $plainOrder->id)->sum('gift_wrap_qty')]);
+        $this->assertEquals($plainOrder->grand_total, $plainOrder->subtotal + $plainOrder->shipping_total);
     }
 
     public function test_enabled_but_nothing_selected_is_refused_and_writes_nothing(): void
@@ -194,16 +198,38 @@ class GiftWrapCheckoutTest extends TestCase
         $o = $this->order($res->json('orderNumber'));
 
         $this->assertSame(['card', 'pending', 'pending'], [$o->payment_method, $o->payment_status, $o->order_status]);
-        $this->assertSame('167.99', $o->subtotal);            // 165.00 goods + 2.99 wrapping line
+        $this->assertSame('165.00', $o->subtotal);            // goods only
+        $this->assertSame(['1', '3', '2.99', 'For you'], [(string) $o->gift_wrap_requested, (string) $o->gift_wrap_items_count, $o->gift_wrap_fee, $o->gift_message]);
         $this->assertSame(3533, $charged, 'Stripe is asked for the 20% deposit, in cents');
         $this->assertSame('3.36', $o->discount_total);        // the online discount, on goods + wrapping
         $this->assertSame('176.63', $o->grand_total);
-        $this->assertEquals($o->grand_total, $o->subtotal - $o->discount_total + $o->shipping_total + $o->tax_total);
+        $this->assertEquals($o->grand_total, $o->subtotal - $o->discount_total + $o->shipping_total + $o->tax_total + $o->gift_wrap_fee);
         $pay = DB::table('payments')->where('order_id', $o->id)->first();
         $this->assertSame('35.33', $pay->amount);             // 20% deposit of the fee-inclusive total
         $plan = json_decode($pay->response_data, true)['plan'];
         $this->assertEquals([167.99, 35.33, 141.30], [$plan['merchandise'], $plan['deposit'], $plan['balance']]);
-        $this->assertStringContainsString('For you', $o->customer_note);
+        $this->assertNull($o->customer_note);
         $this->assertSame(2.99, CustomerOrders::find($this->customerId, $o->order_number)['gift']['fee']);
+    }
+
+    /** A historical order (fee as a GIFT-WRAP line inside subtotal, gift block in customer_note, gift columns at defaults). */
+    public function test_historical_gift_order_still_displays_and_totals_correctly(): void
+    {
+        $id = DB::table('orders')->insertGetId([
+            'order_number' => 'INV-legacy1', 'customer_id' => $this->customerId, 'shipping_recipient_name' => 'B', 'shipping_phone' => '1', 'shipping_street_address' => '1 St',
+            'subtotal' => 166.99, 'shipping_total' => 12, 'grand_total' => 178.99, 'payment_method' => 'cod', 'placed_at' => now(),
+            'customer_note' => "Leave at gate\n\n--- GIFT WRAPPING ---\nWrapping fee: A$1.99 for 2 items\n- 2 x Jute Basket\nGift message: Old message",
+        ]);
+        DB::table('order_items')->insert([
+            ['order_id' => $id, 'product_id' => 2, 'product_name' => 'Jute Basket', 'sku' => 'JB', 'unit_price' => 55, 'unit_selling_price' => 55, 'quantity' => 3, 'line_total' => 165],
+            ['order_id' => $id, 'product_id' => null, 'product_name' => 'Gift wrapping (2 items)', 'sku' => 'GIFT-WRAP', 'unit_price' => 1.99, 'unit_selling_price' => 1.99, 'quantity' => 1, 'line_total' => 1.99],
+        ]);
+        $v = CustomerOrders::find($this->customerId, 'INV-legacy1');
+        $this->assertCount(1, $v['items']);
+        $this->assertSame('Leave at gate', $v['note']);
+        $this->assertSame(['2 x Jute Basket'], $v['gift']['items']);
+        $this->assertSame('Old message', $v['gift']['message']);
+        $this->assertSame([165.0, 1.99, 12.0, 178.99], [$v['totals']['subtotal'], $v['totals']['giftFee'], $v['totals']['shipping'], $v['totals']['total']]);
+        $this->assertSame(3, CustomerOrders::page($this->customerId, 1)['orders'][0]['itemCount']);
     }
 }

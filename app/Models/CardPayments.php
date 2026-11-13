@@ -7,6 +7,7 @@ use App\Payments\PaymentMethods;
 use App\Payments\Stripe;
 use App\Payments\StripeException;
 use App\Support\DisplayTime;
+use App\Support\OrderEmails;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -126,7 +127,14 @@ class CardPayments
             }
 
             // 3. Create the session (idempotency key per attempt row: a network retry can't create a second session).
-            $session = Stripe::createCheckoutSession(self::sessionParams($order, $paymentId), 'shaotal-payment-'.$paymentId);
+            // Idempotency key = attempt row + a hash of the exact request. Stripe remembers a key for 24 h and answers a
+            // reused key with DIFFERENT parameters (here: a new expires_at on every try) with HTTP 400 idempotency_error.
+            // A key built from the row id alone therefore made every retry of a row whose first create call failed
+            // (timeout, 5xx, response lost) fail for a day ("payment server failure"), and made two databases that share
+            // one Stripe account (local/dev) collide on row ids. Same request → same key (a true retry still can't make a
+            // second session); different request → fresh key.
+            $params = self::sessionParams($order, $paymentId);
+            $session = Stripe::createCheckoutSession($params, 'shaotal-pay-'.$paymentId.'-'.substr(hash('sha256', json_encode($params)), 0, 16));
             DB::table('payments')->where('id', $paymentId)->whereNull('provider_transaction_id')->update([
                 'provider_transaction_id' => $session['id'],
                 // The plan snapshot (rates, discount, deposit, balance) stays with the order's payment rows.
@@ -330,6 +338,48 @@ class CardPayments
         });
     }
 
+    /**
+     * Safety net for a webhook that never arrives (endpoint down, local development where Stripe cannot reach the
+     * machine, delivery delayed past the customer's return). For card attempts still waiting, ask Stripe (server to
+     * server, secret key) for the session and feed it through the SAME idempotent applyEvent() a webhook uses: the
+     * amount/currency/order checks, forward-only transitions, cart clearing and email dedupe all apply unchanged.
+     * The browser redirect is never trusted; only Stripe's own API answer is.
+     *
+     * @return array<string, int> outcome => count
+     */
+    public static function reconcilePending(int $olderThanMinutes = 2, int $limit = 50): array
+    {
+        $rows = DB::table('payments')->where('provider', 'stripe')->whereIn('status', ['pending', 'failed'])
+            ->whereNotNull('provider_transaction_id')
+            ->where('created_at', '<=', now()->subMinutes($olderThanMinutes))->where('created_at', '>=', now()->subDays(3))
+            ->orderBy('id')->limit($limit)->pluck('provider_transaction_id');
+        $outcomes = [];
+        foreach ($rows as $sessionId) {
+            try {
+                $session = Stripe::retrieveCheckoutSession($sessionId);
+                $type = match (true) {
+                    ($session['status'] ?? null) === 'complete' && ($session['payment_status'] ?? null) === 'paid' => 'checkout.session.completed',
+                    ($session['status'] ?? null) === 'expired' => 'checkout.session.expired',
+                    default => null,
+                };
+                if (! $type) {
+                    $outcomes['still_open'] = ($outcomes['still_open'] ?? 0) + 1;
+
+                    continue;
+                }
+                $result = self::applyEvent([
+                    'id' => 'recon_'.$type.'_'.$sessionId, 'type' => $type, 'livemode' => Stripe::mode() === 'live', 'data' => ['object' => $session],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Stripe reconcile failed for a session', ['error' => $e->getMessage()]);
+                $result = 'error';
+            }
+            $outcomes[$result] = ($outcomes[$result] ?? 0) + 1;
+        }
+
+        return $outcomes;
+    }
+
     private static function markPaid(object $payment, object $order, array $session, callable $save): string
     {
         if ($payment->status === 'paid') {
@@ -387,6 +437,11 @@ class CardPayments
             $carts = DB::table('carts')->where('customer_id', $order->customer_id)->where('status', 'active')->pluck('id');
             DB::table('cart_items')->whereIn('cart_id', $carts)->delete();
             DB::table('carts')->whereIn('id', $carts)->update(['status' => 'converted']);
+        }
+        // Verified payment: now (and only now) the order confirmation email may go out. Deduplicated per order, so a repeated
+        // or reconciled event never sends a second one; a cancelled order gets none.
+        if ($firstPayment && $order->order_status !== 'cancelled') {
+            OrderEmails::queue($order->order_number);
         }
 
         return 'paid';

@@ -58,7 +58,19 @@ php artisan storefront:deploy-check
 
 # 9. PHP-FPM / OPcache: reload so new code is picked up
 sudo systemctl reload php8.4-fpm   # or the host's equivalent
+
+# 10. Scheduler (REQUIRED for payment + email safety nets): one cron entry, every minute
+#     * * * * * cd /path/to/shaotal && php artisan schedule:run >> /dev/null 2>&1
+#     It runs, every 5 minutes: storefront:reconcile-payments (asks Stripe about card payments whose webhook never arrived and
+#     applies the verified result through the same idempotent path) and storefront:retry-order-emails (re-queues order
+#     confirmation emails that are queued/failed/stuck; sent ones are never resent).
+#
+# 11. Order emails: ORDER_MAIL_QUEUE_CONNECTION (default "deferred": sent right after the response under PHP-FPM, no worker, no
+#     table). For a real queue use "database" (needs the jobs tables, sql/proposed_changes.sql §6) or "redis" plus a supervised
+#     `php artisan queue:work`; "failover" tries the real queue first and falls back to "deferred".
 ```
+
+**Stripe webhook:** `POST /webhooks/stripe` must be reachable from the internet (Stripe cannot reach localhost; for local testing use `stripe listen --forward-to http://127.0.0.1:8010/webhooks/stripe` and put the printed `whsec_` secret in `.env`). Events to send: `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `payment_intent.payment_failed`. Without a reachable webhook a card order stays pending and the cart is kept until `storefront:reconcile-payments` (above) confirms the payment with Stripe.
 
 ## 2. Web server: compression and caching (performance)
 `public/.htaccess` already contains guarded `mod_deflate` and `mod_headers` rules for Apache. **Nginx** equivalent, inside the site's `server {}`:

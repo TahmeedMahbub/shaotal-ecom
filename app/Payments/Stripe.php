@@ -2,6 +2,7 @@
 
 namespace App\Payments;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -74,6 +75,20 @@ final class Stripe
             ->asForm()->acceptJson()->timeout(20)->connectTimeout(10);
     }
 
+    /**
+     * Run a Stripe HTTP call. A timeout / DNS / TLS failure is a ConnectionException (not a Response); left alone it
+     * escapes as a 500 AFTER the order was already saved. It becomes a StripeException (status 0) so every caller
+     * handles "Stripe unreachable" exactly like an API error.
+     */
+    private static function send(callable $call): Response
+    {
+        try {
+            return $call();
+        } catch (ConnectionException $e) {
+            throw new StripeException('Stripe unreachable ('.class_basename($e).')', 0, 'connection_error');
+        }
+    }
+
     /** @return array<string, mixed> */
     private static function json(Response $res, string $what): array
     {
@@ -94,14 +109,14 @@ final class Stripe
      */
     public static function createCheckoutSession(array $params, string $idempotencyKey): array
     {
-        return self::json(self::http()->withHeaders(['Idempotency-Key' => $idempotencyKey])
-            ->post(self::API.'/checkout/sessions', $params), 'create session');
+        return self::json(self::send(fn () => self::http()->withHeaders(['Idempotency-Key' => $idempotencyKey])
+            ->post(self::API.'/checkout/sessions', $params)), 'create session');
     }
 
     /** @return array<string, mixed> */
     public static function retrieveCheckoutSession(string $id): array
     {
-        return self::json(self::http()->get(self::API.'/checkout/sessions/'.rawurlencode($id)), 'retrieve session');
+        return self::json(self::send(fn () => self::http()->get(self::API.'/checkout/sessions/'.rawurlencode($id))), 'retrieve session');
     }
 
     /**
@@ -112,7 +127,7 @@ final class Stripe
      */
     public static function expireCheckoutSession(string $id): array
     {
-        $res = self::http()->post(self::API.'/checkout/sessions/'.rawurlencode($id).'/expire');
+        $res = self::send(fn () => self::http()->post(self::API.'/checkout/sessions/'.rawurlencode($id).'/expire'));
         if ($res->status() === 400) {
             return self::retrieveCheckoutSession($id);
         }

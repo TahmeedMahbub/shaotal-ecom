@@ -38,7 +38,34 @@ class OrderStatusTest extends TestCase
         $this->assertFalse(OrderStatus::canTransition('cancelled', 'confirmed'));
         $this->assertFalse(OrderStatus::canTransition('returned', 'delivered'));
         $this->assertFalse(OrderStatus::canTransition('pending', 'returned'));
-        $this->assertFalse(OrderStatus::canTransition('pending', 'out_for_delivery'));
+        // The four finer stages are real order_status values now; transitions match the admin (forward only, skips allowed).
+        $this->assertTrue(OrderStatus::canTransition('pending', 'out_for_delivery'));
+        $this->assertTrue(OrderStatus::canTransition('processing', 'ready_for_dispatch'));
+        $this->assertTrue(OrderStatus::canTransition('ready_for_dispatch', 'cancelled'));
+        $this->assertFalse(OrderStatus::canTransition('in_transit', 'cancelled'));
+        $this->assertTrue(OrderStatus::canTransition('arrived_at_hub', 'returned'));
+        $this->assertFalse(OrderStatus::canTransition('out_for_delivery', 'in_transit'));
+        $this->assertCount(11, OrderStatus::ALL);
+        $this->assertSame(OrderStatus::ALL, array_keys(OrderStatus::TRANSITIONS));
+    }
+
+    public function test_every_one_of_the_eleven_statuses_is_stored_directly_and_shown_with_its_label(): void
+    {
+        $labels = ['pending' => 'Order Placed', 'confirmed' => 'Order Confirmed', 'processing' => 'Processing', 'ready_for_dispatch' => 'Ready for Dispatch',
+            'shipped' => 'Dispatched', 'in_transit' => 'In Transit', 'arrived_at_hub' => 'Arrived at Delivery Hub', 'out_for_delivery' => 'Out for Delivery',
+            'delivered' => 'Delivered', 'cancelled' => 'Cancelled', 'returned' => 'Returned'];
+        $keys = array_keys(OrderStatus::STEPS);
+        foreach ($labels as $status => $label) {
+            $this->assertSame($label, OrderStatus::label(OrderStatus::stage($status, [])), $status);
+            if (! isset(OrderStatus::STEPS[$status])) {
+                continue;
+            }
+            // No timeline sub-stage rows at all: order_status alone decides the position.
+            $t = OrderStatus::timeline($status, [], '2026-11-01 10:00:00', null);
+            $i = array_search($status, $keys, true);
+            $this->assertSame($status === 'delivered' ? 'done' : 'current', $this->states($t)[$status], $status);
+            $this->assertSame(array_fill(0, $i, 'done'), array_slice(array_values($this->states($t)), 0, $i), $status);
+        }
     }
 
     public function test_new_order_shows_only_placed_as_reached(): void

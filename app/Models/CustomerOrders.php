@@ -81,19 +81,35 @@ class CustomerOrders
         $o = DB::table('orders')->where('order_number', $orderNumber)->where('customer_id', $customerId)->first([
             'id', 'order_number', 'order_status', 'payment_status', 'payment_method', 'subtotal', 'discount_total', 'shipping_total',
             'tax_total', 'grand_total', 'coupon_code', 'shipping_recipient_name', 'shipping_phone', 'shipping_street_address',
-            'shipping_suburb', 'shipping_state', 'shipping_postcode', 'customer_note', 'placed_at', 'cancelled_at', 'created_at',
+            'shipping_suburb', 'shipping_state', 'shipping_postcode', 'customer_note', 'gift_wrap_requested', 'gift_wrap_items_count',
+            'gift_wrap_fee', 'gift_message', 'placed_at', 'cancelled_at', 'created_at',
         ]);
         if (! $o) {
             return null;
         }
 
         $items = DB::table('order_items')->where('order_id', $o->id)->orderBy('id')
-            ->get(['product_id', 'product_name', 'sku', 'image_url', 'variant_color', 'variant_size', 'unit_price', 'unit_selling_price', 'quantity', 'line_discount', 'line_total']);
-        // Gift wrapping: the fee is an order line (sku GiftWrap::SKU); which items were wrapped and the message live in the note.
+            ->get(['product_id', 'product_name', 'sku', 'image_url', 'variant_color', 'variant_size', 'unit_price', 'unit_selling_price', 'quantity', 'gift_wrap_qty', 'line_discount', 'line_total']);
+        // Gift wrapping lives in the dedicated columns (orders.gift_*, order_items.gift_wrap_qty). LEGACY orders (placed before
+        // those columns) have the fee as an order line (sku GiftWrap::SKU) inside subtotal and the wrapped items + message in
+        // the note; they are read here so history keeps displaying and its subtotal is shown as goods only.
         $giftLine = $items->firstWhere('sku', GiftWrap::SKU);
         $items = $items->reject(fn ($i) => $i->sku === GiftWrap::SKU)->values();
         $noteParts = GiftWrap::split($o->customer_note);
-        $gift = $giftLine ? ($noteParts['gift'] ?? ['summary' => '', 'items' => [], 'message' => '']) + ['fee' => (float) $giftLine->line_total] : null;
+        if ($o->gift_wrap_requested) {
+            $gift = [
+                'summary' => '', 'fee' => (float) $o->gift_wrap_fee, 'message' => (string) $o->gift_message,
+                'items' => $items->filter(fn ($i) => (int) $i->gift_wrap_qty > 0)->map(fn ($i) => (int) $i->gift_wrap_qty.' x '.$i->product_name
+                    .($i->variant_size || $i->variant_color ? ' ('.implode(' / ', array_filter([$i->variant_size, $i->variant_color])).')' : ''))->values()->all(),
+            ];
+            $storedGiftLine = 0.0;
+        } elseif ($giftLine) {
+            $gift = ($noteParts['gift'] ?? ['summary' => '', 'items' => [], 'message' => '']) + ['fee' => (float) $giftLine->line_total];
+            $storedGiftLine = (float) $giftLine->line_total;
+        } else {
+            $gift = null;
+            $storedGiftLine = 0.0;
+        }
         // Links only for products that are still listed (status/visibility checked live; a delisted product shows as text).
         $slugs = DB::table('products')->whereIn('id', $items->pluck('product_id')->filter()->all() ?: [0])
             ->where('status', 'active')->where('visibility', 'visible')->pluck('slug', 'id');
@@ -136,8 +152,9 @@ class CustomerOrders
             ])->all(),
             'totals' => [
                 // "discount" is the coupon part only; the online-payment discount is itemised separately (prebooking.discount).
-                // subtotal as stored includes the wrapping fee; shown here as goods only, with the fee itemised ('giftFee').
-                'subtotal' => round((float) $o->subtotal - ($giftLine ? (float) $giftLine->line_total : 0), 2), 'giftFee' => $gift['fee'] ?? 0.0,
+                // Goods only, with the wrapping fee itemised ('giftFee'). Current orders store subtotal as goods only; legacy ones
+                // had the fee inside it, so it is taken out again ($storedGiftLine).
+                'subtotal' => round((float) $o->subtotal - $storedGiftLine, 2), 'giftFee' => $gift['fee'] ?? 0.0,
                 'discount' => round((float) $o->discount_total - ($plan['discount'] ?? 0), 2), 'shipping' => (float) $o->shipping_total,
                 'tax' => (float) $o->tax_total, 'total' => (float) $o->grand_total, 'coupon' => $o->coupon_code,
             ],

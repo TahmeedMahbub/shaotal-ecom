@@ -111,20 +111,11 @@ class CheckoutPlaceOrderTest extends TestCase
         $this->assertSame(0, $this->orders()->count());
     }
 
-    public function test_optional_order_note_is_saved_and_never_required(): void
+    public function test_there_is_no_order_note_any_more(): void
     {
-        $this->postJson('/checkout/place', $this->body())->assertCreated();   // no note: fine
-        $this->assertNull($this->orders()->first()->customer_note);
-
-        $body = $this->body(3) + ['note' => 'Please leave at the side gate.'];
-        $res = $this->postJson('/checkout/place', $body)->assertCreated();
-        $this->assertSame('Please leave at the side gate.', $this->orders()->where('order_number', $res->json('orderNumber'))->value('customer_note'));
-
-        // Same cart, edited note: a new submission, not a silent replay of the old order.
-        $body['note'] = 'Gift: please include a card.';
-        $this->postJson('/checkout/place', $body)->assertCreated();
-
-        $this->postJson('/checkout/place', $this->body(4) + ['note' => str_repeat('x', 1001)])->assertStatus(422);
+        // The cart/checkout Order Note was removed: nothing is stored even if an old client still posts one.
+        $res = $this->postJson('/checkout/place', $this->body(3) + ['note' => 'Please leave at the side gate.'])->assertCreated();
+        $this->assertNull($this->orders()->where('order_number', $res->json('orderNumber'))->value('customer_note'));
     }
 
     public function test_cod_clears_the_saved_bag_but_a_failed_order_keeps_it(): void

@@ -24,7 +24,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Testing locally
 
-The `.env` DB is remote. For local testing create a scratch DB (`shaotal_local`) from `sql/ecom.sql` + `sql/local_test_seed.sql` and run with env overrides, e.g. `DB_HOST=127.0.0.1 DB_DATABASE=shaotal_local DB_USERNAME=root DB_PASSWORD= CACHE_STORE=file php artisan serve`.
+The `.env` DB is remote. For local testing create a scratch DB (`shaotal_local`) from `sql/ecom.sql` + `sql/local_test_seed.sql` and run with env overrides, e.g. `DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=shaotal_local DB_USERNAME=root DB_PASSWORD= CACHE_STORE=file MAIL_MAILER=log APP_URL=http://127.0.0.1:8010 php -S 127.0.0.1:8010 -t public vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`.
+
+**Do NOT use `php artisan serve` for this**: it strips every env variable that `.env` defines (it only passes through APP_ENV and a short list), so the `DB_*` overrides are silently ignored and the server connects to the remote database from `.env`. Check with a harmless write (e.g. a failed login row in your scratch DB) before trusting a server. Never run the real `.env` Stripe keys against anything but sandbox, and use `MAIL_MAILER=log` (`.env` holds real SMTP credentials). With the built-in PHP server a `deferred` queue job still delays the response (it cannot finish a request early like PHP-FPM); use `log` mail locally.
 
 ## Environment notes
 

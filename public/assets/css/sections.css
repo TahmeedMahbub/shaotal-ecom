@@ -2569,6 +2569,11 @@
   .category-card-title {
     font-size: 1.1rem;
   }
+
+  /* first category (Fashion) spans the full row; the rest stay 2-up */
+  .category-grid > .category-card:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 }

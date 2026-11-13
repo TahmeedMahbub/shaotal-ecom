@@ -1,10 +1,14 @@
 <?php
 
 use App\Http\Controllers\PageController;
+use App\Models\CardPayments;
 use App\Models\Storefront;
 use App\Payments\Stripe;
+use App\Support\OrderEmails;
+use App\Support\OrderStatus;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
 
 Artisan::command('inspire', function () {
@@ -15,6 +19,22 @@ Artisan::command('storefront:refresh-catalog', function () {
     Storefront::refresh();
     $this->info('Catalog cache invalidated: the next page request rebuilds it from the database.');
 })->purpose('Show admin catalog changes immediately (otherwise they appear within ~1–6 minutes)');
+
+Artisan::command('storefront:retry-order-emails', function () {
+    $this->info('Re-queued '.OrderEmails::retryStuck().' order confirmation email(s).');
+})->purpose('Re-queue order confirmation emails that are queued, failed or stuck (safe to repeat; sent ones are never resent)');
+
+Artisan::command('storefront:reconcile-payments {--minutes=2}', function () {
+    if (! Stripe::ready()) {
+        return $this->warn('Stripe is not configured: '.Stripe::problem());
+    }
+    $out = CardPayments::reconcilePending((int) $this->option('minutes'));
+    $this->info($out ? json_encode($out) : 'No card payments waiting for confirmation.');
+})->purpose('Ask Stripe about card payments still waiting for their webhook and apply verified results (same rules as the webhook)');
+
+// Needs the usual cron entry:  * * * * * php artisan schedule:run
+Schedule::command('storefront:retry-order-emails')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('storefront:reconcile-payments')->everyFiveMinutes()->withoutOverlapping();
 
 /*
 | Read-only check of the running configuration before/after a deploy (STOREFRONT_DEPLOYMENT_CHECKLIST.md). Prints only
@@ -85,6 +105,23 @@ Artisan::command('storefront:deploy-check', function () {
         : ($pending ? 'not approved yet (shown as drafts, noindex): '.implode(', ', $pending) : 'all policy pages approved'));
     $contact = array_filter((array) config('storefront.contact'));
     $add($contact ? 'OK' : 'WARN', 'STOREFRONT_CONTACT_*', $contact ? 'set: '.implode(', ', array_keys($contact)) : 'none set: /contact shows only the form (owner to provide email/phone/hours)');
+
+    // Admin order contract: dedicated gift columns and the 11-value order_status enum must exist before orders are placed
+    // (the storefront writes gift_wrap_* on every order). Verdict only; run the Admin's SQL, never ALTER from here.
+    try {
+        $missing = array_values(array_filter(
+            ['orders.gift_wrap_requested', 'orders.gift_wrap_items_count', 'orders.gift_wrap_fee', 'orders.gift_message', 'order_items.gift_wrap_qty'],
+            fn ($c) => ! Schema::hasColumn(...explode('.', $c))
+        ));
+        $enum = (string) (DB::selectOne("SELECT COLUMN_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'order_status'")->t ?? '');
+        $enumMissing = array_values(array_filter(OrderStatus::ALL, fn ($v) => ! str_contains($enum, "'{$v}'")));
+    } catch (Throwable) {
+        $missing = ['(database unreachable)'];
+        $enumMissing = [];
+    }
+    $add($missing || $enumMissing ? 'FAIL' : 'OK', 'Admin order contract (gift columns + 11 order statuses)', $missing || $enumMissing
+        ? 'missing: '.implode(', ', array_merge($missing, $enumMissing)).' (apply the Admin SQL: GIFT WRAPPING and ORDER STATUS PROGRESSION blocks)'
+        : 'gift columns and all 11 order_status values present');
 
     // Return requests: off by default. Turning them on needs an approved policy, the tables in sql/proposed_changes.sql §4
     // and the admin review screens. The database is only queried when the switch is on.

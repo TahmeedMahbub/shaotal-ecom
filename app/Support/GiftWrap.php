@@ -9,11 +9,12 @@ namespace App\Support;
  * Fee (config storefront.gift_wrap), in cents so it is exact: the first 2 wrapped items cost A$1.99 in total, each
  * further wrapped item adds A$1.00. It depends only on the number of items selected to wrap, never on the cart size.
  *
- * Storage (no schema change; see sql/proposed_changes.sql for the dedicated-columns proposal):
- *   - the fee is an extra order_items row (product_id NULL, sku GIFT_SKU) and is part of orders.subtotal, so the admin
- *     app's  subtotal - discount_total + shipping_total + tax_total = grand_total  keeps holding;
- *   - the wrapped items and the gift message are a readable block appended to orders.customer_note (GIFT_MARKER),
- *     separate from the customer's own note, which split() separates again for the storefront.
+ * Storage (the admin's dedicated columns; no extra order line, nothing in customer_note):
+ *   - orders.gift_wrap_requested / gift_wrap_items_count / gift_wrap_fee / gift_message;
+ *   - order_items.gift_wrap_qty = wrapped units of that line (0..quantity), so SUM = orders.gift_wrap_items_count;
+ *   - orders.subtotal stays goods only; orders.grand_total = subtotal - discount_total + shipping_total + tax_total + gift_wrap_fee.
+ * LEGACY (read only): orders placed before those columns carry the fee as an order_items row (sku SKU) inside subtotal and the
+ * wrapped items + message as a block in customer_note (MARKER); split() still reads them so history keeps displaying.
  */
 final class GiftWrap
 {
@@ -24,6 +25,12 @@ final class GiftWrap
     public const MESSAGE_PREFIX = 'Gift message:';
 
     public const MESSAGE_MAX = 300;
+
+    /** Identifies a priced cart line / a gift selection entry (same product, colour and size). */
+    public static function lineKey(int $productId, ?string $color, ?string $size): string
+    {
+        return $productId.'|'.($color ?? '').'|'.($size ?? '');
+    }
 
     /** @return array{baseFee: float, baseItems: int, extraFee: float} */
     public static function rules(): array
@@ -52,7 +59,7 @@ final class GiftWrap
      * entries are merged, unknown lines are ignored. Returns null when gift wrapping is off or nothing valid is selected.
      *
      * @param  array  $lines  Checkout::priceLines()['lines']
-     * @return null|array{items: array, quantity: int, fee: float, message: string}
+     * @return null|array{items: array, quantity: int, fee: float, message: string, lineQty: array<int,int>} lineQty: wrapped units per $lines index
      */
     public static function resolve(array $lines, ?array $gift): ?array
     {
@@ -66,10 +73,12 @@ final class GiftWrap
         }
 
         $items = [];
+        $lineQty = [];
         $total = 0;
-        foreach ($lines as $l) {
+        foreach ($lines as $i => $l) {
             $qty = min((int) $l['quantity'], $wanted[$l['productId'].'|'.($l['colorKey'] ?? '').'|'.($l['size'] ?? '')] ?? 0);
             if ($qty > 0) {
+                $lineQty[$i] = $qty;
                 $items[] = ['productId' => $l['productId'], 'name' => $l['name'], 'color' => $l['color'], 'size' => $l['size'], 'quantity' => $qty];
                 $total += $qty;
             }
@@ -81,29 +90,41 @@ final class GiftWrap
         // The marker is how a stored note is split again; a customer cannot forge it from either text box.
         $message = trim(str_replace(self::MARKER, '', mb_substr($message, 0, self::MESSAGE_MAX)));
 
-        return ['items' => $items, 'quantity' => $total, 'fee' => self::fee($total), 'message' => $message];
-    }
-
-    /** The customer's note with the gift block appended (the note alone when there is no gift). */
-    public static function composeNote(?string $note, ?array $gift): ?string
-    {
-        $note = trim(str_replace(self::MARKER, '', (string) $note));
-        if (! $gift) {
-            return $note === '' ? null : $note;
-        }
-        $symbol = config('storefront.currency_symbol');
-        $lines = [self::MARKER, "Wrapping fee: {$symbol}".number_format($gift['fee'], 2).' for '.$gift['quantity'].' '.($gift['quantity'] === 1 ? 'item' : 'items')];
-        foreach ($gift['items'] as $i) {
-            $variant = implode(' / ', array_filter([$i['size'], $i['color']]));
-            $lines[] = '- '.$i['quantity'].' x '.$i['name'].($variant !== '' ? " ({$variant})" : '');
-        }
-        $lines[] = self::MESSAGE_PREFIX.($gift['message'] !== '' ? ' '.$gift['message'] : ' (none)');
-
-        return ($note === '' ? '' : $note."\n\n").implode("\n", $lines);
+        return ['items' => $items, 'quantity' => $total, 'fee' => self::fee($total), 'message' => $message, 'lineQty' => $lineQty];
     }
 
     /**
-     * Split a stored customer_note into the customer's own note and the gift block.
+     * Why a gift selection cannot be accepted as sent, or null when every selected line and quantity really is in the
+     * cart. resolve() quietly clamps (so a quote can still show something); placing an order must not change what the
+     * customer agreed to, so it refuses a selection that does not match the cart.
+     *
+     * @param  array  $lines  Checkout::priceLines()['lines']
+     */
+    public static function problem(array $lines, ?array $gift): ?string
+    {
+        if (! $gift || empty($gift['enabled'])) {
+            return null;
+        }
+        $have = [];
+        foreach ($lines as $l) {
+            $have[$l['productId'].'|'.($l['colorKey'] ?? '').'|'.($l['size'] ?? '')] = (int) $l['quantity'];
+        }
+        $want = [];
+        foreach ((array) ($gift['items'] ?? []) as $it) {
+            $key = (int) ($it['productId'] ?? 0).'|'.($it['color'] ?? '').'|'.($it['size'] ?? '');
+            $want[$key] = ($want[$key] ?? 0) + max(0, (int) ($it['quantity'] ?? 0));
+        }
+        foreach ($want as $key => $qty) {
+            if ($qty > 0 && (! isset($have[$key]) || $qty > $have[$key])) {
+                return 'Your gift wrapping selection no longer matches your cart. Please review it in your cart.';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * LEGACY: split a stored customer_note into the customer's own note and the gift block.
      *
      * @return array{note: ?string, gift: ?array{summary: string, items: array<string>, message: string}}
      */

@@ -20,13 +20,17 @@ class ValidateCustomerSession
     {
         $id = (int) $request->session()->get(CustomerSession::ID);
         if ($id > 0) {
-            $row = DB::table('customers')->where('id', $id)->first(['status', 'password_hash', 'email_verified_at']);
+            $row = DB::table('customers')->where('id', $id)->first(['status', 'password_hash', 'email_verified_at', 'email']);
             $current = $row ? CustomerSession::fingerprint($row->password_hash) : null;
             $stored = $request->session()->get(CustomerSession::FINGERPRINT);
 
             if (! $row || $row->status !== 'active' || ! $row->email_verified_at || ($stored !== null && ! hash_equals($current, (string) $stored))) {
                 CustomerSession::end($request);
-            } elseif ($stored === null) {
+            } else {
+                // Already loaded: lets order placement use the address without a second customers lookup (one fewer round trip).
+                $request->attributes->set('customer.email', $row->email);
+            }
+            if ($row && $stored === null && $request->attributes->has('customer.email')) {
                 // Session signed in before fingerprints existed: adopt the current one (no forced sign-out on deploy).
                 $request->session()->put(CustomerSession::FINGERPRINT, $current);
             }

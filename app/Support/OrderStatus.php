@@ -3,18 +3,19 @@
 namespace App\Support;
 
 /**
- * Customer-facing view of the shared orders.order_status / payment_status enums (sql/ecom.sql), which the admin app owns.
- * Customers see nine delivery stages. orders.order_status has only five matching values (pending, confirmed, processing,
- * shipped, delivered), so the four finer stages (SUB_STAGES) are read from order_timeline.new_status (VARCHAR) rows that the
- * admin records alongside the enum change; see docs/admin-order-integration.md. Internal values are never shown.
- * There is still no courier/tracking column, so no tracking number is displayed.
+ * Customer-facing view of the shared orders.order_status / payment_status enums, which the admin app owns.
+ * order_status has 11 values (sql/ecom.sql + the admin's ORDER STATUS PROGRESSION block): nine delivery stages plus
+ * cancelled and returned. Fulfilment status and payment status are separate vocabularies and never derive from each other.
+ * Orders from before the enum was extended recorded the four finer stages only in order_timeline.new_status while
+ * order_status held the parent value; stage() still reads those rows so historical orders keep their progress.
+ * Internal values are never shown. There is no courier/tracking column, so no tracking number is displayed.
  *
  * Timeline timestamps come only from order_timeline rows (written by the storefront at placement and by the admin on each
  * status change) or orders.placed_at / cancelled_at. A step reached without a recorded row is shown as done with no date.
  */
 class OrderStatus
 {
-    /** Normal progression, in order: stage key => customer label. Keys that are order_status values map 1:1 to the enum. */
+    /** Normal progression, in order: status => customer label. Every key is an orders.order_status value (same as the admin app). */
     public const STEPS = [
         'pending' => 'Order Placed',
         'confirmed' => 'Order Confirmed',
@@ -27,7 +28,7 @@ class OrderStatus
         'delivered' => 'Delivered',
     ];
 
-    /** Stages with no order_status value: recorded as order_timeline.new_status while orders.order_status is the parent. */
+    /** LEGACY: before the enum had these values, they were only order_timeline.new_status rows under this parent order_status. */
     public const SUB_STAGES = [
         'ready_for_dispatch' => 'processing',
         'in_transit' => 'shipped',
@@ -54,18 +55,23 @@ class OrderStatus
         'returned' => 'Returned',
     ];
 
-    /** Every order_status value in sql/ecom.sql. */
-    public const ALL = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
+    /** Every order_status value (all 11, identical to the admin app's OrderStatus::all()). */
+    public const ALL = ['pending', 'confirmed', 'processing', 'ready_for_dispatch', 'shipped', 'in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'cancelled', 'returned'];
 
     /**
-     * Forward-only transitions the storefront considers valid. The storefront itself only performs pending → cancelled
-     * (customer cancellation); the admin app performs the rest and should enforce the same table (documented admin change).
+     * Forward-only transitions, identical to the admin's OrderStatus::next() (a stage may be skipped for legacy/pickup
+     * orders; cancelling is possible only before the parcel leaves, returning only from dispatch onward). The storefront
+     * itself only performs pending → cancelled (customer cancellation); the admin performs the rest.
      */
     public const TRANSITIONS = [
-        'pending' => ['confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
-        'confirmed' => ['processing', 'shipped', 'delivered', 'cancelled'],
-        'processing' => ['shipped', 'delivered', 'cancelled'],
-        'shipped' => ['delivered', 'returned'],
+        'pending' => ['confirmed', 'processing', 'ready_for_dispatch', 'shipped', 'in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'cancelled'],
+        'confirmed' => ['processing', 'ready_for_dispatch', 'shipped', 'in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'cancelled'],
+        'processing' => ['ready_for_dispatch', 'shipped', 'in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'cancelled'],
+        'ready_for_dispatch' => ['shipped', 'in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'cancelled'],
+        'shipped' => ['in_transit', 'arrived_at_hub', 'out_for_delivery', 'delivered', 'returned'],
+        'in_transit' => ['arrived_at_hub', 'out_for_delivery', 'delivered', 'returned'],
+        'arrived_at_hub' => ['out_for_delivery', 'delivered', 'returned'],
+        'out_for_delivery' => ['delivered', 'returned'],
         'delivered' => ['returned'],
         'cancelled' => [],
         'returned' => [],

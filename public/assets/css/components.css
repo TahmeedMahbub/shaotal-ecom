@@ -41,6 +41,15 @@
     padding: 0.4rem 1rem;
     letter-spacing: 0;
   }
+
+  /* mobile: replace the "·" separator with a line break */
+  .announcement-line {
+    display: block;
+  }
+
+  .announcement-sep {
+    display: none;
+  }
 }
 /* ── Navbar ── */
 .navbar {
@@ -1647,16 +1656,6 @@ body.search-modal-open {
   color: var(--color-dark);
 }
 
-.order-note { margin-bottom: var(--space-sm); }
-.order-note-label { display: block; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-grey-700); margin-bottom: 0.25rem; }
-.order-note-label span { font-weight: var(--fw-regular, 400); color: var(--color-grey-500); }
-.order-note-input {
-  display: block; width: 100%; min-height: 3.25rem; max-height: 7rem; resize: vertical;
-  padding: 0.5rem 0.65rem; font: inherit; font-size: var(--fs-small); color: var(--color-dark);
-  background: var(--color-surface-card); border: 1px solid var(--color-grey-200); border-radius: var(--radius-md);
-}
-.order-note-input:focus { outline: 2px solid var(--color-brand); outline-offset: 1px; border-color: var(--color-brand); }
-
 /* ── Gift wrapping (cart drawer; the same selection is summarised on checkout) ── */
 .gift-box { margin: var(--space-md) 0 0; border: 1px solid var(--color-grey-200); border-radius: var(--radius-lg); background: var(--color-surface-card); overflow: hidden; }
 .gift-box.is-on { border-color: var(--color-brand); }
@@ -1705,6 +1704,13 @@ body.search-modal-open {
 .checkout-gift-head svg { width: 1.1rem; height: 1.1rem; color: var(--color-brand); }
 .checkout-gift-edit { background: none; border: none; padding: 0; font: inherit; font-size: var(--fs-xs); color: var(--color-brand); text-decoration: underline; cursor: pointer; }
 .checkout-gift ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.checkout-gift.is-gift { border-color: var(--color-brand); background: var(--color-surface-card); }
+.checkout-gift-count { margin: 0.5rem 0 0; }
+.checkout-gift-none { margin: 0.4rem 0 0; font-size: var(--fs-xs); color: var(--color-grey-500); }
+.checkout-gift-warn { margin: 0.4rem 0 0; font-size: var(--fs-xs); color: var(--color-danger); }
+.checkout-gift .gift-qty { font-weight: var(--fw-semibold); color: var(--color-dark); }
+.checkout-gift li small { color: var(--color-grey-500); }
+.checkout-gift-message > span { display: block; font-style: normal; font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-grey-500); margin-bottom: 0.15rem; }
 .checkout-gift-message { margin: 0.5rem 0 0; white-space: pre-line; overflow-wrap: anywhere; font-style: italic; }
 
 .cart-checkout-btn {

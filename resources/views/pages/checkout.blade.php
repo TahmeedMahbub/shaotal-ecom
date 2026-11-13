@@ -924,11 +924,6 @@
                 </div>
               </div>
 
-              <div class="order-note" style="margin-top: var(--space-md);">
-                <label class="order-note-label" for="checkout-order-note">Order note <span>(optional)</span></label>
-                <textarea class="order-note-input" id="checkout-order-note" rows="2" maxlength="1000" placeholder="Special instructions, e.g. delivery notes"></textarea>
-              </div>
-
               <button type="button" class="btn btn-primary place-order-btn" id="place-order-btn">
                 Place Order • $0.00 AUD
               </button>

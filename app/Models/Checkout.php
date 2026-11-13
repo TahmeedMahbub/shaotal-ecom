@@ -7,6 +7,7 @@ use App\Payments\PaymentMethod;
 use App\Payments\PaymentMethods;
 use App\Support\Delivery;
 use App\Support\GiftWrap;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -95,6 +96,7 @@ class Checkout
         // Gift wrapping is a service charge on top of the goods: it never counts toward the free-shipping threshold,
         // coupon minimums or coupon eligibility (those use the goods subtotal), but it is part of the order total and
         // of the online-payment base (discount and deposit), so every figure below stays consistent.
+        $giftError = GiftWrap::problem($lines, $gift);
         $gift = GiftWrap::resolve($lines, $gift);
         $giftFee = $gift['fee'] ?? 0.0;
         $subtotal = round(array_sum(array_map(fn ($l) => $l['price'] * $l['quantity'], $lines)), 2);
@@ -121,7 +123,7 @@ class Checkout
 
         return [
             'subtotal' => $subtotal, 'shipping' => $shipping, 'discount' => $discount, 'tax' => $tax,
-            'giftFee' => $giftFee, 'gift' => $gift,
+            'giftFee' => $giftFee, 'gift' => $gift, 'giftError' => $giftError,
             'total' => round(max(0, $subtotal + $giftFee + $shipping + $tax - $discount), 2),
             'coupon' => $coupon, 'couponError' => $couponError,
             // What the order would be if paid online (pre-booking). "total" above stays the cash-on-delivery figure.
@@ -229,60 +231,76 @@ class Checkout
         }
     }
 
+    /** The orders gift columns for a resolved gift selection (defaults for a non-gift order). */
+    private static function giftOrderColumns(?array $gift): array
+    {
+        if (! $gift) {
+            return ['gift_wrap_requested' => 0, 'gift_wrap_items_count' => 0, 'gift_wrap_fee' => 0, 'gift_message' => null];
+        }
+
+        return [
+            'gift_wrap_requested' => 1, 'gift_wrap_items_count' => $gift['quantity'], 'gift_wrap_fee' => $gift['fee'],
+            'gift_message' => $gift['message'] === '' ? null : $gift['message'],
+        ];
+    }
+
     /**
      * Create the order, items, payment and timeline atomically.
      *
      * @return array{orderNumber: string, total: float}
      */
-    public static function place(array $lines, array $totals, array $address, PaymentMethod|string $method, ?int $customerId, ?string $note): array
+    public static function place(array $lines, array $totals, array $address, PaymentMethod|string $method, ?int $customerId, ?string $note, ?string $customerEmail = null): array
     {
         $method = is_string($method) ? PaymentMethods::get($method) : $method;
-        $customerEmail = $customerId ? DB::table('customers')->where('id', $customerId)->value('email') : null;
+        $customerEmail ??= $customerId ? DB::table('customers')->where('id', $customerId)->value('email') : null;
 
         return DB::transaction(function () use ($lines, $totals, $address, $method, $customerId, $note, $customerEmail) {
             if ($code = $totals['coupon']['code'] ?? null) {
                 self::claimCoupon($code, $customerId);
             }
 
-            $number = null;
-            for ($i = 0; $i < 5 && ! $number; $i++) {
-                $try = 'INV-'.random_int(100000, 999999);
-                if (! DB::table('orders')->where('order_number', $try)->exists()) {
-                    $number = $try;
-                }
-            }
-            abort_unless($number, 500, 'Could not generate an order number. Please try again.');
-
-            $orderId = DB::table('orders')->insertGetId([
-                'order_number' => $number, 'customer_id' => $customerId, 'customer_email' => $customerEmail, 'customer_phone' => $address['phone'],
+            // Order number: random INV-nnnnnn, made unique by the orders.order_number UNIQUE key itself instead of a separate
+            // "does it exist" query per try. MySQL rolls back only the failed statement, so a (1 in ~900k) collision is
+            // re-rolled inside the same transaction.
+            $orderRow = [
+                'customer_id' => $customerId, 'customer_email' => $customerEmail, 'customer_phone' => $address['phone'],
                 'shipping_recipient_name' => $address['fullName'], 'shipping_phone' => $address['phone'], 'shipping_street_address' => $address['street'],
                 'shipping_suburb' => $address['suburb'], 'shipping_state' => $address['state'], 'shipping_postcode' => $address['postcode'],
                 // discount_total = coupon + online-payment discount, so subtotal - discount_total + shipping + tax = grand_total
                 // always holds for the admin app; the online part is itemised from the stored plan.
-                // subtotal includes the gift-wrapping fee row (see below), so it still equals the sum of the order items.
-                'subtotal' => round($totals['subtotal'] + ($totals['giftFee'] ?? 0), 2), 'discount_total' => round($totals['discount'] + ($totals['onlineDiscount'] ?? 0), 2), 'shipping_total' => $totals['shipping'],
+                // subtotal is goods only; the gift fee has its own column and is part of grand_total exactly once:
+                // subtotal - discount_total + shipping_total + tax_total + gift_wrap_fee = grand_total (the admin's contract).
+                'subtotal' => $totals['subtotal'], 'discount_total' => round($totals['discount'] + ($totals['onlineDiscount'] ?? 0), 2), 'shipping_total' => $totals['shipping'],
                 'tax_total' => $totals['tax'], 'grand_total' => $totals['total'], 'coupon_code' => $totals['coupon']['code'] ?? null,
                 // Never "paid" at placement: COD is collected later, a card gateway confirms server-side (webhook).
                 'payment_method' => $method->code(), 'payment_status' => 'pending', 'order_status' => 'pending', 'fulfillment_type' => 'delivery',
                 'customer_note' => $note, 'placed_at' => now(),
-            ]);
-
-            DB::table('order_items')->insert(array_map(fn ($l) => [
-                'order_id' => $orderId, 'product_id' => $l['productId'], 'variant_id' => $l['variantId'], 'product_name' => $l['name'],
-                'sku' => $l['sku'], 'image_url' => $l['image'], 'variant_color' => $l['color'], 'variant_size' => $l['size'],
-                'unit_price' => $l['listPrice'], 'unit_selling_price' => $l['price'], 'quantity' => $l['quantity'],
-                'line_discount' => 0, 'line_total' => round($l['price'] * $l['quantity'], 2),
-            ], $lines));
-
-            if ($gift = $totals['gift'] ?? null) {
-                // Gift wrapping fee as its own line (no product); the wrapped items and message are in customer_note.
-                DB::table('order_items')->insert([
-                    'order_id' => $orderId, 'product_id' => null, 'variant_id' => null,
-                    'product_name' => 'Gift wrapping ('.$gift['quantity'].($gift['quantity'] === 1 ? ' item)' : ' items)'),
-                    'sku' => GiftWrap::SKU, 'image_url' => null, 'variant_color' => null, 'variant_size' => null,
-                    'unit_price' => $gift['fee'], 'unit_selling_price' => $gift['fee'], 'quantity' => 1, 'line_discount' => 0, 'line_total' => $gift['fee'],
-                ]);
+            ] + self::giftOrderColumns($totals['gift'] ?? null);
+            $orderId = null;
+            $number = null;
+            for ($i = 0; $i < 5 && ! $orderId; $i++) {
+                $number = 'INV-'.random_int(100000, 999999);
+                try {
+                    $orderId = DB::table('orders')->insertGetId(['order_number' => $number] + $orderRow);
+                } catch (UniqueConstraintViolationException) {
+                    $orderId = null;
+                }
             }
+            abort_unless($orderId, 500, 'Could not generate an order number. Please try again.');
+
+            // One insert for the goods; gift_wrap_qty records how many units of each line are wrapped (0 for a non-gift line).
+            $giftQty = ($totals['gift']['lineQty'] ?? []);
+            $itemRows = [];
+            foreach (array_values($lines) as $i => $l) {
+                $itemRows[] = [
+                    'order_id' => $orderId, 'product_id' => $l['productId'], 'variant_id' => $l['variantId'], 'product_name' => $l['name'],
+                    'sku' => $l['sku'], 'image_url' => $l['image'], 'variant_color' => $l['color'], 'variant_size' => $l['size'],
+                    'unit_price' => $l['listPrice'], 'unit_selling_price' => $l['price'], 'quantity' => $l['quantity'],
+                    'gift_wrap_qty' => $giftQty[$i] ?? 0,
+                    'line_discount' => 0, 'line_total' => round($l['price'] * $l['quantity'], 2),
+                ];
+            }
+            DB::table('order_items')->insert($itemRows);
 
             DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => null, 'new_status' => 'pending', 'note' => 'Order placed']);
             // COD: one row for the full amount (collected on delivery). Card: one row for the deposit charged now; the plan
@@ -302,9 +320,10 @@ class Checkout
             // A card order keeps the cart until Stripe confirms payment (CardPayments converts it then), so an abandoned
             // or declined payment does not lose the customer's bag.
             if ($customerId && $method->provider() === null) {
-                $cart = DB::table('carts')->where('customer_id', $customerId)->where('status', 'active')->pluck('id');
-                DB::table('cart_items')->whereIn('cart_id', $cart)->delete();
-                DB::table('carts')->whereIn('id', $cart)->update(['status' => 'converted']);
+                // Two statements (items by sub-select, then the carts), not three: no separate lookup of the cart ids.
+                $active = fn ($q) => $q->select('id')->from('carts')->where('customer_id', $customerId)->where('status', 'active');
+                DB::table('cart_items')->whereIn('cart_id', $active)->delete();
+                DB::table('carts')->where('customer_id', $customerId)->where('status', 'active')->update(['status' => 'converted']);
             }
 
             return ['orderNumber' => $number, 'total' => $totals['total'], 'payNow' => $plan['deposit'] ?? 0.0, 'balance' => $plan['balance'] ?? 0.0, 'prebooked' => (bool) $plan];

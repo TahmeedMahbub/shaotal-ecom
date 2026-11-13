@@ -287,34 +287,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderGift(q);
     renderTotals(q);
-    placeOrderBtn.disabled = q.lines.length === 0 || (q.errors || []).length > 0 || paymentCards.length === 0;
+    placeOrderBtn.disabled = q.lines.length === 0 || (q.errors || []).length > 0 || paymentCards.length === 0 || !!q.giftError
+      || (!q.gift && !!(window.bongoGiftSelection && window.bongoGiftSelection().enabled));
   }
 
-  // Gift wrapping summary (selection and fee both come from the server quote): items, message and the fee row.
+  // Gift section of the order summary. Everything shown comes from the server quote (selection, quantities, fee), so it is
+  // exactly what will be saved and charged. It is always visible: either the gift details or a plain "not selected".
   function renderGift(q) {
     const box = document.getElementById('checkout-gift');
     const row = document.getElementById('gift-row');
     const gift = q.gift;
-    if (!gift) {
-      box.style.display = 'none';
-      row.style.display = 'none';
-      return;
-    }
-    const variant = i => [i.size, i.color].filter(Boolean).join(' / ');
-    box.innerHTML = `
-      <div class="checkout-gift-head">
-        <span>${SVG_ICONS.gift} Gift wrapping</span>
-        <button type="button" class="checkout-gift-edit" id="checkout-gift-edit">Edit in cart</button>
-      </div>
-      <ul>${gift.items.map(i => `<li>${i.quantity} &times; ${esc(i.name)}${variant(i) ? ` (${esc(variant(i))})` : ''}</li>`).join('')}</ul>
-      ${gift.message ? `<p class="checkout-gift-message">&ldquo;${esc(gift.message)}&rdquo;</p>` : ''}`;
+    const total = q.lines.reduce((a, l) => a + l.quantity, 0);
+    const local = typeof window.bongoGiftSelection === 'function' ? window.bongoGiftSelection() : { enabled: false };
     box.style.display = 'block';
-    row.style.display = 'flex';
-    document.getElementById('gift-row-label').textContent = `Gift wrapping (${gift.quantity} item${gift.quantity === 1 ? '' : 's'})`;
-    document.getElementById('summary-gift').textContent = money(q.giftFee);
+    box.classList.toggle('is-gift', !!gift);
+    const editLink = label => `<button type="button" class="checkout-gift-edit" id="checkout-gift-edit">${label}</button>`;
+    if (q.giftError || (!gift && local.enabled)) {
+      // Gift switched on in the cart but nothing valid selected, or the selection no longer matches the cart.
+      box.innerHTML = `
+        <div class="checkout-gift-head"><span>${SVG_ICONS.gift} Gift wrapping</span>${editLink('Review in cart')}</div>
+        <p class="checkout-gift-warn">${esc(q.giftError || 'Gift wrapping is switched on but no items are selected. Choose the items to wrap, or switch it off.')}</p>`;
+      row.style.display = 'none';
+    } else if (!gift) {
+      box.innerHTML = `
+        <div class="checkout-gift-head"><span>${SVG_ICONS.gift} Gift wrapping</span>${editLink('Add in cart')}</div>
+        <p class="checkout-gift-none">Not selected: this order will not be gift wrapped.</p>`;
+      row.style.display = 'none';
+    } else {
+      const variant = i => [i.size, i.color].filter(Boolean).join(' / ');
+      box.innerHTML = `
+        <div class="checkout-gift-head"><span>${SVG_ICONS.gift} This order is a gift</span>${editLink('Edit in cart')}</div>
+        <p class="checkout-gift-count"><strong>${gift.quantity} of ${total} item${total === 1 ? '' : 's'}</strong> will be gift wrapped (${money(q.giftFee)}):</p>
+        <ul>${gift.items.map(i => `<li><span class="gift-qty">${i.quantity} &times;</span> ${esc(i.name)}${variant(i) ? ` <small>(${esc(variant(i))})</small>` : ''}</li>`).join('')}</ul>
+        ${gift.message ? `<div class="checkout-gift-message"><span>Gift message</span>&ldquo;${esc(gift.message)}&rdquo;</div>` : '<p class="checkout-gift-none">No gift message.</p>'}`;
+      row.style.display = 'flex';
+      document.getElementById('gift-row-label').textContent = `Gift wrapping (${gift.quantity} item${gift.quantity === 1 ? '' : 's'})`;
+      document.getElementById('summary-gift').textContent = money(q.giftFee);
+    }
     const edit = document.getElementById('checkout-gift-edit');
     if (edit) edit.addEventListener('click', () => { if (typeof openCart === 'function') openCart(); });
   }
+
 
   // Totals for the selected method. All figures come from the server quote (q.online is the pre-booking breakdown
   // computed by OnlinePaymentPlan); nothing is calculated or hard-coded here.
@@ -396,15 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     toast('Coupon removed');
   });
 
-  /* ── Optional order note (typed in the cart, editable here) ── */
-  const noteInput = document.getElementById('checkout-order-note');
-  if (noteInput) {
-    noteInput.value = typeof window.bongoGetOrderNote === 'function' ? window.bongoGetOrderNote() : '';
-    noteInput.addEventListener('input', () => { if (typeof window.bongoSetOrderNote === 'function') window.bongoSetOrderNote(noteInput.value); });
-  }
-
   /* ── Place order ── */
+  let placing = false;   // one placement at a time; cleared when the request fails, so a genuine retry is never blocked
   placeOrderBtn.addEventListener('click', async () => {
+    if (placing) return;
     if (getCart().length === 0) return toast('Your cart is empty');
     if (!selectedAddressId) return toast('Please select a delivery address');
     const selected = addresses.find(a => a.id === selectedAddressId);
@@ -412,26 +420,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const method = (document.querySelector('input[name="payment-method"]:checked') || {}).value;
     if (!method) return toast('Please choose a payment method');
 
+    placing = true;
     const label = placeOrderBtn.innerHTML;
     placeOrderBtn.disabled = true;
-    placeOrderBtn.innerHTML = '<svg class="icon-svg" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity: 0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity: 0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Processing Order...';
+    placeOrderBtn.setAttribute('aria-busy', 'true');
+    placeOrderBtn.dataset.busyText = method === 'card' ? 'Preparing secure payment…' : 'Placing your order…';
+    placeOrderBtn.innerHTML = '<svg class="icon-svg" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity: 0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity: 0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> ' + placeOrderBtn.dataset.busyText;
 
     const body = quoteBody({ paymentMethod: method });
-    const note = ((noteInput && noteInput.value) || '').trim();
-    if (note) body.note = note;
     if (user) body.addressId = selected.id; else body.address = selected;
     const res = await api('POST', '/checkout/place', body);
 
     if (!res.ok) {
+      placing = false;
+      placeOrderBtn.removeAttribute('aria-busy');
       placeOrderBtn.innerHTML = label;
       placeOrderBtn.disabled = false;
       toast(window.bongoApiMessage(res));
       renderOrderSummary();
       return;
     }
-
-    // The note now belongs to the saved order, so it must not leak onto the next one.
-    if (typeof window.bongoSetOrderNote === 'function') window.bongoSetOrderNote('');
 
     // Card (Stripe Checkout): the order is saved unpaid and the bag is kept (NOT cleared here) until Stripe's verified
     // webhook confirms the deposit; the payment-result page then clears it. A declined or cancelled payment keeps the bag.
@@ -442,8 +450,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       // Payment page could not be opened: the order exists, pay from its page (never place it twice).
-      toast(res.data.paymentError || 'Your order is saved. Please complete the payment from your order page.');
-      setTimeout(() => { window.location.href = res.data.orderUrl || '/account#orders'; }, 1500);
+      // The order is saved (and the bag kept): say so plainly, then open the order, where Pay now completes it. Placing again would be a second order.
+      placeOrderBtn.innerHTML = 'Order saved. Opening your order…';
+      toast(`Your order ${res.data.orderNumber} is saved, but we couldn't open the payment page. You can pay from your order page; no need to order again.`);
+      setTimeout(() => { window.location.href = res.data.orderUrl || '/account#orders'; }, 2500);
       return;
     }
 

@@ -50,35 +50,27 @@ class GiftWrapTest extends TestCase
         $this->assertNull(GiftWrap::resolve($this->lines(), ['enabled' => true, 'items' => [['productId' => 7, 'color' => 'blue', 'size' => 'M', 'quantity' => 1]]]));
     }
 
-    public function test_note_round_trip_keeps_the_customer_note_and_gift_separate(): void
+    public function test_resolve_returns_wrapped_units_per_cart_line(): void
     {
-        $gift = GiftWrap::resolve($this->lines(), ['enabled' => true, 'message' => "Happy birthday!\nLove, A", 'items' => [['productId' => 2, 'quantity' => 2], ['productId' => 7, 'color' => 'red', 'size' => 'M', 'quantity' => 1]]]);
-        $stored = GiftWrap::composeNote('Leave at the gate', $gift);
+        $g = GiftWrap::resolve($this->lines(), ['enabled' => true, 'items' => [['productId' => 2, 'quantity' => 2], ['productId' => 7, 'color' => 'red', 'size' => 'M', 'quantity' => 1]]]);
+        $this->assertSame([0 => 2, 1 => 1], $g['lineQty']);
+        $this->assertSame(3, array_sum($g['lineQty']));
+    }
 
-        $this->assertStringContainsString('Leave at the gate', $stored);
+    public function test_legacy_note_block_is_still_split_for_historical_orders(): void
+    {
+        $stored = "Leave at the gate\n\n--- GIFT WRAPPING ---\nWrapping fee: A\$2.99 for 3 items\n- 2 x Jute Basket\n- 1 x Scarf (M / Red)\nGift message: Happy birthday!\nLove, A";
         $parts = GiftWrap::split($stored);
         $this->assertSame('Leave at the gate', $parts['note']);
         $this->assertSame('A$2.99 for 3 items', $parts['gift']['summary']);
         $this->assertSame(['2 x Jute Basket', '1 x Scarf (M / Red)'], $parts['gift']['items']);
         $this->assertSame("Happy birthday!\nLove, A", $parts['gift']['message']);
-    }
-
-    public function test_gift_without_message_or_note_and_plain_notes(): void
-    {
-        $gift = GiftWrap::resolve($this->lines(), ['enabled' => true, 'items' => [['productId' => 2, 'quantity' => 1]]]);
-        $parts = GiftWrap::split(GiftWrap::composeNote(null, $gift));
-        $this->assertNull($parts['note']);
-        $this->assertSame('', $parts['gift']['message']);
-
-        $this->assertNull(GiftWrap::composeNote(null, null));
-        $this->assertNull(GiftWrap::composeNote('   ', null));
         $this->assertSame(['note' => 'Just a note', 'gift' => null], GiftWrap::split('Just a note'));
         $this->assertSame(['note' => null, 'gift' => null], GiftWrap::split(null));
     }
 
     public function test_customer_cannot_forge_the_gift_marker(): void
     {
-        $this->assertNull(GiftWrap::split(GiftWrap::composeNote('x '.GiftWrap::MARKER.' y', null))['gift']);
         $gift = GiftWrap::resolve($this->lines(), ['enabled' => true, 'message' => GiftWrap::MARKER.'hi', 'items' => [['productId' => 2, 'quantity' => 1]]]);
         $this->assertStringNotContainsString(GiftWrap::MARKER, $gift['message']);
     }
