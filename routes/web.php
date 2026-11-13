@@ -4,9 +4,11 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\SeoController;
 use App\Http\Middleware\ValidateCustomerSession;
@@ -35,6 +37,9 @@ Route::withoutMiddleware($sessionless)->group(function () {
     Route::get('/catalog/products', [CatalogController::class, 'products'])->middleware('throttle:120,1,catalog');
     Route::get('/catalog/search', [CatalogController::class, 'search'])->middleware('throttle:120,1,catalog');
     Route::get('/catalog/feed', [CatalogController::class, 'feed'])->middleware('throttle:120,1,catalog');
+
+    // Stripe webhook: no session/cookies/CSRF (Stripe can't send a token); authenticated by the Stripe-Signature HMAC.
+    Route::post('/webhooks/stripe', [PaymentController::class, 'webhook'])->middleware('throttle:600,1,stripe-webhook');
 });
 
 // Every throttle has its own key prefix (3rd argument): without it Laravel counts all throttled routes in ONE per-IP
@@ -59,6 +64,11 @@ Route::get('/auth/csrf', [AuthController::class, 'csrf'])->middleware('throttle:
 Route::post('/auth/forgot', [AuthController::class, 'forgot'])->middleware('throttle:5,1,auth-forgot');
 Route::post('/auth/reset', [AuthController::class, 'reset'])->middleware('throttle:10,1,auth-reset');
 
+// Email verification (pending registrations / unverified sign-ins; see App\Support\EmailVerification)
+Route::get('/verify-email', [EmailVerificationController::class, 'show'])->middleware('throttle:60,1,verify-page')->name('verify-email');
+Route::post('/verify-email', [EmailVerificationController::class, 'verify'])->middleware('throttle:20,1,verify-code');
+Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:10,1,verify-resend');
+Route::post('/verify-email/email', [EmailVerificationController::class, 'changeEmail'])->middleware('throttle:5,1,verify-change');
 Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:20,1,auth-google');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:20,1,auth-google-callback');
 // Signed-in, still-active customers only ("customer" middleware: 401 JSON, account re-checked on every request).
@@ -83,6 +93,12 @@ Route::middleware('customer')->group(function () {
     // Checkout
     Route::post('/checkout/quote', [CheckoutController::class, 'quote']);
     Route::post('/checkout/place', [CheckoutController::class, 'place'])->middleware('throttle:20,1,checkout-place');
+
+    // Card payments (Stripe Checkout). The return pages only display state; the webhook confirms payment.
+    Route::get('/checkout/payment/success', [PaymentController::class, 'success'])->middleware('throttle:60,1,payment-return');
+    Route::get('/checkout/payment/cancel', [PaymentController::class, 'cancel'])->middleware('throttle:60,1,payment-return');
+    Route::post('/account/orders/{number}/pay', [PaymentController::class, 'pay'])->where('number', '[A-Za-z0-9\-]{1,40}')->middleware('throttle:10,1,order-pay');
+    Route::get('/account/orders/{number}/payment-status', [PaymentController::class, 'status'])->where('number', '[A-Za-z0-9\-]{1,40}')->middleware('throttle:60,1,payment-status');
 });
 
 // Requests & newsletter

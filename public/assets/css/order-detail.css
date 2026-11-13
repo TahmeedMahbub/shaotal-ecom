@@ -22,13 +22,15 @@
 .order-status-badge.cancelled { background: hsl(0, 60%, 95%); color: hsl(0, 60%, 35%); }
 
 /* Progress timeline */
-.order-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.order-track-step { position: relative; text-align: center; padding: 0 4px; }
-.order-track-step::before {
-  content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--color-grey-200); z-index: 0;
+.order-track { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+/* Nine stages: a vertical timeline at every width keeps the labels readable. */
+.order-track-step { position: relative; display: grid; grid-template-columns: 28px 1fr; column-gap: var(--space-sm); text-align: left; padding: 0 0 var(--space-md); }
+.order-track-step:last-child { padding-bottom: 0; }
+.order-track-step:not(:last-child)::before {
+  content: ""; position: absolute; top: 28px; bottom: 0; left: 13px; width: 2px; background: var(--color-grey-200); z-index: 0;
 }
-.order-track-step:first-child::before { display: none; }
-.order-track-step.is-done::before, .order-track-step.is-current::before { background: var(--color-brand); }
+/* The connector below a step is coloured once that step is done (the next stage has been reached). */
+.order-track-step.is-done:not(:last-child)::before { background: var(--color-brand); }
 .order-track-dot {
   position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: var(--radius-full); border: 2px solid var(--color-grey-300);
@@ -37,8 +39,10 @@
 .order-track-step.is-done .order-track-dot { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-white); }
 .order-track-step.is-current .order-track-dot { border-color: var(--color-brand); color: var(--color-brand); box-shadow: 0 0 0 4px var(--color-brand-light); }
 .order-track-step.is-skipped .order-track-dot { border-style: dashed; }
-.order-track-label { display: block; margin-top: 6px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); }
+.order-track-dot { grid-row: 1 / span 3; }
+.order-track-label { display: block; margin-top: 4px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-dark); }
 .order-track-step.is-upcoming .order-track-label, .order-track-step.is-skipped .order-track-label { color: var(--color-grey-400); font-weight: var(--fw-medium); }
+.order-track-desc { display: block; font-size: var(--fs-xs); color: var(--color-grey-600); margin-top: 2px; }
 .order-track-time { display: block; font-size: 0.7rem; color: var(--color-grey-500); margin-top: 2px; }
 .order-track-exception {
   margin-top: var(--space-md); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md);
@@ -73,13 +77,4 @@
 
 @media (max-width: 900px) {
   .order-detail-layout { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 600px) {
-  /* Vertical timeline on phones: five columns are too narrow for the labels. */
-  .order-track { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .order-track-step { display: grid; grid-template-columns: 28px 1fr; column-gap: var(--space-sm); text-align: left; padding: 0 0 var(--space-md); }
-  .order-track-step::before { top: -100%; left: 13px; width: 2px; height: 100%; }
-  .order-track-step:first-child::before { display: none; }
-  .order-track-dot { grid-row: span 2; }
-  .order-track-label { margin-top: 4px; }
 }

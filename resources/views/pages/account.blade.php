@@ -5,21 +5,7 @@
 @push('head')
 @endpush
 @section('content')
-<div class="announcement-bar" id="announcement-bar">
-    <div class="container announcement-bar-inner">
-      <span class="announcement-text">{{ \App\Support\Delivery::text('announcement') }}</span>
-    </div>
-  </div>
-
-  
-  
-
-  
-  
-  
-
-  
-  <section class="account-page-header">
+<section class="account-page-header">
     <div class="container">
       <div class="breadcrumb" style="margin-bottom: var(--space-xs);">
         <a href="/">Home</a>

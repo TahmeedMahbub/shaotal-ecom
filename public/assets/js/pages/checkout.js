@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const SVG_ICONS = {
     home: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>',
     office: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>',
+    gift: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>',
     other: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>',
     check: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>',
     edit: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>',
@@ -191,21 +192,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Payment selection (methods are rendered by the server) ── */
   const paymentCards = document.querySelectorAll('.payment-option-card');
+  const currentMethod = () => (document.querySelector('input[name="payment-method"]:checked') || {}).value || null;
   function selectPayment(card) {
     paymentCards.forEach(c => {
       c.classList.remove('selected');
       const radio = c.querySelector('input[type="radio"]');
       if (radio) radio.checked = false;
-      const sub = c.querySelector('.payment-subpanel');
-      if (sub) sub.style.display = 'none';
     });
     card.classList.add('selected');
     const radio = card.querySelector('input[type="radio"]');
     if (radio) radio.checked = true;
-    const sub = card.querySelector('.payment-subpanel');
-    if (sub) sub.style.display = 'block';
+    if (typeof renderTotals === 'function' && lastQuote) renderTotals(lastQuote);
   }
-  paymentCards.forEach(card => card.addEventListener('click', () => selectPayment(card)));
+  // The label already toggles its radio; this keeps the .selected styling in step (keyboard arrows fire 'change').
+  paymentCards.forEach(card => card.querySelector('input[type="radio"]').addEventListener('change', () => selectPayment(card)));
   if (paymentCards.length) selectPayment(paymentCards[0]);
 
   /* ── Cart & totals (prices always come from the server) ── */
@@ -217,10 +217,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return [];
   }
   const cartPayload = () => getCart().map(i => ({ productId: i.productId, color: i.color || null, size: i.size || null, quantity: i.quantity || 1 }));
+  // Gift wrapping chosen in the cart (null when off). Only the selection is sent; the server prices it.
+  const giftPayload = () => (typeof window.bongoGiftPayload === 'function' ? window.bongoGiftPayload() : null);
+  const quoteBody = extra => Object.assign({ items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null, gift: giftPayload() }, extra);
+
+  // The cart drawer is also available on this page: re-quote when the bag or the gift selection changes there.
+  let requoteTimer = null;
+  document.addEventListener('bongo:cart-changed', () => {
+    clearTimeout(requoteTimer);
+    requoteTimer = setTimeout(() => renderOrderSummary(), 400);
+  });
 
   async function renderOrderSummary() {
     const cart = getCart();
     if (cart.length === 0) {
+      document.getElementById('checkout-gift').style.display = 'none';
+      document.getElementById('gift-row').style.display = 'none';
       summaryItemsCount.textContent = '0 Items';
       summaryItemsList.innerHTML = '<p style="font-size: var(--fs-small); color: var(--color-grey-500);">Your cart is empty.</p>';
       summarySubtotal.textContent = money(0);
@@ -243,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`).join('');
     }
 
-    const res = await api('POST', '/checkout/quote', { items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null });
+    const res = await api('POST', '/checkout/quote', quoteBody());
     if (!res.ok) {
       toast(window.bongoApiMessage(res));
       return;
@@ -273,6 +285,44 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
     }).join('') + (q.errors || []).map(m => `<p style="font-size: var(--fs-small); color: var(--color-danger); margin-top: 0.5rem;">${esc(m)}</p>`).join('');
 
+    renderGift(q);
+    renderTotals(q);
+    placeOrderBtn.disabled = q.lines.length === 0 || (q.errors || []).length > 0 || paymentCards.length === 0;
+  }
+
+  // Gift wrapping summary (selection and fee both come from the server quote): items, message and the fee row.
+  function renderGift(q) {
+    const box = document.getElementById('checkout-gift');
+    const row = document.getElementById('gift-row');
+    const gift = q.gift;
+    if (!gift) {
+      box.style.display = 'none';
+      row.style.display = 'none';
+      return;
+    }
+    const variant = i => [i.size, i.color].filter(Boolean).join(' / ');
+    box.innerHTML = `
+      <div class="checkout-gift-head">
+        <span>${SVG_ICONS.gift} Gift wrapping</span>
+        <button type="button" class="checkout-gift-edit" id="checkout-gift-edit">Edit in cart</button>
+      </div>
+      <ul>${gift.items.map(i => `<li>${i.quantity} &times; ${esc(i.name)}${variant(i) ? ` (${esc(variant(i))})` : ''}</li>`).join('')}</ul>
+      ${gift.message ? `<p class="checkout-gift-message">&ldquo;${esc(gift.message)}&rdquo;</p>` : ''}`;
+    box.style.display = 'block';
+    row.style.display = 'flex';
+    document.getElementById('gift-row-label').textContent = `Gift wrapping (${gift.quantity} item${gift.quantity === 1 ? '' : 's'})`;
+    document.getElementById('summary-gift').textContent = money(q.giftFee);
+    const edit = document.getElementById('checkout-gift-edit');
+    if (edit) edit.addEventListener('click', () => { if (typeof openCart === 'function') openCart(); });
+  }
+
+  // Totals for the selected method. All figures come from the server quote (q.online is the pre-booking breakdown
+  // computed by OnlinePaymentPlan); nothing is calculated or hard-coded here.
+  const pctText = n => String(Number(n));
+  function renderTotals(q) {
+    const online = currentMethod() === 'card' && q.online;
+    const onlineDiscountRow = document.getElementById('online-discount-row');
+    const breakdown = document.getElementById('online-breakdown');
     summarySubtotal.textContent = money(q.subtotal);
     summaryShipping.textContent = q.shipping === 0 ? 'FREE' : money(q.shipping);
     if (q.discount > 0) {
@@ -281,9 +331,25 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       discountRow.style.display = 'none';
     }
-    summaryTotal.textContent = `${money(q.total)} AUD`;
-    placeOrderBtn.textContent = `Place Order • ${money(q.total)} AUD`;
-    placeOrderBtn.disabled = q.lines.length === 0 || (q.errors || []).length > 0 || paymentCards.length === 0;
+    if (online) {
+      onlineDiscountRow.style.display = 'flex';
+      document.getElementById('online-discount-label').textContent = `Online payment discount (${pctText(q.online.discountPercent)}%)`;
+      document.getElementById('summary-online-discount').textContent = `-${money(q.online.discount)}`;
+      document.getElementById('summary-total-label').textContent = 'Final order total';
+      summaryTotal.textContent = `${money(q.online.total)} AUD`;
+      breakdown.style.display = 'block';
+      document.getElementById('pay-now-label').textContent = `Pay now (${pctText(q.online.depositPercent)}%)`;
+      document.getElementById('summary-pay-now').textContent = money(q.online.deposit);
+      document.getElementById('balance-label').textContent = `Remaining balance (${pctText(q.online.balancePercent)}%)`;
+      document.getElementById('summary-balance').textContent = money(q.online.balance);
+      placeOrderBtn.textContent = `Pay ${money(q.online.deposit)} deposit & pre-book`;
+    } else {
+      onlineDiscountRow.style.display = 'none';
+      breakdown.style.display = 'none';
+      document.getElementById('summary-total-label').textContent = 'Total';
+      summaryTotal.textContent = `${money(q.total)} AUD`;
+      placeOrderBtn.textContent = `Place Order • ${money(q.total)} AUD`;
+    }
   }
 
   /* ── Coupon ── */
@@ -304,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (appliedCoupon && appliedCoupon.code.toUpperCase() === code) return toast('Coupon is already applied');
 
-    const res = await api('POST', '/checkout/quote', { items: cartPayload(), coupon: code });
+    const res = await api('POST', '/checkout/quote', quoteBody({ coupon: code }));
     if (!res.ok) return toast(window.bongoApiMessage(res));
     if (res.data.couponError) {
       couponErrorMsg.textContent = res.data.couponError;
@@ -330,6 +396,13 @@ document.addEventListener('DOMContentLoaded', () => {
     toast('Coupon removed');
   });
 
+  /* ── Optional order note (typed in the cart, editable here) ── */
+  const noteInput = document.getElementById('checkout-order-note');
+  if (noteInput) {
+    noteInput.value = typeof window.bongoGetOrderNote === 'function' ? window.bongoGetOrderNote() : '';
+    noteInput.addEventListener('input', () => { if (typeof window.bongoSetOrderNote === 'function') window.bongoSetOrderNote(noteInput.value); });
+  }
+
   /* ── Place order ── */
   placeOrderBtn.addEventListener('click', async () => {
     if (getCart().length === 0) return toast('Your cart is empty');
@@ -343,7 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
     placeOrderBtn.disabled = true;
     placeOrderBtn.innerHTML = '<svg class="icon-svg" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity: 0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity: 0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Processing Order...';
 
-    const body = { items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null, paymentMethod: method };
+    const body = quoteBody({ paymentMethod: method });
+    const note = ((noteInput && noteInput.value) || '').trim();
+    if (note) body.note = note;
     if (user) body.addressId = selected.id; else body.address = selected;
     const res = await api('POST', '/checkout/place', body);
 
@@ -355,7 +430,26 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    try { localStorage.setItem('bongo_cart', JSON.stringify([])); } catch (e) { /* storage unavailable */ }
+    // The note now belongs to the saved order, so it must not leak onto the next one.
+    if (typeof window.bongoSetOrderNote === 'function') window.bongoSetOrderNote('');
+
+    // Card (Stripe Checkout): the order is saved unpaid and the bag is kept (NOT cleared here) until Stripe's verified
+    // webhook confirms the deposit; the payment-result page then clears it. A declined or cancelled payment keeps the bag.
+    if (method === 'card') {
+      if (res.data.redirectUrl) {
+        placeOrderBtn.innerHTML = 'Redirecting to secure payment...';
+        window.location.href = res.data.redirectUrl;
+        return;
+      }
+      // Payment page could not be opened: the order exists, pay from its page (never place it twice).
+      toast(res.data.paymentError || 'Your order is saved. Please complete the payment from your order page.');
+      setTimeout(() => { window.location.href = res.data.orderUrl || '/account#orders'; }, 1500);
+      return;
+    }
+
+    // COD: the order exists, so the bag is now spent (in-memory, localStorage and the saved server bag).
+    if (typeof window.bongoClearCart === 'function') window.bongoClearCart();
+    else { try { localStorage.setItem('bongo_cart', JSON.stringify([])); } catch (e) { /* storage unavailable */ } }
     document.getElementById('success-order-ref').textContent = `#${res.data.orderNumber}`;
     document.getElementById('success-address-summary').textContent = res.data.address;
     document.getElementById('success-paid-amount').textContent = `${money(res.data.total)} AUD`;

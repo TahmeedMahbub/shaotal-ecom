@@ -103,8 +103,85 @@
     return out;
   }
 
+  /* Optional order note typed in the cart; carried to checkout via localStorage and sent with the order. */
+  function getOrderNote() {
+    try { return localStorage.getItem('bongo_order_note') || ''; } catch (e) { return ''; }
+  }
+  function setOrderNote(v) {
+    try {
+      if (v && v.trim()) localStorage.setItem('bongo_order_note', v.slice(0, 1000));
+      else localStorage.removeItem('bongo_order_note');
+    } catch (e) { /* storage unavailable */ }
+  }
+  window.bongoGetOrderNote = getOrderNote;
+  window.bongoSetOrderNote = setOrderNote;
+
+  /* Optional gift wrapping chosen in the cart; kept in localStorage (like the order note), so it survives moving between
+     cart and checkout, and sent with the order. Shape: { enabled, message, items: { "productId|color|size": qtyToWrap } }.
+     The fee shown here is only a preview of the server rule (SITE.giftWrap); the server validates and prices it again. */
+  const GIFT_KEY = 'bongo_gift';
+  const GIFT_MESSAGE_MAX = 300;
+  function readGift() {
+    try {
+      const g = JSON.parse(localStorage.getItem(GIFT_KEY));
+      if (g && typeof g === 'object') return { enabled: !!g.enabled, message: String(g.message || ''), items: (g.items && typeof g.items === 'object') ? g.items : {} };
+    } catch (e) { /* ignore */ }
+    return { enabled: false, message: '', items: {} };
+  }
+  function writeGift(g) {
+    try {
+      // A typed message is kept while gift is switched off, so toggling does not lose it; only an enabled gift is ever sent.
+      if (g && (g.enabled || (g.message && g.message.trim()))) localStorage.setItem(GIFT_KEY, JSON.stringify(g));
+      else localStorage.removeItem(GIFT_KEY);
+    } catch (e) { /* storage unavailable */ }
+  }
+  function giftLineKey(item) { return `${item.productId || item.id}|${item.color || ''}|${item.size || ''}`; }
+  function giftFee(qty) {
+    if (qty <= 0) return 0;
+    const r = (window.SITE && window.SITE.giftWrap) || { baseFee: 1.99, baseItems: 2, extraFee: 1 };
+    return (Math.round(r.baseFee * 100) + Math.max(0, qty - r.baseItems) * Math.round(r.extraFee * 100)) / 100;
+  }
+  // Selection for the current cart: quantities clamped to what the cart holds, lines no longer in the cart dropped.
+  function giftSelection() {
+    const g = readGift();
+    const items = [];
+    let quantity = 0;
+    if (g.enabled) {
+      state.cart.forEach(i => {
+        const q = Math.min(i.quantity || 1, Math.max(0, parseInt(g.items[giftLineKey(i)], 10) || 0));
+        if (q > 0) { items.push({ productId: i.productId || i.id, color: i.color || null, size: i.size || null, quantity: q, name: i.name, image: i.image }); quantity += q; }
+      });
+    }
+    return { enabled: g.enabled, message: g.message, items, quantity, fee: giftFee(quantity) };
+  }
+  // Called whenever the cart changes: writes the clamped selection back (a removed item or lower quantity can never
+  // leave a stale wrapped quantity that would reappear), and switches gift off when the cart is empty.
+  function pruneGift() {
+    const g = readGift();
+    if (!g.enabled) return;
+    if (!state.cart.length) { window.bongoClearGift(); return; }
+    const kept = {};
+    state.cart.forEach(i => {
+      const q = Math.min(i.quantity || 1, Math.max(0, parseInt(g.items[giftLineKey(i)], 10) || 0));
+      if (q > 0) kept[giftLineKey(i)] = q;
+    });
+    writeGift({ enabled: true, message: g.message, items: kept });
+  }
+  window.bongoGiftSelection = giftSelection;
+  window.bongoGiftPayload = function () {
+    const s = giftSelection();
+    if (!s.enabled || !s.items.length) return null;
+    return { enabled: true, message: s.message.trim(), items: s.items.map(({ productId, color, size, quantity }) => ({ productId, color, size, quantity })) };
+  };
+  window.bongoClearGift = () => { try { localStorage.removeItem(GIFT_KEY); } catch (e) { /* storage unavailable */ } };
+
+  // Lets the checkout page (which shares this drawer) re-quote after the bag or the gift selection changes.
+  const notifyCartChange = () => document.dispatchEvent(new CustomEvent('bongo:cart-changed'));
+
   function saveCart() {
     try { localStorage.setItem('bongo_cart', JSON.stringify(state.cart)); } catch (e) { /* storage unavailable */ }
+    pruneGift();
+    notifyCartChange();
     if (state.currentUser) {
       syncToServer('cart', '/account/cart', { items: state.cart.map(i => ({ productId: i.productId, color: i.color || null, size: i.size || null, quantity: i.quantity || 1 })) });
     }
@@ -157,6 +234,7 @@
     home: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>`,
     grid: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>`,
     check: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>`,
+    gift: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>`,
     facebook: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
     instagram: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>`,
     tiktok: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`,
@@ -981,16 +1059,26 @@
     return { cart: state.cart.map(i => ({ productId: i.productId, color: i.color || null, size: i.size || null, quantity: i.quantity || 1 })), wishlist: wishlistIds() };
   }
 
+  // An unverified email is never signed in: the server keeps the guest bag + intended destination and the shopper
+  // continues on /verify-email (the destination is validated server-side and used after the code is confirmed).
+  function verificationRedirect(data) {
+    return data && data.verificationRequired ? (safeReturnPath(data.redirect) || '/verify-email') : null;
+  }
+
   async function loginUser(email, password) {
-    const res = await api('POST', '/auth/login', Object.assign({ email: (email || '').trim(), password }, guestPayload()));
+    const res = await api('POST', '/auth/login', Object.assign({ email: (email || '').trim(), password, return: authReturn }, guestPayload()));
     if (!res.ok) return { success: false, message: apiMessage(res) };
+    const pending = verificationRedirect(res.data);
+    if (pending) return { success: true, pending };
     applySession(res.data);
     return { success: true, user: res.data.user };
   }
 
   async function registerUser(name, email, password) {
-    const res = await api('POST', '/auth/register', Object.assign({ name: (name || '').trim(), email: (email || '').trim(), password }, guestPayload()));
+    const res = await api('POST', '/auth/register', Object.assign({ name: (name || '').trim(), email: (email || '').trim(), password, return: authReturn }, guestPayload()));
     if (!res.ok) return { success: false, message: apiMessage(res) };
+    const pending = verificationRedirect(res.data);
+    if (pending) return { success: true, pending };
     applySession(res.data);
     return { success: true, user: res.data.user };
   }
@@ -1005,17 +1093,10 @@
       localStorage.removeItem('bongo_cart');
       localStorage.removeItem('bongo_wishlist');
     } catch (e) { /* storage unavailable */ }
-    renderNavbarIcons();
-    showToast('Logged out successfully');
-    if (window.location.pathname.startsWith('/account')) {
-      window.location.href = '/';
-    } else {
-      updateCartCount();
-      updateWishlistCount();
-      updateAllWishlistIcons();
-      renderWishlistDrawer();
-      renderCartDrawer();
-    }
+    try { localStorage.removeItem('bongo_order_note'); } catch (e) { /* storage unavailable */ }
+    window.bongoClearGift();
+    // Always land on the storefront homepage (never back on checkout, account or a login prompt), from any page.
+    window.location.href = '/';
   }
 
   async function requestPasswordReset(email) {
@@ -1055,18 +1136,18 @@
               <div class="user-dropdown-name">${escHtml(curr.name)}</div>
               <div class="user-dropdown-email">${escHtml(curr.email)}</div>
             </div>
-            <a href="/account" class="user-dropdown-item">👤 My Profile & Account</a>
-            <a href="/account#orders" class="user-dropdown-item">📦 My Orders</a>
-            <a href="/account#requests" class="user-dropdown-item">📋 Sourcing Requests</a>
+            <a href="/account" class="user-dropdown-item">My Profile & Account</a>
+            <a href="/account#orders" class="user-dropdown-item">My Orders</a>
+            <a href="/account#requests" class="user-dropdown-item">Sourcing Requests</a>
             <div class="user-dropdown-divider"></div>
-            <button class="user-dropdown-item" id="nav-dropdown-logout" style="color: var(--color-danger)">🚪 Log out</button>
+            <button class="user-dropdown-item" id="nav-dropdown-logout" style="color: var(--color-danger)">Log out</button>
           ` : `
             <div class="user-dropdown-header">
               <div class="user-dropdown-name">G'day, Guest</div>
               <div class="user-dropdown-email">Sign in for orders & wishlist</div>
             </div>
-            <button class="user-dropdown-item" id="nav-dropdown-login">🔑 Log In</button>
-            <button class="user-dropdown-item" id="nav-dropdown-register">✨ Create Account</button>
+            <button class="user-dropdown-item" id="nav-dropdown-login">Log In</button>
+            <button class="user-dropdown-item" id="nav-dropdown-register">Create Account</button>
           `}
         </div>
       </div>
@@ -1254,7 +1335,7 @@
               <label class="auth-label" for="login-password">Password</label>
               <a href="#" class="auth-link" id="auth-forgot-link">Forgot Password?</a>
             </div>
-            <input type="password" id="login-password" class="auth-input" placeholder="••••••••" required>
+            <div class="auth-password-wrap"><input type="password" id="login-password" class="auth-input" placeholder="••••••••" required><button type="button" class="auth-password-toggle" data-toggle-password="login-password" aria-controls="login-password" aria-label="Show password" aria-pressed="false"></button></div>
           </div>
           <button type="submit" class="btn btn-primary auth-submit-btn" id="login-submit-btn">Sign In</button>
         </form>
@@ -1282,13 +1363,13 @@
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-password">Password</label>
-            <input type="password" id="reg-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required>
+            <div class="auth-password-wrap"><input type="password" id="reg-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required><button type="button" class="auth-password-toggle" data-toggle-password="reg-password" aria-controls="reg-password" aria-label="Show password" aria-pressed="false"></button></div>
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reg-confirm">Confirm Password</label>
-            <input type="password" id="reg-confirm" class="auth-input" placeholder="Re-enter password" required>
+            <div class="auth-password-wrap"><input type="password" id="reg-confirm" class="auth-input" placeholder="Re-enter password" required><button type="button" class="auth-password-toggle" data-toggle-password="reg-confirm" aria-controls="reg-confirm" aria-label="Show password" aria-pressed="false"></button></div>
           </div>
-          <button type="submit" class="btn btn-primary auth-submit-btn">Create Account</button>
+          <button type="submit" class="btn btn-primary auth-submit-btn" id="register-submit-btn">Create Account</button>
         </form>
         ${googleButton}
       `;
@@ -1324,11 +1405,13 @@
           </div>
           <div class="auth-form-group">
             <label class="auth-label" for="reset-password">New Password</label>
-            <input type="password" id="reset-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required>
+            <div class="auth-password-wrap"><input type="password" id="reset-password" class="auth-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required><button type="button" class="auth-password-toggle" data-toggle-password="reset-password" aria-controls="reset-password" aria-label="Show password" aria-pressed="false"></button></div>
           </div>
           <button type="submit" class="btn btn-primary auth-submit-btn">Update Password</button>
         </form>
         <div style="text-align:center; margin-top:var(--space-md)">
+          <a href="#" class="auth-link" id="auth-reset-resend">Resend code</a>
+          <span aria-hidden="true"> · </span>
           <a href="#" class="auth-link" id="auth-back-login">← Back to Sign In</a>
         </div>
       `;
@@ -1349,10 +1432,37 @@
       if (dest) { window.location.href = dest; return; }
       if (window.location.pathname === '/account' || window.location.pathname === '/checkout') window.location.reload();
     };
-    const busy = (form, isBusy) => {
+    // The one loading state: submit button disabled (no double submit) + spinner + progress label, restored afterwards.
+    const busy = (form, isBusy, label) => {
       const btn = form.querySelector('button[type="submit"]');
-      if (btn) btn.disabled = isBusy;
+      if (isBusy) form.querySelectorAll('[data-toggle-password][aria-pressed="true"]').forEach(t => t.click());
+      if (!btn) return;
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent.trim();
+      btn.disabled = isBusy;
+      btn.classList.toggle('is-loading', isBusy);
+      btn.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+      btn.textContent = isBusy && label ? label : btn.dataset.label;
     };
+    // Account created / sign-in needs verification: straight to the code page. The button stays disabled (no second
+    // submit) until the browser leaves; the email is delivered in the background.
+    const toVerification = (path) => window.location.assign(path);
+
+    // Show/hide password (eye / eye-off). Only the input type changes: value, validation and autofill are untouched.
+    const EYE = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+    const EYE_OFF = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>';
+    body.querySelectorAll('[data-toggle-password]').forEach(btn => {
+      const input = body.querySelector('#' + btn.dataset.togglePassword);
+      if (!input) return;
+      btn.innerHTML = EYE;
+      btn.addEventListener('click', () => {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.innerHTML = show ? EYE_OFF : EYE;
+        btn.setAttribute('aria-pressed', String(show));
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        input.focus({ preventScroll: true });
+      });
+    });
 
     body.querySelectorAll('.auth-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1379,6 +1489,21 @@
       });
     }
 
+    const resetResend = body.querySelector('#auth-reset-resend');
+    if (resetResend) {
+      resetResend.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (resetResend.dataset.busy) return;
+        resetResend.dataset.busy = '1';
+        clearError();
+        const res = await requestPasswordReset(resetEmail);
+        delete resetResend.dataset.busy;
+        if (!res.success) return showError(res.message);
+        const ok = body.querySelector('#auth-success-alert');
+        if (ok) { ok.textContent = res.message; ok.style.display = 'block'; }
+      });
+    }
+
     const backLoginLink = body.querySelector('#auth-back-login');
     if (backLoginLink) {
       backLoginLink.addEventListener('click', (e) => {
@@ -1393,8 +1518,9 @@
       loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         clearError();
-        busy(loginForm, true);
+        busy(loginForm, true, 'Signing in…');
         const res = await loginUser(body.querySelector('#login-email').value, body.querySelector('#login-password').value);
+        if (res.success && res.pending) return toVerification(res.pending);
         busy(loginForm, false);
         if (!res.success) return showError(res.message);
         afterAuth(`Welcome back, ${escHtml(res.user.name)}!`);
@@ -1409,8 +1535,9 @@
         const password = body.querySelector('#reg-password').value;
         if (password.length < PASSWORD_MIN) return showError(`Password must be at least ${PASSWORD_MIN} characters.`);
         if (password !== body.querySelector('#reg-confirm').value) return showError('Passwords do not match.');
-        busy(registerForm, true);
+        busy(registerForm, true, 'Creating your account…');
         const res = await registerUser(body.querySelector('#reg-name').value, body.querySelector('#reg-email').value, password);
+        if (res.success && res.pending) return toVerification(res.pending);
         busy(registerForm, false);
         if (!res.success) return showError(res.message);
         afterAuth(`Account created! Welcome, ${escHtml(res.user.name)}`);
@@ -1423,7 +1550,7 @@
         e.preventDefault();
         clearError();
         const email = body.querySelector('#forgot-email').value;
-        busy(forgotForm, true);
+        busy(forgotForm, true, 'Sending code…');
         const res = await requestPasswordReset(email);
         busy(forgotForm, false);
         if (!res.success) return showError(res.message);
@@ -1440,7 +1567,7 @@
         e.preventDefault();
         clearError();
         if (body.querySelector('#reset-password').value.length < PASSWORD_MIN) return showError(`Password must be at least ${PASSWORD_MIN} characters.`);
-        busy(resetForm, true);
+        busy(resetForm, true, 'Updating password…');
         const res = await resetPassword(resetEmail, body.querySelector('#reset-code').value, body.querySelector('#reset-password').value);
         busy(resetForm, false);
         if (!res.success) return showError(res.message);
@@ -1604,7 +1731,7 @@
       showToast('Removed from wishlist');
     } else {
       state.wishlist.push(targetId);
-      showToast('Saved to wishlist ♡');
+      showToast('Saved to wishlist');
     }
     saveWishlist();
     updateWishlistCount();
@@ -2130,6 +2257,113 @@
     });
   }
 
+  /* Gift wrapping block of the cart drawer: toggle, which items (and how many of each) to wrap, gift message, live fee. */
+  function renderGiftBox() {
+    const g = readGift();
+    const sel = giftSelection();
+    const r = (window.SITE && window.SITE.giftWrap) || { baseFee: 1.99, baseItems: 2, extraFee: 1 };
+    const cur = SITE.currency;
+    const lineQty = {};
+    sel.items.forEach(i => { lineQty[giftLineKey(i)] = i.quantity; });
+
+    const rows = !g.enabled ? '' : state.cart.map((item, i) => {
+      const key = giftLineKey(item);
+      const max = item.quantity || 1;
+      const q = lineQty[key] || 0;
+      const colorName = item.color ? getColorName(item.color) : null;
+      const variant = [item.size, colorName].filter(Boolean).join(' / ');
+      return `
+        <li class="gift-item ${q > 0 ? 'is-selected' : ''}">
+          <label class="gift-item-check">
+            <input type="checkbox" class="gift-pick" data-index="${i}" ${q > 0 ? 'checked' : ''}>
+            <img src="${imgUrl(item.image, 80)}" alt="" width="36" height="36" loading="lazy" decoding="async">
+            <span class="gift-item-text">
+              <span class="gift-item-name">${escHtml(item.name)}</span>
+              ${variant ? `<span class="gift-item-variant">${escHtml(variant)}</span>` : ''}
+            </span>
+          </label>
+          ${q > 0 && max > 1 ? `
+            <div class="cart-quantity-selector" role="group" aria-label="Quantity to gift wrap for ${escHtml(item.name)}">
+              <button type="button" class="cart-qty-btn gift-step" data-index="${i}" data-step="-1" aria-label="Wrap one fewer">&minus;</button>
+              <span class="cart-qty-value">${q}</span>
+              <button type="button" class="cart-qty-btn gift-step" data-index="${i}" data-step="1" aria-label="Wrap one more" ${q >= max ? 'disabled' : ''}>+</button>
+            </div>
+            <span class="gift-item-of">of ${max}</span>` : ''}
+        </li>`;
+    }).join('');
+
+    const panel = !g.enabled ? '' : `
+      <div class="gift-panel">
+        <p class="gift-help">${cur}${r.baseFee.toFixed(2)} covers up to ${r.baseItems} items, then ${cur}${r.extraFee.toFixed(2)} for each extra item you wrap.</p>
+        <div>
+          <span class="gift-label">Items to gift wrap</span>
+          <ul class="gift-items">${rows}</ul>
+        </div>
+        ${sel.quantity === 0 ? '<p class="gift-warning" role="alert">Select at least one item to wrap, or switch gift wrapping off.</p>' : ''}
+        <div>
+          <label class="gift-label" for="gift-message">Gift message <span>(optional)</span></label>
+          <textarea class="gift-message-input" id="gift-message" rows="2" maxlength="${GIFT_MESSAGE_MAX}" placeholder="Write a short note to include with the gift">${escHtml(g.message)}</textarea>
+          <span class="gift-message-count" id="gift-message-count">${g.message.length}/${GIFT_MESSAGE_MAX}</span>
+        </div>
+        <div class="gift-fee-line">
+          <span>Gift wrapping <small>(${sel.quantity} item${sel.quantity === 1 ? '' : 's'})</small></span>
+          <span id="gift-fee-amount">${cur}${sel.fee.toFixed(2)}</span>
+        </div>
+      </div>`;
+
+    return `
+      <div class="gift-box ${g.enabled ? 'is-on' : ''}" id="gift-box">
+        <label class="gift-toggle">
+          <input type="checkbox" id="gift-toggle" ${g.enabled ? 'checked' : ''}>
+          <span class="gift-toggle-icon" aria-hidden="true">${ICONS.gift}</span>
+          <span class="gift-toggle-text"><strong>Send as a gift</strong><small>Gift wrapping from ${cur}${r.baseFee.toFixed(2)}</small></span>
+          <span class="gift-switch" aria-hidden="true"></span>
+        </label>
+        ${panel}
+      </div>`;
+  }
+
+  function bindGiftBox(root) {
+    const box = root.querySelector('#gift-box');
+    if (!box) return;
+    const update = fn => { const g = readGift(); fn(g); writeGift(g); notifyCartChange(); renderCartDrawer(); };
+
+    box.querySelector('#gift-toggle').addEventListener('change', e => update(g => {
+      g.enabled = e.target.checked;
+      // Switching on wraps everything by default (the customer then unticks what they do not want wrapped).
+      if (g.enabled) { g.items = {}; state.cart.forEach(i => { g.items[giftLineKey(i)] = i.quantity || 1; }); }
+    }));
+
+    box.querySelectorAll('.gift-pick').forEach(cb => cb.addEventListener('change', () => update(g => {
+      const item = state.cart[parseInt(cb.dataset.index, 10)];
+      if (!item) return;
+      if (cb.checked) g.items[giftLineKey(item)] = item.quantity || 1;
+      else delete g.items[giftLineKey(item)];
+    })));
+
+    box.querySelectorAll('.gift-step').forEach(btn => btn.addEventListener('click', () => update(g => {
+      const item = state.cart[parseInt(btn.dataset.index, 10)];
+      if (!item) return;
+      const key = giftLineKey(item);
+      const next = (parseInt(g.items[key], 10) || 0) + parseInt(btn.dataset.step, 10);
+      if (next <= 0) delete g.items[key];
+      else g.items[key] = Math.min(next, item.quantity || 1);
+    })));
+
+    const msg = box.querySelector('#gift-message');
+    if (msg) {
+      // No re-render while typing (it would drop the caret); the message is stored as it is typed.
+      msg.addEventListener('input', () => {
+        const g = readGift();
+        g.message = msg.value.slice(0, GIFT_MESSAGE_MAX);
+        writeGift(g);
+        notifyCartChange();
+        const count = box.querySelector('#gift-message-count');
+        if (count) count.textContent = `${g.message.length}/${GIFT_MESSAGE_MAX}`;
+      });
+    }
+  }
+
   function renderCartDrawer() {
     const body = document.getElementById('cart-drawer-body');
     const footer = document.getElementById('cart-drawer-footer');
@@ -2223,11 +2457,12 @@
           </div>
         </div>
       `;
-    }).join('');
+    }).join('') + renderGiftBox();
 
     const totalDiscount = originalSubtotal > currentSubtotal ? originalSubtotal - currentSubtotal : 0;
     const finalSubtotal = originalSubtotal > currentSubtotal ? originalSubtotal : currentSubtotal;
-    const total = currentSubtotal;
+    const giftNow = giftSelection();
+    const total = currentSubtotal + giftNow.fee;
 
     if (footer) {
       footer.innerHTML = `
@@ -2242,6 +2477,12 @@
               <span class="discount-amount">-${SITE.currency}${totalDiscount.toFixed(2)}</span>
             </div>
           ` : ''}
+          ${giftNow.fee > 0 ? `
+            <div class="cart-summary-row">
+              <span>Gift wrapping (${giftNow.quantity} item${giftNow.quantity === 1 ? '' : 's'})</span>
+              <span>${SITE.currency}${giftNow.fee.toFixed(2)}</span>
+            </div>
+          ` : ''}
           <div class="cart-summary-row shipping-row">
             <span>Shipping</span>
             <span class="shipping-text">Calculated at checkout</span>
@@ -2252,12 +2493,18 @@
             <span class="total-amount">${SITE.currency}${total.toFixed(2)}</span>
           </div>
         </div>
+        <div class="order-note">
+          <label class="order-note-label" for="cart-order-note">Order note <span>(optional)</span></label>
+          <textarea class="order-note-input" id="cart-order-note" rows="2" maxlength="1000" placeholder="Special instructions, e.g. delivery notes">${getOrderNote().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+        </div>
         <button class="btn btn-primary btn-lg cart-checkout-btn" id="checkout-btn">Proceed to Checkout</button>
         <button class="cart-continue-shopping" id="cart-drawer-continue">Continue Shopping</button>
       `;
     }
 
-    body.querySelectorAll('.cart-qty-btn').forEach(btn => {
+    bindGiftBox(body);
+
+    body.querySelectorAll('.cart-item .cart-qty-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index, 10);
         const action = btn.dataset.action;
@@ -2277,9 +2524,14 @@
       });
     });
 
+    const noteInput = document.getElementById('cart-order-note');
+    if (noteInput) noteInput.addEventListener('input', () => setOrderNote(noteInput.value));
+
     const checkoutBtn = document.getElementById('checkout-btn');
     if (checkoutBtn) {
       checkoutBtn.addEventListener('click', () => {
+        const gs = giftSelection();
+        if (gs.enabled && gs.quantity === 0) { showToast('Select at least one item to gift wrap, or switch gift wrapping off.'); return; }
         if (!requireLogin('/checkout')) { closeCart(); return; }
         window.location.href = '/checkout';
       });
@@ -3033,6 +3285,15 @@
   window.toggleCart = toggleCart;
   window.renderCartDrawer = renderCartDrawer;
   window.updateCartCount = updateCartCount;
+  // Called only after an order is successfully created (COD): empties the in-memory bag, localStorage and, when signed in,
+  // the saved server bag, so a later cart action on the same page cannot write the old items back.
+  window.bongoClearCart = function () {
+    window.bongoClearGift();   // the gift selection belongs to the spent bag
+    state.cart = [];
+    saveCart();
+    updateCartCount();
+    renderCartDrawer();
+  };
   window.openVariantModal = openVariantModal;
   window.showToast = showToast;
 

@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\PasswordResetCodeIssued;
 use App\Models\Storefront;
+use App\Support\AuthMail;
 use App\Support\CustomerSession;
+use App\Support\EmailVerification;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rules\Password;
 
@@ -55,21 +60,93 @@ class AuthController extends Controller
             'wishlist' => ['nullable', 'array', 'max:200'],
         ]);
         $email = strtolower(trim($data['email']));
-        if (DB::table('customers')->where('email', $email)->exists()) {
+        $existing = DB::table('customers')->where('email', $email)->value('id');
+        if ($existing) {
+            // Logged with the id only (no address): makes "already exists" traceable to the row and database.
+            Log::info('Registration rejected: email already registered', ['customer_id' => (int) $existing, 'database' => DB::connection()->getDatabaseName(), 'check' => 'pre-insert']);
+
             return response()->json(['message' => 'An account with this email already exists.'], 422);
         }
 
         $parts = preg_split('/\s+/', trim($data['name']), 2);
         $hash = Hash::make($data['password']);
-        $id = DB::table('customers')->insertGetId([
-            'first_name' => mb_substr($parts[0], 0, 100),
-            'last_name' => isset($parts[1]) ? mb_substr($parts[1], 0, 100) : null,
-            'email' => $email,
-            'password_hash' => $hash,
-            'status' => 'active',
+        try {
+            $id = DB::table('customers')->insertGetId([
+                'first_name' => mb_substr($parts[0], 0, 100),
+                'last_name' => isset($parts[1]) ? mb_substr($parts[1], 0, 100) : null,
+                'email' => $email,
+                'password_hash' => $hash,
+                'status' => 'active',
+            ]);
+        } catch (QueryException $e) {
+            return $this->registrationInsertFailed($e);
+        }
+
+        $this->log($id, 'register', $request);
+
+        return $this->pendingVerification($request, $id, $email, mb_substr($parts[0], 0, 100), $data);
+    }
+
+    /**
+     * The customers insert failed. Only a violation of the unique key on `email` (two submissions racing past the
+     * pre-insert check: double click, two tabs) is "already exists"; any other key or database error is logged with
+     * SQLSTATE, driver error code and constraint name (never the SQL values: they hold the email and password hash)
+     * and answered as a server error.
+     */
+    private function registrationInsertFailed(QueryException $e): JsonResponse
+    {
+        $key = $e instanceof UniqueConstraintViolationException ? self::violatedKey($e) : null;
+        $context = [
+            'sqlstate' => $e->errorInfo[0] ?? null,
+            'driver_code' => $e->errorInfo[1] ?? null,
+            'constraint' => $key,
+            'database' => DB::connection()->getDatabaseName(),
+            'exception' => $e::class,
+        ];
+        if ($key === 'email') {
+            Log::info('Registration rejected: email already registered', $context + ['check' => 'unique-key']);
+
+            return response()->json(['message' => 'An account with this email already exists.'], 422);
+        }
+        Log::error('Registration insert failed', $context);
+
+        return response()->json(['message' => 'We could not create your account right now. Please try again shortly.'], 500);
+    }
+
+    /**
+     * Name of the violated unique key, from the driver message (MariaDB "for key 'email'", MySQL 8
+     * "for key 'customers.email'", SQLite "UNIQUE constraint failed: customers.email"). Only the key name is kept.
+     */
+    public static function violatedKey(QueryException $e): ?string
+    {
+        $message = (string) ($e->errorInfo[2] ?? $e->getPrevious()?->getMessage() ?? '');
+        if (preg_match("/for key '(?:[^'.]+\\.)?([^'.]+)'/", $message, $m) || preg_match('/UNIQUE constraint failed: (?:\w+\.)?(\w+)/', $message, $m)) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Unverified email: nobody is signed in yet. The session only remembers who is verifying (plus where they were
+     * going and their guest bag), a code is emailed, and the client is sent to /verify-email.
+     */
+    private function pendingVerification(Request $request, int $customerId, string $email, string $firstName, array $data): JsonResponse
+    {
+        EmailVerification::begin($request, $customerId, $request->input('return'), $data);
+        // The email is queued / sent after this response (no SMTP wait). Signing in again within a minute keeps the code
+        // already sent instead of failing on the resend cooldown.
+        $status = EmailVerification::send($customerId, $email, $firstName, $request)['status'];
+
+        $response = response()->json([
+            'verificationRequired' => true,
+            'verificationSent' => in_array($status, ['queued', 'cooldown'], true),
+            'redirect' => '/verify-email',
         ]);
 
-        return $this->startSession($request, $id, $hash, 'register', $data);
+        // Explicit length: the browser can finish reading the answer while PHP is still sending the email, even on
+        // servers without fastcgi_finish_request (php artisan serve, Apache mod_php).
+        return $response->header('Content-Length', (string) strlen((string) $response->getContent()));
     }
 
     public function login(Request $request): JsonResponse
@@ -99,7 +176,7 @@ class AuthController extends Controller
             }
         }
 
-        $customer = DB::table('customers')->where('email', $email)->first(['id', 'password_hash', 'status']);
+        $customer = DB::table('customers')->where('email', $email)->first(['id', 'password_hash', 'status', 'first_name', 'email_verified_at']);
 
         if (! $customer || ! $customer->password_hash || ! Hash::check($data['password'], $customer->password_hash)) {
             foreach ($keys as [$key]) {
@@ -114,6 +191,11 @@ class AuthController extends Controller
         }
         RateLimiter::clear($keys[0][0]);
         RateLimiter::clear($keys[1][0]);
+        if (! $customer->email_verified_at) {
+            $this->log((int) $customer->id, 'login_unverified', $request);
+
+            return $this->pendingVerification($request, (int) $customer->id, $email, (string) $customer->first_name, $data);
+        }
 
         return $this->startSession($request, (int) $customer->id, $customer->password_hash, 'login', $data);
     }
@@ -145,14 +227,15 @@ class AuthController extends Controller
                 'code_hash' => Hash::make($code), 'expires_at' => now()->addMinutes(self::RESET_MINUTES),
             ]);
             $this->log($customer->id, 'password_reset_requested', $request);
-            Mail::raw(
-                "Hi {$customer->first_name},\n\nYour ".config('storefront.brand').' password reset code is '.$code.'. It expires in '.self::RESET_MINUTES." minutes.\n\nIf you did not request this, you can ignore this email.",
-                fn ($m) => $m->to($email)->subject('Your password reset code')
-            );
+            // Emailed by the queued listener (App\Listeners\SendPasswordResetCodeEmail): no SMTP wait here, so the
+            // reply time is the same whether or not the account exists.
+            AuthMail::dispatch(new PasswordResetCodeIssued((int) $customer->id, $email, (string) $customer->first_name, $code, self::RESET_MINUTES));
         }
 
         // Same answer whether or not the account exists, so emails cannot be enumerated.
-        return response()->json(['message' => 'If an account exists for that email, a 6-digit reset code has been sent.']);
+        $response = response()->json(['message' => 'If an account exists for that email, a 6-digit reset code has been sent.']);
+
+        return $response->header('Content-Length', (string) strlen((string) $response->getContent()));
     }
 
     public function reset(Request $request): JsonResponse
@@ -176,6 +259,8 @@ class AuthController extends Controller
 
         DB::transaction(function () use ($row, $data) {
             DB::table('customers')->where('id', $row->customer_id)->update(['password_hash' => Hash::make($data['password'])]);
+            // The reset code was emailed to this address, so entering it proves ownership: the email is verified too.
+            DB::table('customers')->where('id', $row->customer_id)->whereNull('email_verified_at')->update(['email_verified_at' => now()]);
             DB::table('customer_verification_codes')->where('id', $row->id)->update(['verified_at' => now()]);
         });
         $this->log($row->customer_id, 'password_reset', $request);

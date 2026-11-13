@@ -49,6 +49,10 @@
   @stack('head')
 </head>
 <body>
+  @unless (View::hasSection('minimal'))
+    @include('partials.announcement')
+  @endunless
+
   @include('partials.header')
 
   @yield('content')

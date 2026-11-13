@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\PageController;
 use App\Models\Storefront;
+use App\Payments\Stripe;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
@@ -101,6 +102,18 @@ Artisan::command('storefront:deploy-check', function () {
     }
     $window = config('storefront.returns.window_days');
     $add($window === null || $window > 0 ? 'OK' : 'FAIL', 'STOREFRONT_RETURNS_WINDOW_DAYS', $window === null ? 'not set (no limit; owner decision pending)' : ($window > 0 ? "{$window} days after delivery" : 'must be a positive number of days, or unset'));
+
+    // Stripe card payments (docs/stripe-deployment.md). Verdicts only: key values are never printed.
+    if (config('services.stripe.enabled')) {
+        $problem = Stripe::problem();
+        $live = Stripe::mode() === 'live';
+        $add($problem ? 'FAIL' : ($live ? 'OK' : (app()->isProduction() ? 'WARN' : 'OK')), 'STRIPE_*', $problem
+            ? $problem.': the card option is hidden until fixed'
+            : ($live ? 'live mode, keys and webhook secret set' : 'TEST mode (Sandbox): no real money is collected'));
+        $add(str_starts_with($url, 'https://') ? 'OK' : 'WARN', 'Stripe webhook URL', rtrim($url, '/').'/webhooks/stripe (register it in the Dashboard; events: checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, checkout.session.expired, payment_intent.payment_failed)');
+    } else {
+        $add('OK', 'STRIPE_ENABLED', 'false: cash on delivery only');
+    }
 
     $this->table(['', 'Setting', 'Result'], $rows);
     $fails = count(array_filter($rows, fn ($r) => $r[0] === 'FAIL'));

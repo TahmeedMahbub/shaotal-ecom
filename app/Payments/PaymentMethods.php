@@ -8,12 +8,14 @@ final class PaymentMethods
     /** @var array<string, class-string<PaymentMethod>> */
     private const KNOWN = [
         'cod' => CashOnDelivery::class,
+        'card' => StripeCard::class,
     ];
 
-    /** Enabled method codes (configured AND implemented). */
+    /** Enabled method codes (configured AND implemented AND, for card, Stripe keys complete and matching the mode). */
     public static function enabled(): array
     {
-        return array_values(array_filter((array) config('storefront.payment_methods'), fn ($c) => isset(self::KNOWN[$c])));
+        return array_values(array_filter((array) config('storefront.payment_methods'),
+            fn ($c) => isset(self::KNOWN[$c]) && ($c !== 'card' || Stripe::ready())));
     }
 
     public static function get(string $code): PaymentMethod

@@ -25,7 +25,7 @@ class CheckoutPlaceOrderTest extends TestCase
         if (config('database.default') !== 'mysql') {
             $this->markTestSkipped('Requires the MySQL test database.');
         }
-        $this->customerId = DB::table('customers')->insertGetId(['first_name' => 'Buyer', 'email' => 'buyer@example.test', 'status' => 'active']);
+        $this->customerId = DB::table('customers')->insertGetId(['first_name' => 'Buyer', 'email' => 'buyer@example.test', 'status' => 'active', 'email_verified_at' => now()]);
         $this->addressId = DB::table('customer_addresses')->insertGetId([
             'customer_id' => $this->customerId, 'label' => 'Home', 'recipient_name' => 'Buyer', 'phone' => '0400000000',
             'street_address' => '1 Test St', 'suburb' => 'Carlton', 'state' => 'VIC', 'postcode' => '3053', 'is_default' => 1,
@@ -105,9 +105,42 @@ class CheckoutPlaceOrderTest extends TestCase
     public function test_unknown_payment_method_is_rejected(): void
     {
         $body = $this->body();
-        $body['paymentMethod'] = 'card';
+        $body['paymentMethod'] = 'paypal';   // not implemented by the server
 
         $this->postJson('/checkout/place', $body)->assertStatus(422);
         $this->assertSame(0, $this->orders()->count());
+    }
+
+    public function test_optional_order_note_is_saved_and_never_required(): void
+    {
+        $this->postJson('/checkout/place', $this->body())->assertCreated();   // no note: fine
+        $this->assertNull($this->orders()->first()->customer_note);
+
+        $body = $this->body(3) + ['note' => 'Please leave at the side gate.'];
+        $res = $this->postJson('/checkout/place', $body)->assertCreated();
+        $this->assertSame('Please leave at the side gate.', $this->orders()->where('order_number', $res->json('orderNumber'))->value('customer_note'));
+
+        // Same cart, edited note: a new submission, not a silent replay of the old order.
+        $body['note'] = 'Gift: please include a card.';
+        $this->postJson('/checkout/place', $body)->assertCreated();
+
+        $this->postJson('/checkout/place', $this->body(4) + ['note' => str_repeat('x', 1001)])->assertStatus(422);
+    }
+
+    public function test_cod_clears_the_saved_bag_but_a_failed_order_keeps_it(): void
+    {
+        $cartId = DB::table('carts')->insertGetId(['customer_id' => $this->customerId, 'status' => 'active']);
+        DB::table('cart_items')->insert(['cart_id' => $cartId, 'product_id' => 2, 'quantity' => 2]);
+        $items = fn () => DB::table('cart_items')->where('cart_id', $cartId)->count();
+
+        $bad = $this->body();
+        $bad['items'] = [['productId' => 5, 'quantity' => 1]];   // out of stock
+        $this->postJson('/checkout/place', $bad)->assertStatus(422);
+        $this->assertSame(1, $items());
+        $this->assertSame('active', DB::table('carts')->where('id', $cartId)->value('status'));
+
+        $this->postJson('/checkout/place', $this->body())->assertCreated();
+        $this->assertSame(0, $items());
+        $this->assertSame('converted', DB::table('carts')->where('id', $cartId)->value('status'));
     }
 }

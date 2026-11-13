@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CardPayments;
 use App\Models\CustomerOrders;
 use App\Models\CustomerReturns;
 use Illuminate\Http\JsonResponse;
@@ -56,7 +57,12 @@ class OrderController extends Controller
     /** POST /account/orders/{number}/cancel */
     public function cancel(string $number): JsonResponse
     {
-        $result = CustomerOrders::cancel($this->require(), $number);
+        $id = $this->require();
+        // Card order: close its Stripe sessions first, so nothing can be paid after it is cancelled.
+        if (! CardPayments::prepareCancel($id, $number)) {
+            return response()->json(['message' => 'A payment for this order has already been received, so it can no longer be cancelled online. Please contact us for help.'], 422);
+        }
+        $result = CustomerOrders::cancel($id, $number);
         abort_if($result === null, 404);
         if ($result === false) {
             return response()->json(['message' => 'This order can no longer be cancelled online. Please contact us for help.'], 422);

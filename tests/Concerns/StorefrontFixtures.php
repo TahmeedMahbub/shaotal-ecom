@@ -16,11 +16,13 @@ trait StorefrontFixtures
         }
     }
 
-    protected function makeCustomer(string $email, ?string $password = 'Password123', string $status = 'active'): int
+    /** A normal (email-verified) customer unless $verified is false: unverified accounts cannot be signed in. */
+    protected function makeCustomer(string $email, ?string $password = 'Password123', string $status = 'active', bool $verified = true): int
     {
         return DB::table('customers')->insertGetId([
             'first_name' => 'Test', 'email' => $email, 'status' => $status,
             'password_hash' => $password === null ? null : Hash::make($password),
+            'email_verified_at' => $verified ? now() : null,
         ]);
     }
 

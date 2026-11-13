@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Http\Controllers\GoogleAuthController;
 use App\Support\Delivery;
 use App\Support\DisplayTime;
+use App\Support\GiftWrap;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -155,6 +156,8 @@ class Storefront
                 'currency' => config('storefront.currency_symbol'),
                 'countryCode' => config('storefront.country_code'),
                 'dispatchStatus' => Delivery::text('dispatch_status') ?? 'In Stock',
+                // Preview only (cart drawer); the server prices gift wrapping itself (App\Support\GiftWrap).
+                'giftWrap' => GiftWrap::rules(),
             ],
             'user' => $user,
             'cart' => $cart,
@@ -171,7 +174,7 @@ class Storefront
         $c = DB::table('customers as c')
             ->leftJoin('customer_addresses as a', 'a.id', '=', DB::raw('(select id from customer_addresses where customer_id = c.id order by is_default desc, id asc limit 1)'))
             ->where('c.id', $id)->where('c.status', 'active')
-            ->first(['c.id', 'c.first_name', 'c.last_name', 'c.email', 'c.phone', 'c.created_at', 'a.street_address', 'a.suburb', 'a.state', 'a.postcode']);
+            ->first(['c.id', 'c.first_name', 'c.last_name', 'c.email', 'c.email_verified_at', 'c.phone', 'c.created_at', 'a.street_address', 'a.suburb', 'a.state', 'a.postcode']);
         if (! $c) {
             return null;
         }
@@ -181,6 +184,7 @@ class Storefront
             'id' => (int) $c->id,
             'name' => trim($c->first_name.' '.($c->last_name ?? '')),
             'email' => $c->email,
+            'emailVerified' => $c->email_verified_at !== null,
             'phone' => $c->phone ?? '',
             'joinedDate' => DisplayTime::date($c->created_at),
             'address' => $addr ? trim(implode(', ', array_filter([$addr->street_address, $addr->suburb, $addr->state]))) : '',

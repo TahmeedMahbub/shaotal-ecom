@@ -70,9 +70,27 @@ return [
     // decision (Part 6): Australia/Sydney. Storage stays UTC; App\Support\DisplayTime converts once for display.
     'display_timezone' => env('STOREFRONT_DISPLAY_TIMEZONE', 'Australia/Sydney'),
 
-    // Payment methods offered at checkout. Card and PayPal need gateway credentials
-    // that are not available yet, so only cash on delivery is enabled.
-    'payment_methods' => ['cod'],
+    // Payment methods offered at checkout, in display order. "card" (Stripe Checkout) is listed only when STRIPE_ENABLED
+    // is true, and App\Payments\PaymentMethods still hides it until the Stripe keys are complete and match STRIPE_MODE.
+    // PayPal has no implementation.
+    'payment_methods' => array_values(array_filter([env('STRIPE_ENABLED', false) ? 'card' : null, 'cod'])),
+
+    // Online payment (Stripe) is a pre-booking: an extra discount on the order merchandise (after any coupon; shipping is
+    // never discounted) and only a deposit is charged now, the rest is paid later. THE one place these rates live; read them
+    // only through App\Payments\OnlinePaymentPlan::settings() (swap that for admin-managed settings later). The balance is
+    // always 100 - deposit. Changing a rate never affects placed orders (each stores the rates it was priced with).
+    'online_payment' => [
+        'discount_percent' => 2,
+        'deposit_percent' => 20,
+    ],
+
+    // Optional gift wrapping (App\Support\GiftWrap): the first `base_items` wrapped items cost `base_fee` in total, every
+    // further wrapped item adds `extra_fee`. Counted on the items selected for wrapping, not the cart size.
+    'gift_wrap' => [
+        'base_fee' => 1.99,
+        'base_items' => 2,
+        'extra_fee' => 1.00,
+    ],
 
     // Order statuses in which a customer may cancel their own order from the order page. Only "pending" (placed, not yet
     // confirmed by staff) is supported; set to [] to turn customer cancellation off. Returns need an admin-side flow and
@@ -85,4 +103,9 @@ return [
         'home_jute_image' => 'jute',
         'home_story_image' => 'story',
     ],
+
+    // Queue connection for the verification / password-reset emails (App\Support\AuthMail). "deferred" needs no
+    // worker (sent right after the response); "database" (jobs table, sql/proposed_changes.sql) or "redis" need a running
+    // `php artisan queue:work`; "failover" tries the real queue, then "deferred". The browser never waits for SMTP.
+    'auth_mail_queue' => env('AUTH_MAIL_QUEUE_CONNECTION', 'deferred'),
 ];

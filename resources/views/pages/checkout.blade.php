@@ -317,43 +317,142 @@
       cursor: pointer;
     }
 
-    /* Payment Methods */
+    /* Payment Methods: two equal selectable cards (stacked on narrow screens) */
     .payment-options-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-md);
+      align-items: stretch;
+    }
+
+    .payment-options-list .payment-option-card:only-child {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 575px) {
+      .payment-options-list {
+        grid-template-columns: 1fr;
+      }
     }
 
     .payment-option-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
       border: 2px solid var(--color-grey-200);
       border-radius: var(--radius-md);
       padding: var(--space-md);
+      background: var(--color-surface-card);
       cursor: pointer;
-      transition: all var(--transition-fast);
+      transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
     }
 
     .payment-option-card.selected {
       border-color: var(--color-brand);
       background-color: var(--color-brand-light);
+      box-shadow: var(--shadow-sm);
     }
 
-    .payment-option-header {
+    .payment-option-card:focus-within {
+      outline: 2px solid var(--color-brand);
+      outline-offset: 2px;
+    }
+
+    .payment-radio {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .payment-option-top {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .payment-option-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      color: var(--color-brand);
+    }
+
+    .payment-option-icon .icon-svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .payment-option-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--color-grey-300, var(--color-grey-200));
+      color: transparent;
+      background: var(--color-surface-card);
+    }
+
+    .payment-option-check .icon-svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .payment-option-card.selected .payment-option-check {
+      background: var(--color-brand);
+      border-color: var(--color-brand);
+      color: #fff;
     }
 
     .payment-option-title {
-      font-weight: var(--fw-semibold);
+      font-weight: var(--fw-bold);
       color: var(--color-black);
       font-size: var(--fs-body);
-      flex-grow: 1;
     }
 
-    .payment-subpanel {
-      margin-top: var(--space-md);
-      padding-top: var(--space-md);
-      border-top: 1px solid var(--color-grey-200);
+    .payment-option-badge {
+      display: inline-block;
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-bold);
+      letter-spacing: var(--ls-wide);
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: var(--color-grey-200);
+      color: var(--color-grey-700);
+    }
+
+    .payment-option-badge.is-offer {
+      background: var(--color-brand);
+      color: #fff;
+    }
+
+    .payment-option-desc {
+      font-weight: var(--fw-semibold);
+      color: var(--color-black);
+      font-size: var(--fs-small);
+    }
+
+    .payment-option-note {
+      color: var(--color-grey-700);
+      font-size: var(--fs-small);
+      line-height: 1.5;
+    }
+
+    /* Online payment breakdown rows in the summary */
+    .online-breakdown {
+      margin-top: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--color-brand-light);
+      border: 1px dashed var(--color-brand);
     }
 
     /* Order Summary Sidebar Sticky */
@@ -699,81 +798,40 @@
                 <span class="step-number">2</span>
                 <span>Payment Method</span>
               </div>
-              <span class="badge" style="background: var(--color-grey-200); color: var(--color-dark); font-size: var(--fs-xs); display: inline-flex; align-items: center; gap: 0.25rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                256-bit Encrypted
-              </span>
             </div>
 
-            <div class="payment-options-list" id="payment-options-list">
-              
-              
-              @if (in_array('card', $methods))<div class="payment-option-card" data-method="card">
-                <div class="payment-option-header">
-                  <input type="radio" name="payment-method" id="pay-card" value="card" checked>
-                  <label for="pay-card" class="payment-option-title" style="display: flex; align-items: center; gap: 0.4rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5pt18.75A2.25 2.25 0 0021.75 6.75H2.25A2.25 2.25 0 000 9v9a2.25 2.25 0 002.25 2.25h19.5A2.25 2.25 0 0024 18V9A2.25 2.25 0 0021.75 6.75H2.25z" /></svg>
-                    Credit or Debit Card
-                  </label>
-                  <div style="display: flex; gap: 0.25rem;">
-                    <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); background: #f0f0f0; padding: 2px 6px; border-radius: 4px;">VISA</span>
-                    <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); background: #f0f0f0; padding: 2px 6px; border-radius: 4px;">MC</span>
-                    <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); background: #f0f0f0; padding: 2px 6px; border-radius: 4px;">AMEX</span>
-                  </div>
-                </div>
+            @php
+              $op = \App\Payments\OnlinePaymentPlan::settings();
+              $pct = fn ($n) => rtrim(rtrim(number_format($n, 2), '0'), '.');
+            @endphp
+            <div class="payment-options-list" id="payment-options-list" role="radiogroup" aria-label="Payment method">
+              @if (in_array('card', $methods))
+              <label class="payment-option-card" data-method="card" for="pay-card">
+                <input type="radio" name="payment-method" id="pay-card" value="card" class="payment-radio">
+                <span class="payment-option-top">
+                  <span class="payment-option-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" /></svg></span>
+                  <span class="payment-option-check" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+                </span>
+                <span class="payment-option-title">Online Payment</span>
+                <span class="payment-option-badge is-offer">EXTRA {{ $pct($op['discountPercent']) }}% OFF</span>
+                <span class="payment-option-desc">Pay just {{ $pct($op['depositPercent']) }}% now to pre-book your order.</span>
+                <span class="payment-option-note">Secure payment via Credit / Debit Card. Remaining {{ $pct($op['balancePercent']) }}% payable later.</span>
+              </label>
+              @endif
 
-                <div class="payment-subpanel" id="card-details-panel">
-                  <div class="form-grid-2">
-                    <div class="form-group form-grid-full">
-                      <label class="form-label">Card Number</label>
-                      <input type="text" class="form-input font-monospace" placeholder="4532 •••• •••• 8921" readonly>
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Expiry Date</label>
-                      <input type="text" class="form-input font-monospace" placeholder="MM/YY" readonly>
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">CVV / CVC</label>
-                      <input type="password" class="form-input font-monospace" placeholder="123" value="888" maxlength="4" readonly>
-                    </div>
-                  </div>
-                </div>
-              </div>@endif
-
-              
-              @if (in_array('paypal', $methods))<div class="payment-option-card" data-method="paypal">
-                <div class="payment-option-header">
-                  <input type="radio" name="payment-method" id="pay-paypal" value="paypal">
-                  <label for="pay-paypal" class="payment-option-title" style="display: flex; align-items: center; gap: 0.4rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 14v4" /></svg>
-                    PayPal
-                  </label>
-                  <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: #003087;">PayPal</span>
-                </div>
-                <div class="payment-subpanel" id="paypal-details-panel" style="display: none;">
-                  <p style="font-size: var(--fs-small); color: var(--color-grey-700); margin-bottom: 0;">
-                    After clicking "Place Order", you will be redirected to PayPal to authorize your payment securely.
-                  </p>
-                </div>
-              </div>@endif
-
-              
-              @if (in_array('cod', $methods))<div class="payment-option-card" data-method="cod">
-                <div class="payment-option-header">
-                  <input type="radio" name="payment-method" id="pay-cod" value="cod">
-                  <label for="pay-cod" class="payment-option-title" style="display: flex; align-items: center; gap: 0.4rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5A2.25 2.25 0 0122.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 17.25V6.75A2.25 2.25 0 013.75 4.5z" /></svg>
-                    Pay on Delivery (COD)
-                  </label>
-                  <span style="font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--color-brand);">Cash / Card</span>
-                </div>
-                <div class="payment-subpanel" id="cod-details-panel" style="display: none;">
-                  <p style="font-size: var(--fs-small); color: var(--color-grey-700); margin-bottom: 0;">
-                    Pay via cash or card upon parcel delivery to your specified Australian address.
-                  </p>
-                </div>
-              </div>@endif
-
+              @if (in_array('cod', $methods))
+              <label class="payment-option-card" data-method="cod" for="pay-cod">
+                <input type="radio" name="payment-method" id="pay-cod" value="cod" class="payment-radio">
+                <span class="payment-option-top">
+                  <span class="payment-option-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5A2.25 2.25 0 0122.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 17.25V6.75A2.25 2.25 0 013.75 4.5zM12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" /></svg></span>
+                  <span class="payment-option-check" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+                </span>
+                <span class="payment-option-title">Cash on Delivery</span>
+                <span class="payment-option-badge">PAY ON DELIVERY</span>
+                <span class="payment-option-desc">Pay the full amount when your order arrives.</span>
+                <span class="payment-option-note">No advance payment required.</span>
+              </label>
+              @endif
             </div>
           </div>
 
@@ -791,8 +849,10 @@
 
               
               <div class="summary-items-list" id="summary-items-list">
-                
+
               </div>
+
+              <div class="checkout-gift" id="checkout-gift" style="display: none;"></div>
 
               
               <div style="border-top: 1px solid var(--color-grey-100); padding-top: var(--space-md); margin-top: var(--space-sm);">
@@ -805,7 +865,7 @@
                 
                 <div id="coupon-form-container" style="display: none; margin-bottom: var(--space-md);">
                   <div class="coupon-input-wrap">
-                    <input type="text" id="coupon-code-input" class="form-input" placeholder="Enter coupon code (e.g. 10AUD)" style="text-transform: uppercase;">
+                    <input type="text" id="coupon-code-input" class="form-input" placeholder="Enter coupon code" style="text-transform: uppercase;">
                     <button type="button" class="btn btn-dark" id="apply-coupon-btn" style="padding: 0.65rem 1rem;">Apply</button>
                   </div>
                   <div id="coupon-error-msg" style="color: var(--color-danger); font-size: var(--fs-xs); margin-top: 0.4rem; display: none;">
@@ -833,6 +893,11 @@
                   <span id="summary-subtotal" class="fw-semibold text-dark">$0.00</span>
                 </div>
                 
+                <div class="breakdown-row" id="gift-row" style="display: none;">
+                  <span id="gift-row-label">Gift wrapping</span>
+                  <span id="summary-gift" class="fw-semibold text-dark">$0.00</span>
+                </div>
+
                 <div class="breakdown-row">
                   <span>Shipping</span>
                   <span id="summary-shipping" class="fw-semibold text-dark">{{ \App\Support\Delivery::money((float) config('storefront.shipping_flat')) }}</span>
@@ -843,13 +908,27 @@
                   <span id="summary-discount" class="fw-bold">-$0.00</span>
                 </div>
 
+                <div class="breakdown-row" id="online-discount-row" style="display: none; color: var(--color-success);">
+                  <span id="online-discount-label">Online payment discount</span>
+                  <span id="summary-online-discount" class="fw-bold">-$0.00</span>
+                </div>
+
                 <div class="breakdown-row total-row">
-                  <span>Total</span>
+                  <span id="summary-total-label">Total</span>
                   <span class="total-price" id="summary-total">$0.00 AUD</span>
+                </div>
+
+                <div class="online-breakdown" id="online-breakdown" style="display: none;">
+                  <div class="breakdown-row"><span id="pay-now-label">Pay now</span><span id="summary-pay-now" class="fw-bold text-dark">$0.00</span></div>
+                  <div class="breakdown-row" style="margin-bottom: 0;"><span id="balance-label">Remaining balance</span><span id="summary-balance" class="fw-semibold text-dark">$0.00</span></div>
                 </div>
               </div>
 
-              
+              <div class="order-note" style="margin-top: var(--space-md);">
+                <label class="order-note-label" for="checkout-order-note">Order note <span>(optional)</span></label>
+                <textarea class="order-note-input" id="checkout-order-note" rows="2" maxlength="1000" placeholder="Special instructions, e.g. delivery notes"></textarea>
+              </div>
+
               <button type="button" class="btn btn-primary place-order-btn" id="place-order-btn">
                 Place Order • $0.00 AUD
               </button>

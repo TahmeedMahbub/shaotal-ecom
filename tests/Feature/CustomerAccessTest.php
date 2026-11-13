@@ -25,7 +25,7 @@ class CustomerAccessTest extends TestCase
 
     private function customer(string $email, string $status = 'active'): int
     {
-        return DB::table('customers')->insertGetId(['first_name' => 'Test', 'email' => $email, 'password_hash' => 'x', 'status' => $status]);
+        return DB::table('customers')->insertGetId(['first_name' => 'Test', 'email' => $email, 'password_hash' => 'x', 'status' => $status, 'email_verified_at' => now()]);
     }
 
     private function address(int $customerId): int

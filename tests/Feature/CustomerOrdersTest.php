@@ -195,17 +195,35 @@ class CustomerOrdersTest extends TestCase
         $this->adminSetStatus($number, 'shipped', '2026-11-03 14:00:00', $admin);   // processing skipped by staff
 
         $html = $this->asCustomer()->get('/account/orders/'.$number)->getContent();
-        $this->assertStringContainsString('>Shipped<', $html);                                  // badge
+        $this->assertStringContainsString('>Dispatched<', $html);                                  // badge
         // Stored UTC, shown in Australia/Sydney (AEDT, +11 in November)
         $this->assertStringContainsString('2 Nov 2026, 8:15 pm AEDT', $html);
         $this->assertStringContainsString('4 Nov 2026, 1:00 am AEDT', $html);
         $this->assertMatchesRegularExpression('/is-done"[^>]*>\s*<span class="order-track-dot"[^>]*>&#10003;<\/span>\s*<span class="order-track-label">Processing/', $html);
-        $this->assertMatchesRegularExpression('/is-upcoming"[^>]*>\s*<span class="order-track-dot"[^>]*>5<\/span>\s*<span class="order-track-label">Delivered/', $html);
+        $this->assertMatchesRegularExpression('/is-upcoming"[^>]*>\s*<span class="order-track-dot"[^>]*>9<\/span>\s*<span class="order-track-label">Delivered/', $html);
         $this->assertStringNotContainsString('id="order-cancel-btn"', $html);              // no longer cancellable
 
         $list = $this->asCustomer()->getJson('/account/orders')->json('orders.0');
-        $this->assertSame('Shipped', $list['status']);
+        $this->assertSame('Dispatched', $list['status']);
         $this->assertSame('in-transit', $list['statusClass']);
+    }
+
+    public function test_finer_delivery_stages_recorded_in_the_timeline_are_shown_and_never_leak_internal_values(): void
+    {
+        $number = $this->place()->json('orderNumber');
+        $admin = $this->admin();
+        $this->adminSetStatus($number, 'shipped', '2026-11-03 14:00:00', $admin);
+        $id = $this->orderRow($number)->id;
+        foreach (['in_transit' => '2026-11-04 08:00:00', 'out_for_delivery' => '2026-11-06 08:00:00'] as $stage => $at) {
+            DB::table('order_timeline')->insert(['order_id' => $id, 'old_status' => 'shipped', 'new_status' => $stage, 'created_at' => $at]);
+        }
+
+        $html = $this->asCustomer()->get('/account/orders/'.$number)->getContent();
+        $this->assertStringContainsString('>Out for Delivery<', $html);   // badge
+        $this->assertStringContainsString('Your order is out for delivery today.', $html);
+        $this->assertStringNotContainsString('out_for_delivery', $html);
+        $this->assertStringNotContainsString('in_transit', $html);
+        $this->assertSame('Out for Delivery', $this->asCustomer()->getJson('/account/orders')->json('orders.0.status'));
     }
 
     public function test_paid_status_recorded_by_admin_is_shown_separately_from_delivery(): void
@@ -298,8 +316,8 @@ class CustomerOrdersTest extends TestCase
 
     public function test_unimplemented_payment_methods_are_rejected(): void
     {
-        config(['storefront.payment_methods' => ['cod', 'card']]);   // configured but no gateway implementation
-        $this->place(extra: ['paymentMethod' => 'card'])->assertStatus(422);
+        config(['storefront.payment_methods' => ['cod', 'paypal']]);   // configured but no gateway implementation
+        $this->place(extra: ['paymentMethod' => 'paypal'])->assertStatus(422);
         $this->assertSame(0, DB::table('orders')->where('customer_id', $this->customer)->count());
     }
 

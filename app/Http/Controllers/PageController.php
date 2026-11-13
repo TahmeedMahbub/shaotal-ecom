@@ -6,6 +6,7 @@ use App\Models\Catalog;
 use App\Models\Listing;
 use App\Models\Storefront;
 use App\Payments\PaymentMethods;
+use App\Support\EmailVerification;
 use App\Support\Img;
 use App\Support\Seo;
 use Illuminate\Http\Request;
@@ -300,6 +301,11 @@ class PageController extends Controller
 
     public function account()
     {
+        // Mid-verification: the account page waits until the email is confirmed.
+        if (! session('customer_id') && session(EmailVerification::PENDING)) {
+            return redirect('/verify-email');
+        }
+
         return response()->view('pages.account')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

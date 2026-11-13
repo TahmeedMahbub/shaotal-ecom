@@ -25,7 +25,7 @@ class OrderStatusTest extends TestCase
             $this->assertArrayHasKey($s, OrderStatus::TRANSITIONS);
         }
         $this->assertSame('Order Placed', OrderStatus::label('pending'));
-        $this->assertSame('Shipped', OrderStatus::label('shipped'));
+        $this->assertSame('Dispatched', OrderStatus::label('shipped'));
         $this->assertSame('Cancelled', OrderStatus::label('cancelled'));
     }
 
@@ -44,7 +44,7 @@ class OrderStatusTest extends TestCase
     public function test_new_order_shows_only_placed_as_reached(): void
     {
         $t = OrderStatus::timeline('pending', [$this->row(null, 'pending', '2026-11-01 10:00:00')], '2026-11-01 10:00:00', null);
-        $this->assertSame(['pending' => 'current', 'confirmed' => 'upcoming', 'processing' => 'upcoming', 'shipped' => 'upcoming', 'delivered' => 'upcoming'], $this->states($t));
+        $this->assertSame(['pending' => 'current'] + array_fill_keys(array_slice(array_keys(OrderStatus::STEPS), 1), 'upcoming'), $this->states($t));
         $this->assertSame('2026-11-01 10:00:00', $t['steps'][0]['at']);
         $this->assertNull($t['steps'][1]['at']);
         $this->assertNull($t['exception']);
@@ -56,10 +56,10 @@ class OrderStatusTest extends TestCase
             $this->row(null, 'pending', '2026-11-01 10:00:00'),
             $this->row('pending', 'shipped', '2026-11-03 10:00:00'),
         ], '2026-11-01 10:00:00', null);
-        $this->assertSame(['pending' => 'done', 'confirmed' => 'done', 'processing' => 'done', 'shipped' => 'current', 'delivered' => 'upcoming'], $this->states($t));
+        $this->assertSame(['pending' => 'done', 'confirmed' => 'done', 'processing' => 'done', 'ready_for_dispatch' => 'done', 'shipped' => 'current', 'in_transit' => 'upcoming', 'arrived_at_hub' => 'upcoming', 'out_for_delivery' => 'upcoming', 'delivered' => 'upcoming'], $this->states($t));
         $this->assertNull($t['steps'][1]['at']);   // confirmed: reached, but no recorded time
-        $this->assertSame('2026-11-03 10:00:00', $t['steps'][3]['at']);
-        $this->assertNull($t['steps'][4]['at']);
+        $this->assertSame('2026-11-03 10:00:00', $t['steps'][4]['at']);
+        $this->assertNull($t['steps'][5]['at']);
     }
 
     public function test_delivered_is_complete(): void
@@ -82,7 +82,7 @@ class OrderStatusTest extends TestCase
             $this->row('pending', 'confirmed', '2026-11-02 10:00:00'),
             $this->row('confirmed', 'cancelled', '2026-11-02 12:00:00'),
         ], '2026-11-01 10:00:00', '2026-11-02 12:00:00');
-        $this->assertSame(['pending' => 'done', 'confirmed' => 'done', 'processing' => 'skipped', 'shipped' => 'skipped', 'delivered' => 'skipped'], $this->states($t));
+        $this->assertSame(['pending' => 'done', 'confirmed' => 'done'] + array_fill_keys(array_slice(array_keys(OrderStatus::STEPS), 2), 'skipped'), $this->states($t));
         $this->assertSame(['key' => 'cancelled', 'label' => 'Cancelled', 'at' => '2026-11-02 12:00:00'], $t['exception']);
     }
 
@@ -104,11 +104,49 @@ class OrderStatusTest extends TestCase
         $this->assertSame('2026-11-09 10:00:00', $t['exception']['at']);
     }
 
+    public function test_all_nine_statuses_in_order_with_labels_and_descriptions(): void
+    {
+        $this->assertSame(
+            ['Order Placed', 'Order Confirmed', 'Processing', 'Ready for Dispatch', 'Dispatched', 'In Transit', 'Arrived at Delivery Hub', 'Out for Delivery', 'Delivered'],
+            array_values(OrderStatus::STEPS)
+        );
+        $this->assertSame(array_keys(OrderStatus::STEPS), array_keys(OrderStatus::DESCRIPTIONS));
+    }
+
+    public function test_each_stage_is_current_with_earlier_done_and_later_upcoming(): void
+    {
+        $rows = [];
+        foreach (OrderStatus::SUB_STAGES as $stage => $parent) {
+            $rows[$stage] = $this->row($parent, $stage, '2026-11-0'.(count($rows) + 2).' 10:00:00');
+        }
+        $keys = array_keys(OrderStatus::STEPS);
+        foreach ($keys as $i => $key) {
+            $parent = OrderStatus::SUB_STAGES[$key] ?? $key;
+            $history = isset($rows[$key]) ? [$rows[$key]] : [];
+            $t = OrderStatus::timeline($parent, $history, '2026-11-01 10:00:00', null);
+            $states = array_values($this->states($t));
+            $expected = array_map(fn ($j) => $j < $i ? 'done' : ($j === $i ? ($key === 'delivered' ? 'done' : 'current') : 'upcoming'), array_keys($keys));
+            $this->assertSame($expected, $states, $key);
+            $this->assertSame($key, OrderStatus::stage($parent, array_column($history, 'new_status')), $key);
+        }
+    }
+
+    public function test_sub_stage_of_another_status_is_ignored_and_unknown_values_never_shown(): void
+    {
+        $this->assertSame('processing', OrderStatus::stage('processing', ['in_transit']));
+        $this->assertSame('delivered', OrderStatus::stage('delivered', ['out_for_delivery']));
+        $this->assertSame('Order Placed', OrderStatus::label('pending'));
+    }
+
     public function test_payment_labels_keep_payment_separate_from_delivery(): void
     {
         $this->assertSame('Pay on delivery', OrderStatus::paymentLabel('pending', 'cod', 'shipped'));
         $this->assertSame('No payment due', OrderStatus::paymentLabel('pending', 'cod', 'cancelled'));
         $this->assertSame('Paid', OrderStatus::paymentLabel('paid', 'cod', 'delivered'));
+        // A deposit is never "Paid": money received but less than the total reads as pre-booked.
+        $this->assertSame('Pre-booked (deposit paid)', OrderStatus::paymentLabel('pending', 'card', 'pending', 23.96, 119.80));
+        $this->assertSame('Payment Pending', OrderStatus::paymentLabel('pending', 'card', 'pending', 0.0, 119.80));
+        $this->assertSame('Paid', OrderStatus::paymentLabel('paid', 'card', 'pending', 119.80, 119.80));
         $this->assertSame('Refunded', OrderStatus::paymentLabel('refunded', 'card', 'returned'));
         $this->assertSame('Payment Pending', OrderStatus::paymentLabel('pending', 'card', 'pending'));
     }

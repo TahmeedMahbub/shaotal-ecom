@@ -63,7 +63,7 @@
         if (requestedCatalogProducts.length === 0) {
           catalogContainer.innerHTML = `
             <div class="empty-product-state" style="text-align: center; padding: 2rem 1rem; background: var(--color-surface-alt); border-radius: var(--radius-md); border: 1px dashed var(--color-grey-300);">
-              <div style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--color-grey-400);">📦</div>
+              <div style="margin-bottom: 0.5rem; color: var(--color-grey-400);"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></div>
               <h4 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: var(--fw-bold); color: var(--color-dark); margin-bottom: 0.25rem;">
                 No catalog products added yet
               </h4>

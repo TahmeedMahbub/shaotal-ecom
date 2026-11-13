@@ -91,7 +91,7 @@ class SeoTest extends TestCase
         $this->assertMatchesRegularExpression('/detail-cta-row.*id="detail-full-description".*detail-section-divider.*delivery-returns-box/s', $html);   // description, divider, then delivery & returns
         $this->assertStringNotContainsString('detail-trust-features', $html);
         $this->assertStringNotContainsString('detail-buy-now-btn', $html);   // Buy Now removed
-        $this->assertMatchesRegularExpression("/detail-add-to-cart-btn.*id=\"detail-full-description\".*delivery-returns-box.*You May Also Like/s", $html);   // details inside the overview; full-width suggestions follow
+        $this->assertMatchesRegularExpression('/detail-add-to-cart-btn.*id="detail-full-description".*delivery-returns-box.*You May Also Like/s', $html);   // details inside the overview; full-width suggestions follow
         $this->assertStringContainsString('id="detail-offered-price">A$55.00<', $html);
         $this->assertMatchesRegularExpression('#availability-status-dot instock"><\/span>\s*<span>In Stock<\/span>#', $html);   // no unconfirmed dispatch location
         $this->assertMatchesRegularExpression('/<img id="main-product-image" src="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/f_auto,q_auto,c_limit,w_800\/cld-sample-2\.jpg"[^>]*width="800" height="800" alt="Nakshi Kantha Cushion" fetchpriority="high"/', $html);

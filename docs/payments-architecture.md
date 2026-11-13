@@ -1,6 +1,8 @@
 # Payments: current design and the path to Stripe
 
-_Part 6 review (2026-11-12). **Stripe is future scope: nothing here is installed or active.** COD is the only payment method and works exactly as before (covered by `CustomerOrdersTest`, `CheckoutPlaceOrderTest`, `CouponRedemptionTest`)._
+> **2026-11-13: Stripe Checkout is implemented** (card + COD; test mode until the owner approves live). Setup, behaviour and the go-live steps: [stripe-deployment.md](stripe-deployment.md). The sections below are the original design. Where they differ, stripe-deployment.md describes what was built: hosted Checkout instead of Payment Element, so no CSP change; idempotency via row locks + `payments.response_data` because there is no `payment_events` table; P1, P2, P3, P4, P5, P6 and P7 resolved.
+
+_Part 6 review (2026-11-12). **Stripe was future scope at the time of this review.** COD is the only payment method and works exactly as before (covered by `CustomerOrdersTest`, `CheckoutPlaceOrderTest`, `CouponRedemptionTest`)._
 
 ## What exists today
 | Piece | Where | Role |
@@ -102,3 +104,11 @@ CREATE TABLE payment_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 Store only the event id, type and our own references, not the full payload, which contains personal data.
+
+## Online payment = pre-booking deposit (implemented)
+
+- **One source of the rates:** `config('storefront.online_payment')` read only through `App\Payments\OnlinePaymentPlan::settings()` (swap that one method for admin-managed `site_settings` later). Blade copy, the checkout JS and the Stripe classes take every number from `OnlinePaymentPlan` / the `/checkout/quote` response (`online` block).
+- **Rules (integer cents, half-up):** eligible = merchandise (+ gift wrap) − coupon; online discount = eligible × discount%; total = eligible − discount + shipping (+ tax); deposit = total × deposit%; balance = total − deposit. Shipping is never discounted.
+- **Stripe charges the deposit only** (`payments.amount` of the attempt row; session `unit_amount`; webhook compares `amount_total` to it). A paid deposit leaves `orders.payment_status = 'pending'` ("Pre-booked (deposit paid)"); `paid` only when SUM(paid payments) ≥ `grand_total`. A second paid session is flagged for refund; a paid order/deposit is never offered "Pay now" again and cannot be cancelled online.
+- **Cart:** COD clears the saved bag at placement (and the browser calls `bongoClearCart`). Card keeps it until the verified webhook records the deposit; the return page renders `data-clear-cart="1"` only for a confirmed payment and then clears the browser bag. Declined/cancelled/expired payments never clear it.
+- Orders placed before this change (full-amount card payments, no `plan`) still charge and settle the whole total.

@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Payments\OnlinePaymentPlan;
 use App\Payments\PaymentMethod;
 use App\Payments\PaymentMethods;
 use App\Support\Delivery;
+use App\Support\GiftWrap;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -88,8 +90,13 @@ class Checkout
      *
      * @return array{subtotal: float, shipping: float, discount: float, tax: float, total: float, coupon: ?array, couponError: ?string}
      */
-    public static function totals(array $lines, ?string $code, ?int $customerId): array
+    public static function totals(array $lines, ?string $code, ?int $customerId, ?array $gift = null): array
     {
+        // Gift wrapping is a service charge on top of the goods: it never counts toward the free-shipping threshold,
+        // coupon minimums or coupon eligibility (those use the goods subtotal), but it is part of the order total and
+        // of the online-payment base (discount and deposit), so every figure below stays consistent.
+        $gift = GiftWrap::resolve($lines, $gift);
+        $giftFee = $gift['fee'] ?? 0.0;
         $subtotal = round(array_sum(array_map(fn ($l) => $l['price'] * $l['quantity'], $lines)), 2);
         // Free at or above the threshold (exactly the threshold ships free), flat fee below it.
         $shipping = Delivery::freeShipping($subtotal) ? 0.0 : (float) config('storefront.shipping_flat');
@@ -110,11 +117,30 @@ class Checkout
         $discount = round(min($discount, $subtotal), 2);
         $tax = 0.0;
 
+        $shipping = round($shipping, 2);
+
         return [
-            'subtotal' => $subtotal, 'shipping' => round($shipping, 2), 'discount' => $discount, 'tax' => $tax,
-            'total' => round(max(0, $subtotal + $shipping + $tax - $discount), 2),
+            'subtotal' => $subtotal, 'shipping' => $shipping, 'discount' => $discount, 'tax' => $tax,
+            'giftFee' => $giftFee, 'gift' => $gift,
+            'total' => round(max(0, $subtotal + $giftFee + $shipping + $tax - $discount), 2),
             'coupon' => $coupon, 'couponError' => $couponError,
+            // What the order would be if paid online (pre-booking). "total" above stays the cash-on-delivery figure.
+            'online' => OnlinePaymentPlan::calculate($subtotal + $giftFee - $discount, $shipping, $tax),
         ];
+    }
+
+    /**
+     * The totals an order is placed with for this method. COD: unchanged (no online discount, full amount due on
+     * delivery). Card: online discount applied, total = discounted total, and only the deposit is charged now.
+     */
+    public static function forMethod(array $totals, string $method): array
+    {
+        if ($method !== 'card') {
+            return $totals + ['onlineDiscount' => 0.0, 'plan' => null, 'chargeNow' => 0.0];
+        }
+        $plan = $totals['online'];
+
+        return array_merge($totals, ['onlineDiscount' => $plan['discount'], 'total' => $plan['total'], 'plan' => $plan, 'chargeNow' => $plan['deposit']]);
     }
 
     private static function applyCoupon(string $code, array $lines, float $subtotal, float $shipping, ?int $customerId): array
@@ -231,7 +257,10 @@ class Checkout
                 'order_number' => $number, 'customer_id' => $customerId, 'customer_email' => $customerEmail, 'customer_phone' => $address['phone'],
                 'shipping_recipient_name' => $address['fullName'], 'shipping_phone' => $address['phone'], 'shipping_street_address' => $address['street'],
                 'shipping_suburb' => $address['suburb'], 'shipping_state' => $address['state'], 'shipping_postcode' => $address['postcode'],
-                'subtotal' => $totals['subtotal'], 'discount_total' => $totals['discount'], 'shipping_total' => $totals['shipping'],
+                // discount_total = coupon + online-payment discount, so subtotal - discount_total + shipping + tax = grand_total
+                // always holds for the admin app; the online part is itemised from the stored plan.
+                // subtotal includes the gift-wrapping fee row (see below), so it still equals the sum of the order items.
+                'subtotal' => round($totals['subtotal'] + ($totals['giftFee'] ?? 0), 2), 'discount_total' => round($totals['discount'] + ($totals['onlineDiscount'] ?? 0), 2), 'shipping_total' => $totals['shipping'],
                 'tax_total' => $totals['tax'], 'grand_total' => $totals['total'], 'coupon_code' => $totals['coupon']['code'] ?? null,
                 // Never "paid" at placement: COD is collected later, a card gateway confirms server-side (webhook).
                 'payment_method' => $method->code(), 'payment_status' => 'pending', 'order_status' => 'pending', 'fulfillment_type' => 'delivery',
@@ -245,19 +274,40 @@ class Checkout
                 'line_discount' => 0, 'line_total' => round($l['price'] * $l['quantity'], 2),
             ], $lines));
 
-            DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => null, 'new_status' => 'pending', 'note' => 'Order placed']);
-            DB::table('payments')->insert([
-                'order_id' => $orderId, 'provider' => $method->provider(), 'payment_method' => $method->code(), 'amount' => $totals['total'],
-                'status' => $method->initialPaymentStatus(),
-            ]);
+            if ($gift = $totals['gift'] ?? null) {
+                // Gift wrapping fee as its own line (no product); the wrapped items and message are in customer_note.
+                DB::table('order_items')->insert([
+                    'order_id' => $orderId, 'product_id' => null, 'variant_id' => null,
+                    'product_name' => 'Gift wrapping ('.$gift['quantity'].($gift['quantity'] === 1 ? ' item)' : ' items)'),
+                    'sku' => GiftWrap::SKU, 'image_url' => null, 'variant_color' => null, 'variant_size' => null,
+                    'unit_price' => $gift['fee'], 'unit_selling_price' => $gift['fee'], 'quantity' => 1, 'line_discount' => 0, 'line_total' => $gift['fee'],
+                ]);
+            }
 
-            if ($customerId) {
+            DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => null, 'new_status' => 'pending', 'note' => 'Order placed']);
+            // COD: one row for the full amount (collected on delivery). Card: one row for the deposit charged now; the plan
+            // (rates used, discount, deposit, balance) is snapshotted so later rate changes never alter this order.
+            $plan = $totals['plan'] ?? null;
+            DB::table('payments')->insert([
+                'order_id' => $orderId, 'provider' => $method->provider(), 'payment_method' => $method->code(),
+                'amount' => $plan ? $plan['deposit'] : $totals['total'], 'status' => $method->initialPaymentStatus(),
+                'response_data' => $plan ? json_encode(['plan' => $plan, 'events' => []]) : null,
+            ]);
+            if ($plan) {
+                DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => 'pending', 'new_status' => 'pending',
+                    'note' => 'Online payment selected: '.config('storefront.currency_symbol').number_format($plan['deposit'], 2).' deposit due now, '
+                        .config('storefront.currency_symbol').number_format($plan['balance'], 2).' balance due later']);
+            }
+
+            // A card order keeps the cart until Stripe confirms payment (CardPayments converts it then), so an abandoned
+            // or declined payment does not lose the customer's bag.
+            if ($customerId && $method->provider() === null) {
                 $cart = DB::table('carts')->where('customer_id', $customerId)->where('status', 'active')->pluck('id');
                 DB::table('cart_items')->whereIn('cart_id', $cart)->delete();
                 DB::table('carts')->whereIn('id', $cart)->update(['status' => 'converted']);
             }
 
-            return ['orderNumber' => $number, 'total' => $totals['total']];
+            return ['orderNumber' => $number, 'total' => $totals['total'], 'payNow' => $plan['deposit'] ?? 0.0, 'balance' => $plan['balance'] ?? 0.0, 'prebooked' => (bool) $plan];
         });
     }
 }

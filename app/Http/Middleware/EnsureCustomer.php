@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\CustomerSession;
+use App\Support\EmailVerification;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,6 +19,14 @@ class EnsureCustomer
     {
         if ((int) $request->session()->get(CustomerSession::ID) > 0) {
             return $next($request);
+        }
+        // Registered/signed in but email not verified yet: the only way forward is the verification page.
+        if (EmailVerification::pendingId($request) > 0) {
+            if ($request->expectsJson() || ! $request->isMethod('GET')) {
+                return response()->json(['message' => 'Please verify your email address first.', 'verificationRequired' => true, 'redirect' => '/verify-email'], 403);
+            }
+
+            return redirect('/verify-email');
         }
 
         if ($request->expectsJson() || ! $request->isMethod('GET')) {

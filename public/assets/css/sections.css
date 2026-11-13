@@ -1326,11 +1326,14 @@
 }
 
 .jute-features-list li::before {
-  content: '✦';
+  content: '';
   position: absolute;
-  left: 0;
-  color: var(--color-brand);
-  font-size: 0.85rem;
+  left: 0.25rem;
+  top: 0.55em;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--color-brand);
 }
 
 /* ═══════════════════════════════════════════════════════════

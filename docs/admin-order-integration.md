@@ -25,6 +25,22 @@ public const TRANSITIONS = [
 ```
 Forward-only. `cancelled` and `returned` are final. A shipped order cannot be cancelled; it can only be returned. Show only the allowed next statuses in the admin status dropdown.
 
+## 1b. Customer-facing delivery stages (nine, shown in this order)
+Order Placed, Order Confirmed, Processing, Ready for Dispatch, Dispatched, In Transit, Arrived at Delivery Hub, Out for Delivery, Delivered.
+`orders.order_status` has no enum value for four of them, and the schema is not changed. Map as follows:
+
+| Customer stage | `orders.order_status` | extra `order_timeline.new_status` row |
+|---|---|---|
+| Order Placed / Order Confirmed / Processing | `pending` / `confirmed` / `processing` | none |
+| Ready for Dispatch | `processing` | `ready_for_dispatch` |
+| Dispatched | `shipped` | none |
+| In Transit | `shipped` | `in_transit` |
+| Arrived at Delivery Hub | `shipped` | `arrived_at_hub` |
+| Out for Delivery | `shipped` | `out_for_delivery` |
+| Delivered | `delivered` | none |
+
+For a finer stage the admin inserts one `order_timeline` row (`old_status` = the current `order_status`, `new_status` = the key above, `created_at` = when it happened) and leaves `order_status` unchanged. The storefront shows the furthest recorded stage that belongs to the current `order_status`. Without such rows the storefront shows the five enum-backed stages; nothing breaks and existing orders keep working. Payment statuses are unaffected.
+
 ## 2. `OrderController::updateStatus`: compare-and-set, one timeline row, cancellation time
 ```php
 public function updateStatus(Request $request, int $orderId)
@@ -169,3 +185,35 @@ DB::table('site_settings')->updateOrInsert(
 - **Spam:**
   - Public forms have a hidden honeypot field, a limit of 3 links per message, a limit of 5 submissions per contact per hour, and per-IP rate limits.
   - Spam that gets through can be marked `spam` (contact messages) or closed by staff. Nothing is auto-deleted.
+
+## 9. Gift wrapping on orders (no admin change required; read this when printing packing slips)
+
+Gift wrapping is optional per order and needs **no schema change**. How an order with gift wrapping looks in the shared tables:
+
+- **Fee**: one extra `order_items` row: `product_name` = "Gift wrapping (N items)", `sku` = `GIFT-WRAP`, `product_id` and `variant_id` NULL, `quantity` 1, `unit_price` = `unit_selling_price` = `line_total` = the fee. It is **included in `orders.subtotal`**, so `subtotal - discount_total + shipping_total + tax_total = grand_total` and `subtotal = SUM(order_items.line_total)` both still hold. Treat sku `GIFT-WRAP` as a service line (no stock, no return, no product link).
+- **Which items to wrap and the message**: a block at the end of `orders.customer_note`, after the customer's own note:
+
+  ```
+  <customer's own note, if any>
+
+  --- GIFT WRAPPING ---
+  Wrapping fee: A$2.99 for 3 items
+  - 2 x Nakshi Kantha Cushion
+  - 1 x Scarf (M / Red)
+  Gift message: Happy birthday!
+  ```
+  The customer's own note and the gift message are separate in the storefront; staff see them in one text field.
+- **Pricing rule** (storefront config `storefront.gift_wrap`): A$1.99 covers up to 2 wrapped items, then A$1.00 per extra wrapped item, counted on the items selected for wrapping (not the whole cart).
+- **Online payment**: the fee is part of the base the online discount and deposit are calculated on (only shipping is excluded). Gift wrapping never counts toward the free-shipping threshold or coupon eligibility.
+- Optional dedicated columns are proposed (not executed) in `sql/proposed_changes.sql`.
+
+
+## Online payment = pre-booking (deposit) — what the admin app sees
+
+No schema change. For `payment_method = 'card'` orders placed through the storefront:
+
+- `orders.grand_total` is the **discounted** total (merchandise − coupon − online discount + shipping). `orders.discount_total` = coupon discount + online-payment discount (so `subtotal − discount_total + shipping_total + tax_total = grand_total` still holds). The online part is itemised in `payments.response_data` → `plan` (`discountPercent`, `depositPercent`, `discount`, `deposit`, `balance`, `total`, rates frozen at placement).
+- The Stripe payment row has `amount` = the **deposit** (20% of `grand_total`), `provider = 'stripe'`, `status = 'paid'` after the verified webhook. **`orders.payment_status` stays `pending`**: the shared enum has no partial value, so a deposit is never shown as paid. Amount received = `SUM(payments.amount WHERE status = 'paid')`; balance due = `grand_total − received`. The order is set to `paid` only when received ≥ `grand_total` (e.g. when the balance is recorded as a paid Stripe payment row for the rest).
+- Admin should therefore show a card order with `payment_status = 'pending'` and a paid payment row as **Pre-booked / deposit paid, balance due**, and must not mark it paid until the balance is collected. Collecting the balance (and any refund of a deposit) is a staff action; the storefront does not cancel an order online once a deposit is received.
+- COD orders are unchanged (one `pending` payment row for the full total; admin records the cash).
+- A proposed optional `partially_paid` status / `amount_paid` column is in `sql/proposed_changes.sql` §7. No Admin code was changed in this work.

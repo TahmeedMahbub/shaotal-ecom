@@ -18,7 +18,7 @@ _Updated for Part 6 (2026-11-12): `storage:link` and the PHP `gd` extension are 
 | 0.7 | Behind a load balancer/CDN that terminates TLS? | Set `TRUSTED_PROXIES` (its IPs/CIDRs, or `*` if the app is reachable only through it). Otherwise Laravel sees plain http: cookies, HSTS and URLs go wrong. |
 | 0.8 | Several app servers? | Use `CACHE_STORE=redis` and `SESSION_DRIVER=redis`. The checkout lock, rate limits and catalog cache must be shared across servers. |
 | 0.9 | Permissions | Owner = deploy user, group = web server user: `chmod -R ug+rwX storage bootstrap/cache`, everything else read-only for the web server. |
-| 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), policy-page approval (`STOREFRONT_APPROVED_PAGES`), contact details (`STOREFRONT_CONTACT_*`), returns policy and window, Stripe (future). See §7. Never fill these in without written owner approval. |
+| 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), policy-page approval (`STOREFRONT_APPROVED_PAGES`), contact details (`STOREFRONT_CONTACT_*`), returns policy and window, Stripe live payments (`STRIPE_*`, [docs/stripe-deployment.md](docs/stripe-deployment.md)). See §7. Never fill these in without written owner approval. |
 | 0.11 | PHP extensions | `gd` with JPEG, PNG and WebP support is **required**: sourcing-request photos are decoded and re-encoded with GD, and every upload is refused without it. Check: `php -r 'var_dump(function_exists("imagewebp"));'` → `true` (also reported by `storefront:deploy-check`). |
 | 0.12 | Uploaded photos are served as static files only | `storage/app/public` is exposed at `/storage` by `storage:link`. Uploads are already re-encoded images with random `.jpg/.png/.webp` names, but as defence in depth make sure the web server never executes PHP there. Nginx: `location ^~ /storage/ { try_files $uri =404; }` placed before the `\.php$` block. Apache: `php_flag engine off` (or `RemoveHandler .php`) for that directory. |
 | 0.13 | CI green on the release commit | `.github/workflows/tests.yml`: PHPUnit (MySQL) + JS, and the browser job (smoke, SEO, and since Part 8 the customer journey). Green on GitHub for `c95ec27` (run #2). The journey step runs from the next push on: check it before release. |
@@ -130,7 +130,7 @@ Check `storage/logs/laravel-*.log` for new errors.
   - Passwords are only ever compared with `password_hash` and are never logged.
   - Laravel never flashes `password` fields back to the session.
   - OTPs and reset codes are stored hashed.
-  - There are no payment secrets yet (COD only; Stripe will need its keys in `.env` only).
+  - Stripe keys and the webhook signing secret live in the server `.env` only (`STRIPE_*`). Live keys need `STRIPE_MODE=live`. Steps: [docs/stripe-deployment.md](docs/stripe-deployment.md).
 - `report($e)` in Google sign-in logs the exception message, never the token.
 - `APP_DEBUG=false` is required: with debug on, error pages expose settings. `storefront:deploy-check` fails on it.
 

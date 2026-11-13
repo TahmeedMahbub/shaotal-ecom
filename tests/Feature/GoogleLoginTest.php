@@ -37,6 +37,19 @@ class GoogleLoginTest extends TestCase
         Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
     }
 
+    public function test_redirect_sends_the_configured_client_and_callback_to_google(): void
+    {
+        config(['services.google.redirect' => 'https://shop.example.test/auth/google/callback']);
+        $location = $this->get('/auth/google?return=/checkout')->assertRedirect()->headers->get('Location');
+
+        $this->assertStringStartsWith('https://accounts.google.com/', $location);
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $q);
+        $this->assertSame('https://shop.example.test/auth/google/callback', $q['redirect_uri']);
+        $this->assertSame('test-id', $q['client_id']);
+        $this->assertNotEmpty($q['state']);                                  // CSRF state checked on the callback
+        $this->assertStringNotContainsString('test-secret', $location);      // the secret never leaves the server
+    }
+
     public function test_creates_new_customer_and_signs_in(): void
     {
         $this->fakeGoogle();

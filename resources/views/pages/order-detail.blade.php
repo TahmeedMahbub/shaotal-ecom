@@ -46,6 +46,7 @@
               <li class="order-track-step is-{{ $step['state'] }}" @if ($step['state'] === 'current') aria-current="step" @endif>
                 <span class="order-track-dot" aria-hidden="true">@if ($step['state'] === 'done')&#10003;@else{{ $i + 1 }}@endif</span>
                 <span class="order-track-label">{{ $step['label'] }}<span class="sr-only">: {{ ['done' => 'completed', 'current' => 'current step', 'upcoming' => 'not yet', 'skipped' => 'not reached'][$step['state']] }}</span></span>
+                @if ($step['state'] === 'current')<span class="order-track-desc">{{ $step['description'] }}</span>@endif
                 @if ($step['at'])<span class="order-track-time">{{ $when($step['at']) }}</span>@endif
               </li>
             @endforeach
@@ -88,14 +89,25 @@
           <div class="account-panel-header"><h2 class="account-panel-title">Order Summary</h2></div>
           <div class="order-summary-rows">
             <div class="order-summary-row"><span>Subtotal</span><span>{{ $money($t['subtotal']) }}</span></div>
+            @if ($t['giftFee'] > 0)
+              <div class="order-summary-row"><span>Gift wrapping</span><span>{{ $money($t['giftFee']) }}</span></div>
+            @endif
+            @php($pb = $order['prebooking'])
             @if ($t['discount'] > 0)
               <div class="order-summary-row is-discount"><span>Discount @if ($t['coupon'])({{ $t['coupon'] }})@endif</span><span>&minus;{{ $money($t['discount']) }}</span></div>
+            @endif
+            @if ($pb && $pb['discount'] > 0)
+              <div class="order-summary-row is-discount"><span>Online payment discount ({{ rtrim(rtrim(number_format($pb['discountPercent'], 2), '0'), '.') }}%)</span><span>&minus;{{ $money($pb['discount']) }}</span></div>
             @endif
             <div class="order-summary-row"><span>Delivery</span><span>{{ $t['shipping'] > 0 ? $money($t['shipping']) : 'Free' }}</span></div>
             @if ($t['tax'] > 0)
               <div class="order-summary-row"><span>Tax</span><span>{{ $money($t['tax']) }}</span></div>
             @endif
             <div class="order-summary-row is-total"><span>Total</span><span>{{ $money($t['total']) }} AUD</span></div>
+            @if ($pb)
+              <div class="order-summary-row"><span>{{ $pb['depositPaid'] ? 'Deposit paid' : 'Pay now ('.rtrim(rtrim(number_format($pb['depositPercent'], 2), '0'), '.').'%)' }}</span><span>{{ $money($pb['depositPaid'] ? $pb['paid'] : $pb['deposit']) }}</span></div>
+              <div class="order-summary-row"><span>{{ $pb['depositPaid'] ? 'Remaining balance' : 'Remaining balance ('.rtrim(rtrim(number_format($pb['balancePercent'], 2), '0'), '.').'%)' }}</span><span>{{ $money($pb['depositPaid'] ? $pb['balance'] : $t['total'] - $pb['deposit']) }}</span></div>
+            @endif
           </div>
         </div>
 
@@ -107,6 +119,17 @@
             <span class="order-info-label" style="margin-top: var(--space-sm);">Payment status</span>
             <strong id="order-payment-status">{{ $order['paymentStatus'] }}</strong>
           </div>
+          @if ($order['canPay'])
+            <button type="button" class="btn btn-primary btn-sm" id="order-pay-btn" data-order="{{ $order['number'] }}" style="width: 100%; margin-top: var(--space-md);">Pay {{ $money($order['prebooking']['deposit'] ?? $t['total']) }} now</button>
+          @endif
+          @if (count($order['payments']) > 0)
+            <div class="order-summary-rows" style="margin-top: var(--space-md);">
+              <span class="order-info-label">Payment history</span>
+              @foreach ($order['payments'] as $p)
+                <div class="order-summary-row"><span>{{ $p['at'] }} &middot; {{ $p['status'] }}</span><span>{{ $money($p['amount']) }}</span></div>
+              @endforeach
+            </div>
+          @endif
         </div>
 
         <div class="account-card-panel">
@@ -124,6 +147,22 @@
             </div>
           @endif
         </div>
+
+        @if ($order['gift'])
+          <div class="account-card-panel" id="order-gift-box">
+            <div class="account-panel-header"><h2 class="account-panel-title">Gift wrapping</h2></div>
+            <div class="order-info-block">
+              <span class="order-info-label">Wrapped items ({{ $money($order['gift']['fee']) }})</span>
+              @foreach ($order['gift']['items'] as $giftItem)
+                <span style="display: block;">{{ $giftItem }}</span>
+              @endforeach
+              @if ($order['gift']['message'] !== '')
+                <span class="order-info-label" style="margin-top: var(--space-sm);">Gift message</span>
+                <span style="white-space: pre-line;">{{ $order['gift']['message'] }}</span>
+              @endif
+            </div>
+          </div>
+        @endif
 
         @if ($order['returnRequest'])
           <div class="account-card-panel" id="order-return-box">

@@ -18,7 +18,7 @@
   <p>We do not currently publish a guaranteed delivery time; it depends on the item and your location. Pre-order items show their expected dispatch date on the product page and are sent once they become available.</p>
 
   <h2>Following your order</h2>
-  <p>Signed-in customers can see each order’s progress in <a href="/account#orders">My Orders</a>: placed, confirmed, processing, shipped and delivered. Our team updates these steps as your order moves along. Live courier tracking is not available on the site at the moment.</p>
+  <p>Signed-in customers can see each order’s progress in <a href="/account#orders">My Orders</a>: order placed, order confirmed, processing, ready for dispatch, dispatched, in transit, arrived at delivery hub, out for delivery and delivered. Our team updates these steps as your order moves along. Live courier tracking is not available on the site at the moment.</p>
 
   <h2>Payment</h2>
   <p>Orders are currently paid by cash on delivery. Nothing is charged online when you place an order.</p>
