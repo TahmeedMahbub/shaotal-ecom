@@ -50,7 +50,7 @@ Details: STOREFRONT_PRODUCTION_READINESS_PLAN.md §18.
 - **Spam protection:** honeypot, link limit, per-contact and per-IP limits.
 - **Contact form:** stores messages in `contact_messages`.
 - **Policy pages:** drafts.
-- **Delivery:** A$10 under A$100, free at A$100 or more; Australia only; no express service; no carrier or tracking claims.
+- **Delivery:** A$12 under A$299, free at A$299 or more; Australia only; no express service; no carrier or tracking claims.
 - **Dates:** shown in Australia/Sydney (AEST/AEDT), stored in UTC.
 - **Hero:** responsive, with a mobile source.
 - **Return requests:** built behind a switch that is **off**.

@@ -233,12 +233,12 @@ class SeoCrawlabilityTest extends TestCase
     {
         $offer = $this->ld($this->html('/products/nakshi-kantha-cushion'), 'Product')['offers'];   // A$55: flat fee
         $this->assertSame('Offer', $offer['@type']);
-        $this->assertSame(['@type' => 'MonetaryAmount', 'value' => '10.00', 'currency' => 'AUD'], $offer['shippingDetails']['shippingRate']);
+        $this->assertSame(['@type' => 'MonetaryAmount', 'value' => '12.00', 'currency' => 'AUD'], $offer['shippingDetails']['shippingRate']);
         $this->assertSame(['@type' => 'DefinedRegion', 'addressCountry' => 'AU'], $offer['shippingDetails']['shippingDestination']);
         $this->assertArrayNotHasKey('deliveryTime', $offer['shippingDetails']);   // no delivery time was approved
         $this->assertArrayNotHasKey('hasMerchantReturnPolicy', $offer);            // no returns policy approved
 
-        $slug = $this->addFashionProducts(1, 100.00)[0];                             // exactly the threshold: free
+        $slug = $this->addFashionProducts(1, 299.00)[0];                             // exactly the threshold: free
         $this->assertSame('0.00', $this->ld($this->html('/products/'.$slug), 'Product')['offers']['shippingDetails']['shippingRate']['value']);
     }
 

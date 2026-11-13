@@ -12,8 +12,8 @@ return [
 
     // Shipping (owner decision, Part 6): flat fee below the threshold, free AT or above it. THE source of truth:
     // checkout charges exactly this (App\Models\Checkout::totals) and every delivery message is built from it.
-    'shipping_flat' => 10.00,
-    'free_shipping_over' => 100.00,
+    'shipping_flat' => 12.00,
+    'free_shipping_over' => 299.00,
 
     // Delivery/returns wording (owner decisions, Part 6): Australia only; no express service; no carrier or live-tracking
     // claims; no returns promise until a policy is approved. :free_over and :flat are replaced with the amounts above.

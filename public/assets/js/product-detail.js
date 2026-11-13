@@ -1,7 +1,7 @@
 /* ============================================================
    PRODUCT DETAIL CONTROLLER — Shaotal
    Handles dynamic product details rendering, gallery, zoom,
-   color/size pickers, accordions, pre-order, and recently viewed.
+   color/size pickers, pre-order, and recently viewed.
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderProductGallery(detailState);
   renderProductInfo(detailState);
   renderPreorderNotice(product);
-  renderAccordions(product);
   renderRelatedProducts(product);
   renderRecentlyViewed(product.id);
 
@@ -42,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGalleryZoom();
   setupQuantityPicker(detailState);
   setupCtaButtons(detailState);
-  setupAccordionToggle();
 });
 
 /* ── Helper Functions ── */
@@ -303,10 +301,8 @@ function renderAvailabilityBadge(product) {
   `;
 
   if (product.soldOut) {
-    ['detail-add-to-cart-btn', 'detail-buy-now-btn'].forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) { btn.disabled = true; btn.textContent = 'Sold Out'; }
-    });
+    const btn = document.getElementById('detail-add-to-cart-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sold Out'; }
   }
 }
 
@@ -335,51 +331,6 @@ function renderPreorderNotice(product) {
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
-
-function renderAccordions(product) {
-  const accordionGroup = document.getElementById('detail-accordion-group');
-  if (!accordionGroup) return;
-
-  const specs = product.specs || {};
-  const para = text => `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
-  // The full description is authored in the admin app, which may save plain text or
-  // rich-text HTML (bold, lists, links, paragraphs). Render real markup when present;
-  // fall back to the escaped plain-text treatment for legacy/plain descriptions so
-  // nothing that used to render safely starts rendering raw user-typed text as HTML.
-  const isHtml = text => /<[a-z][\s\S]*>/i.test(text);
-  const richText = text => (isHtml(text) ? text : para(text));
-  const accordionsData = [];
-
-  const description = product.fullDesc || product.desc;
-  if (description) accordionsData.push({ title: 'Description & Craft Story', content: richText(description) });
-
-  const materials = [specs.material, specs.fabric, specs.pattern ? `Pattern: ${specs.pattern}` : ''].filter(Boolean).join(' · ');
-  if (materials) accordionsData.push({ title: 'Materials & Fabric', content: para(materials) });
-
-  const fit = [specs.dimensions ? `Dimensions: ${specs.dimensions}` : '', specs.fit ? `Fit: ${specs.fit}` : ''].filter(Boolean).join('\n');
-  if (fit) accordionsData.push({ title: 'Dimensions & Fit', content: para(fit) });
-
-  if (specs.care) accordionsData.push({ title: 'Care Instructions', content: para(specs.care) });
-
-  if (accordionsData.length === 0) {
-    accordionGroup.closest('.product-accordions-container')?.style.setProperty('display', 'none');
-    return;
-  }
-
-  accordionGroup.innerHTML = accordionsData.map((item, idx) => `
-    <div class="detail-accordion-item ${idx === 0 ? 'open' : ''}">
-      <button class="accordion-header-btn">
-        <span>${item.title}</span>
-        <svg class="accordion-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
-      </button>
-      <div class="accordion-content-panel" style="${idx === 0 ? 'max-height: 500px;' : ''}">
-        <div class="accordion-inner-body">
-          ${item.content}
-        </div>
-      </div>
-    </div>
-  `).join('');
 }
 
 function renderRelatedProducts(currentProduct) {
@@ -505,21 +456,11 @@ function setupQuantityPicker(detailState) {
 
 function setupCtaButtons(detailState) {
   const addToCartBtn = document.getElementById('detail-add-to-cart-btn');
-  const buyNowBtn = document.getElementById('detail-buy-now-btn');
   const wishlistBtn = document.getElementById('detail-wishlist-trigger');
 
   if (addToCartBtn) {
     addToCartBtn.addEventListener('click', () => {
       executeAddToCart(detailState);
-    });
-  }
-
-  if (buyNowBtn) {
-    buyNowBtn.addEventListener('click', () => {
-      if (detailState.product.soldOut) return;
-      addToCart(detailState.product.id, detailState.selectedColor, detailState.selectedSize, detailState.quantity, false);
-      if (!window.requireLogin('/checkout')) return;
-      window.location.href = '/checkout';
     });
   }
 
@@ -567,25 +508,6 @@ function toggleWishlistItem(id) {
   localStorage.setItem('bongo_wishlist', JSON.stringify(wishlist));
   if (typeof window.updateWishlistCount === 'function') window.updateWishlistCount();
   if (typeof window.renderWishlistDrawer === 'function') window.renderWishlistDrawer();
-}
-
-function setupAccordionToggle() {
-  document.querySelectorAll('.detail-accordion-item').forEach(item => {
-    const btn = item.querySelector('.accordion-header-btn');
-    const panel = item.querySelector('.accordion-content-panel');
-    if (!btn || !panel) return;
-
-    btn.addEventListener('click', () => {
-      const isOpen = item.classList.contains('open');
-      if (isOpen) {
-        item.classList.remove('open');
-        panel.style.maxHeight = '0';
-      } else {
-        item.classList.add('open');
-        panel.style.maxHeight = `${panel.scrollHeight + 40}px`;
-      }
-    });
-  });
 }
 
 function setupSizeGuideModal(product) {
@@ -718,7 +640,7 @@ function renderPrice(detailState) {
     if (numOrigPrice && numOrigPrice > numPrice) {
       const savings = numOrigPrice - numPrice;
       const pct = Math.round((savings / numOrigPrice) * 100);
-      discountPillEl.textContent = `SAVE ${pct}% (${SITE.currency}${savings.toFixed(2)})`;
+      discountPillEl.textContent = `SAVE ${pct}%`;
       discountPillEl.style.display = 'inline-block';
     } else {
       discountPillEl.style.display = 'none';

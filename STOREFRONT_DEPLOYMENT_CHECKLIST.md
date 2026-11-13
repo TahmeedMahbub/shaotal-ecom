@@ -168,7 +168,7 @@ All are read in `config/storefront.php`. Defaults are safe for launch. Remember 
 | `STOREFRONT_RETURNS_ENABLED` | `false` | Shows the "Request a return" form on the customer's own delivered orders. **Keep false** (see below). | Owner + DB owner + admin team |
 | `STOREFRONT_RETURNS_WINDOW_DAYS` | unset = no limit | Days after the recorded delivery time during which a request may be sent. Do **not** write it as an empty value (`=`): that reads as 0 and deploy-check fails. | Owner (not decided) |
 
-Unchanged code constants (not env): shipping A$10 below A$100, free at A$100 or more (`shipping_flat`, `free_shipping_over`); delivery wording (`delivery_copy`); return reasons (`returns.reasons`); payment methods (`cod` only).
+Unchanged code constants (not env): shipping A$12 below A$299, free at A$299 or more (`shipping_flat`, `free_shipping_over`); delivery wording (`delivery_copy`); return reasons (`returns.reasons`); payment methods (`cod` only).
 
 **Switching on return requests: all four are required, in this order.**
 1. The owner approves a returns policy in writing, including whether there is a time limit. The `/returns` page wording is then updated to match and approved (`STOREFRONT_APPROVED_PAGES`). The storefront does not invent eligibility rules: today it only enforces "own order, delivered, once", plus the optional window.

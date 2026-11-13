@@ -835,7 +835,7 @@
                 
                 <div class="breakdown-row">
                   <span>Shipping</span>
-                  <span id="summary-shipping" class="fw-semibold text-dark">$10.00</span>
+                  <span id="summary-shipping" class="fw-semibold text-dark">{{ \App\Support\Delivery::money((float) config('storefront.shipping_flat')) }}</span>
                 </div>
 
                 <div class="breakdown-row" id="discount-row" style="display: none; color: var(--color-success);">

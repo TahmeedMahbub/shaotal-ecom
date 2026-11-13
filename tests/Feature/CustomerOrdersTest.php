@@ -81,7 +81,7 @@ class CustomerOrdersTest extends TestCase
         $this->assertSame('Cash on Delivery', $o['paymentMethod']);
         $this->assertSame('Pay on delivery', $o['paymentStatus']);
         $this->assertSame('/account/orders/'.$mine, $o['url']);
-        $this->assertEquals(65.0, $o['total']);   // A$55 + A$10 delivery (under the A$100 threshold)
+        $this->assertEquals(67.0, $o['total']);   // A$55 + A$12 delivery (under the A$299 threshold)
         $this->assertFalse($res->json('hasMore'));
     }
 
@@ -150,13 +150,13 @@ class CustomerOrdersTest extends TestCase
         $this->assertStringContainsString('Essential Heavyweight 240GSM Tee', $html);
         $this->assertStringContainsString('Colour: Midnight Black', $html);
         $this->assertStringContainsString('Size: L', $html);
-        // 2 × 55 + 26 (variant sells at the product selling price; A$32 is its list price) = 136; 10% = 13.60; free delivery
+        // 2 × 55 + 26 (variant sells at the product selling price; A$32 is its list price) = 136; 10% = 13.60; + A$12 delivery (under A$299)
         $this->assertStringContainsString('A$136.00', $html);
         $this->assertStringContainsString('A$26.00 each <span class="order-item-was">A$32.00</span>', $html);
         $this->assertStringContainsString('Discount (ORD10)', $html);
         $this->assertStringContainsString('&minus;A$13.60', $html);
-        $this->assertStringContainsString('A$122.40 AUD', $html);
-        $this->assertStringContainsString('Free', $html);
+        $this->assertStringContainsString('A$134.40 AUD', $html);
+        $this->assertStringContainsString('A$12.00', $html);
         $this->assertStringContainsString('1 Test St', $html);
         $this->assertStringContainsString('Carlton VIC 3053', $html);
         $this->assertStringContainsString('Cash on Delivery', $html);
@@ -287,12 +287,12 @@ class CustomerOrdersTest extends TestCase
         $o = $this->orderRow($number);
         $this->assertSame('pending', $o->payment_status);
         $this->assertSame('cod', $o->payment_method);
-        $this->assertSame('65.00', $o->grand_total);
+        $this->assertSame('67.00', $o->grand_total);
         $this->assertSame('0.00', $o->discount_total);
         $p = DB::table('payments')->where('order_id', $o->id)->first();
         $this->assertSame('pending', $p->status);
         $this->assertNull($p->provider);
-        $this->assertSame('65.00', $p->amount);
+        $this->assertSame('67.00', $p->amount);
         $this->assertNull($p->paid_at);
     }
 

@@ -22,23 +22,23 @@ class BusinessPolicyTest extends TestCase
         $this->requireMysql();
     }
 
-    /* ── Shipping: A$10 below A$100, free at or above ── */
+    /* ── Shipping: flat fee below A$299, free at or above ── */
 
     public function test_free_shipping_starts_at_exactly_the_threshold(): void
     {
         $line = fn ($price) => [['productId' => 2, 'categoryId' => 2, 'price' => $price, 'quantity' => 1]];
-        $this->assertSame(10.0, Checkout::totals($line(99.99), null, null)['shipping']);
-        $this->assertSame(0.0, Checkout::totals($line(100.00), null, null)['shipping']);
-        $this->assertSame(0.0, Checkout::totals($line(100.01), null, null)['shipping']);
-        $this->assertSame(109.99, Checkout::totals($line(99.99), null, null)['total']);
+        $this->assertSame(12.0, Checkout::totals($line(298.99), null, null)['shipping']);
+        $this->assertSame(0.0, Checkout::totals($line(299.00), null, null)['shipping']);
+        $this->assertSame(0.0, Checkout::totals($line(299.01), null, null)['shipping']);
+        $this->assertSame(310.99, Checkout::totals($line(298.99), null, null)['total']);
     }
 
     public function test_threshold_applies_before_discount_as_the_shipping_page_says(): void
     {
         $this->makeCoupon('HALF', ['discount_value' => 50]);
-        $t = Checkout::totals([['productId' => 2, 'categoryId' => 2, 'price' => 100.00, 'quantity' => 1]], 'HALF', null);
-        $this->assertSame(0.0, $t['shipping']);
-        $this->assertSame(50.0, $t['total']);
+        $t = Checkout::totals([['productId' => 2, 'categoryId' => 2, 'price' => 300.00, 'quantity' => 1]], 'HALF', null);
+        $this->assertSame(0.0, $t['shipping']);   // 300 >= 299 before the coupon; 150 after it is still free
+        $this->assertSame(150.0, $t['total']);
     }
 
     /* ── Delivery wording: no express, NZ, carrier, tracking or returns promises ── */
@@ -57,11 +57,11 @@ class BusinessPolicyTest extends TestCase
         }
         foreach ($pages as $uri => $html) {
             $text = html_entity_decode(strip_tags(preg_replace('#<script\b.*?</script>#is', '', $html)));
-            foreach (['/Express (Delivery|Shipping)/i', '/Australia Post/i', '/\bNZ\b|New Zealand/i', '/30-Day/i', '/Free Returns/i', '/door-to-door tracking/i', '/customs clearance/i', '/Sydney hub|West Croydon|dispatch from Sydney/i', '/A\$299/', '/Business Days/i', '/customer guarantee/i'] as $claim) {
+            foreach (['/Express (Delivery|Shipping)/i', '/Australia Post/i', '/\bNZ\b|New Zealand/i', '/30-Day/i', '/Free Returns/i', '/door-to-door tracking/i', '/customs clearance/i', '/Sydney hub|West Croydon|dispatch from Sydney/i', '/Business Days/i', '/customer guarantee/i'] as $claim) {
                 $this->assertDoesNotMatchRegularExpression($claim, $text, "{$claim} on {$uri}");
             }
         }
-        $this->assertStringContainsString('Free shipping on orders of A$100 or more', $pages['/products/nakshi-kantha-cushion']);
+        $this->assertStringContainsString('Free shipping on orders of A$299 or more', $pages['/products/nakshi-kantha-cushion']);
         $this->assertStringNotContainsString('Estimated Delivery', $pages['/checkout']);   // no confirmed estimate
     }
 
@@ -122,8 +122,8 @@ class BusinessPolicyTest extends TestCase
     {
         $html = $this->get('/shipping')->getContent();
         $this->assertStringContainsString('within Australia only', $html);
-        $this->assertStringContainsString('Orders of A$100 or more: free shipping.', $html);
-        $this->assertStringContainsString('a flat A$10 shipping fee', $html);
+        $this->assertStringContainsString('Orders of A$299 or more: free shipping.', $html);
+        $this->assertStringContainsString('a flat A$12 shipping fee', $html);
         $this->assertStringContainsString('Live courier tracking is not available', $html);
     }
 

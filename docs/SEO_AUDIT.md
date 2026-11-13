@@ -92,7 +92,7 @@ How page links look to visitors:
 | CollectionPage + ItemList | Indexable listing pages | Exactly the products rendered on that page, positions continuing across pages, `numberOfItems` = listing total | Products not shown on the page |
 | Product | Product page | Name, description (plain text), images, SKU, brand, category from the database | Ratings or reviews (G9), GTIN/MPN, condition, colour/material claims |
 | Offer / AggregateOffer | Product page | AUD price (one variant price → Offer; a range → AggregateOffer). **Availability from the admin flag, never stock quantity:** PreOrder / OutOfStock (`out_of_stock`, `coming_soon`) / InStock. | — |
-| OfferShippingDetails | Single-price Offers | Your confirmed rule: Australia only, A$10 below A$100, A$0 at or above A$100, for one unit | `deliveryTime` (not approved), carrier |
+| OfferShippingDetails | Single-price Offers | Your confirmed rule: Australia only, A$12 below A$299, A$0 at or above A$299, for one unit | `deliveryTime` (not approved), carrier |
 | ContactPage / WebPage | Approved info pages only | Page name, description, URL | Anything on draft pages |
 
 Not emitted, waiting on decisions:

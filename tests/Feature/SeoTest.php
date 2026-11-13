@@ -69,13 +69,29 @@ class SeoTest extends TestCase
 
     /* ── Product pages ── */
 
+    public function test_product_page_loads_the_image_lightbox_and_keeps_thumbnails(): void
+    {
+        $html = $this->html('/products/nakshi-kantha-cushion');
+
+        $this->assertStringContainsString('assets/js/image-lightbox.js', $html);
+        $this->assertStringContainsString('id="main-product-image-container"', $html);
+        $this->assertStringContainsString('class="gallery-thumbnails-row" id="detail-thumbnails-list"', $html);
+        $this->assertFileExists(public_path('assets/js/image-lightbox.js'));
+    }
+
     public function test_product_content_is_in_the_initial_html(): void
     {
         $html = $this->html('/products/nakshi-kantha-cushion');
 
         $this->assertMatchesRegularExpression('/<h1 class="detail-title" id="detail-title">Nakshi Kantha Cushion<\/h1>/', $html);
         $this->assertStringContainsString('Hand-embroidered cotton cushion cover', $html);
-        $this->assertStringContainsString('Embroidered by artisans.', $html);   // full description accordion
+        $this->assertStringNotContainsString('accordion', $html);   // no accordion UI on the product page
+        $this->assertMatchesRegularExpression('/id="detail-full-description".*Embroidered by artisans\./s', $html);   // full description, always visible
+        $this->assertStringNotContainsString('detail-attribute', $html);   // attribute list removed
+        $this->assertMatchesRegularExpression('/detail-cta-row.*id="detail-full-description".*detail-section-divider.*delivery-returns-box/s', $html);   // description, divider, then delivery & returns
+        $this->assertStringNotContainsString('detail-trust-features', $html);
+        $this->assertStringNotContainsString('detail-buy-now-btn', $html);   // Buy Now removed
+        $this->assertMatchesRegularExpression("/detail-add-to-cart-btn.*id=\"detail-full-description\".*delivery-returns-box.*You May Also Like/s", $html);   // details inside the overview; full-width suggestions follow
         $this->assertStringContainsString('id="detail-offered-price">A$55.00<', $html);
         $this->assertMatchesRegularExpression('#availability-status-dot instock"><\/span>\s*<span>In Stock<\/span>#', $html);   // no unconfirmed dispatch location
         $this->assertMatchesRegularExpression('/<img id="main-product-image" src="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/f_auto,q_auto,c_limit,w_800\/cld-sample-2\.jpg"[^>]*width="800" height="800" alt="Nakshi Kantha Cushion" fetchpriority="high"/', $html);

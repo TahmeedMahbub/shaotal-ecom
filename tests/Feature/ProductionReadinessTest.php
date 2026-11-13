@@ -153,9 +153,8 @@ class ProductionReadinessTest extends TestCase
     public function test_product_page_threshold_comes_from_the_charged_configuration(): void
     {
         $html = $this->get('/products/nakshi-kantha-cushion')->assertOk()->getContent();
-        $this->assertStringContainsString('Free shipping on orders of A$100 or more', $html);
-        $this->assertStringContainsString('A flat A$10 shipping fee applies to orders under A$100.', $html);
-        $this->assertStringNotContainsString('A$299', $html);
+        $this->assertStringContainsString('Free shipping on orders of A$299 or more', $html);
+        $this->assertStringContainsString('A flat A$12 shipping fee applies to orders under A$299.', $html);
 
         config(['storefront.free_shipping_over' => 150, 'storefront.shipping_flat' => 12.5]);
         $html = $this->get('/products/nakshi-kantha-cushion')->getContent();
@@ -166,7 +165,7 @@ class ProductionReadinessTest extends TestCase
     public function test_delivery_copy_is_configurable_and_used_consistently(): void
     {
         config(['storefront.delivery_copy.estimate' => 'Owner-approved estimate', 'storefront.delivery_copy.checkout_badge' => 'Owner badge',
-            'storefront.delivery_copy.dispatch_status' => 'Ships soon', 'storefront.delivery_copy.returns_short' => 'Owner returns']);
+            'storefront.delivery_copy.dispatch_status' => 'Ships soon', 'storefront.delivery_copy.returns_text' => 'Owner returns']);
         $id = $this->makeCustomer('copy@example.test');
         $this->makeAddress($id);
 

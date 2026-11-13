@@ -51,8 +51,8 @@ class CheckoutPlaceOrderTest extends TestCase
         $order = $this->orders()->first();
         $this->assertSame($res->json('orderNumber'), $order->order_number);
         $this->assertSame('110.00', $order->subtotal);           // 2 × A$55 from the DB, not the client's 0.01
-        $this->assertSame('0.00', $order->shipping_total);       // free over A$100
-        $this->assertSame('110.00', $order->grand_total);
+        $this->assertSame('12.00', $order->shipping_total);      // below A$299: flat A$12
+        $this->assertSame('122.00', $order->grand_total);
         $this->assertSame('pending', $order->order_status);
         $this->assertSame('cod', $order->payment_method);
         $this->assertSame(1, DB::table('order_items')->where('order_id', $order->id)->count());

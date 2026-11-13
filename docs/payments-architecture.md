@@ -83,7 +83,7 @@ _Review only. Nothing was installed, configured or switched on. COD and stock be
 | # | Gap | Proposed rule (owner/dev to confirm) |
 |---|---|---|
 | P1 | Customers can cancel any `pending` order themselves (`CustomerOrders::cancel`). That check ignores `payment_status`, so a card order that is already **paid** could be cancelled with no refund. | Allow self-cancel only while `payment_status` is `pending` or `failed`. A paid order needs staff (refund) or an automatic refund. Add a test when Stripe lands. |
-| P2 | An order can total **A$0.00**: a coupon can cover the whole subtotal, with free shipping at ≥ A$100. Stripe rejects charges below A$0.50. | Skip the payment step for a zero total (mark `paid` server-side with provider `none`), or block card for totals under A$0.50. |
+| P2 | An order can total **A$0.00**: a coupon can cover the whole subtotal, with free shipping at ≥ A$299. Stripe rejects charges below A$0.50. | Skip the payment step for a zero total (mark `paid` server-side with provider `none`), or block card for totals under A$0.50. |
 | P3 | Totals are PHP floats (`round(…, 2)`). | Convert to cents once, from the stored `DECIMAL` `grand_total` string (e.g. `(int) bcmul($total, '100')`). Never float × 100. Webhook amounts compare in cents. |
 | P4 | `site_settings.currency_code` is seeded `NULL`. | Use a fixed `aud` from config for Stripe, the same as `Seo` (`AUD`). Don't read the currency from `site_settings` for charging. |
 | P5 | The customer's server cart is converted (cleared) at placement, before any card payment. | Keep the cart until payment succeeds, or rebuild it from the order on a failed or abandoned payment (H3). |

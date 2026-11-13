@@ -134,7 +134,7 @@ class Seo
     }
 
     /**
-     * Shipping for one unit, from the owner-confirmed rule only (Part 6): Australia only, A$10 below the threshold, free
+     * Shipping for one unit, from the owner-confirmed rule only (Part 6): Australia only, the flat fee below the threshold, free
      * at or above it. No delivery time (none approved) and no carrier.
      */
     private static function shipping(float $price): array

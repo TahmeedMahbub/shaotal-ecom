@@ -46,7 +46,7 @@ class CouponRedemptionTest extends TestCase
         $order = DB::table('orders')->where('customer_id', $c)->first();
         $this->assertSame('SAVE10', $order->coupon_code);
         $this->assertSame('5.50', $order->discount_total);   // 10% of A$55
-        $this->assertSame('59.50', $order->grand_total);     // 55 + 10 shipping − 5.50
+        $this->assertSame('61.50', $order->grand_total);     // 55 + 12 shipping − 5.50
     }
 
     public function test_usage_limit_reached_is_rejected(): void

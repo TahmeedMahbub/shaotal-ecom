@@ -24,6 +24,12 @@
     <section class="product-detail-page">
       <div class="container">
 
+
+        
+        <div class="product-detail-layout">
+
+          
+          <div class="product-gallery-container">
         
         <div class="breadcrumb">
           <a href="/">Home</a>
@@ -32,12 +38,6 @@
           <span class="breadcrumb-sep">/</span>
           <span class="breadcrumb-current" id="detail-breadcrumb-title">{{ $product['name'] }}</span>
         </div>
-
-        
-        <div class="product-detail-layout">
-
-          
-          <div class="product-gallery-container">
             <div class="main-image-viewport" id="main-product-image-container">
               <div id="detail-badge-wrap" class="detail-badge-tag"></div>
               <button class="detail-wishlist-trigger" id="detail-wishlist-trigger" aria-label="Add to wishlist">
@@ -77,16 +77,9 @@
             </div>
 
             
-            <div class="detail-price-box">
-              <span class="detail-offered-price" id="detail-offered-price">{{ $cur }}{{ number_format($initialPrice, 2) }}</span>
-              <span class="detail-original-price" id="detail-original-price" @if (! ($orig && $orig > $initialPrice)) style="display:none" @endif>{{ $cur }}{{ number_format($orig ?? 0, 2) }}</span>
-              <span class="detail-discount-pill" id="detail-discount-pill" style="display:none">SAVE 0%</span>
-            </div>
-
-            
-            <div class="detail-preorder-notice" id="detail-preorder-notice" style="display:none">
+            {{-- <div class="detail-preorder-notice" id="detail-preorder-notice" style="display:none">
               
-            </div>
+            </div> --}}
 
             
             {{-- Options server-rendered with the markup renderColorSwatches()/renderSizePills() produce (no layout shift). --}}
@@ -137,97 +130,64 @@
             </div>
 
             
-            <div class="detail-cta-row">
-              <div class="detail-quantity-picker">
-                <button class="qty-btn" id="qty-minus" aria-label="Decrease quantity">&minus;</button>
-                <input type="number" class="qty-input-field" id="detail-qty-input" value="1" min="1" max="99" aria-label="Quantity">
-                <button class="qty-btn" id="qty-plus" aria-label="Increase quantity">&plus;</button>
+            {{-- Price on the left; quantity + Add to Cart on the right (stacked on mobile). --}}
+            <div class="detail-buy-row">
+              <div class="detail-price-box">
+                <span class="detail-offered-price" id="detail-offered-price">{{ $cur }}{{ number_format($initialPrice, 2) }}</span>
+                <span class="detail-original-price" id="detail-original-price" @if (! ($orig && $orig > $initialPrice)) style="display:none" @endif>{{ $cur }}{{ number_format($orig ?? 0, 2) }}</span>
+                <span class="detail-discount-pill" id="detail-discount-pill" style="display:none">SAVE 0%</span>
               </div>
+              <div class="detail-cta-row">
+                <div class="detail-quantity-picker">
+                  <button class="qty-btn" id="qty-minus" aria-label="Decrease quantity">&minus;</button>
+                  <input type="number" class="qty-input-field" id="detail-qty-input" value="1" min="1" max="99" aria-label="Quantity">
+                  <button class="qty-btn" id="qty-plus" aria-label="Increase quantity">&plus;</button>
+                </div>
 
-              <div class="detail-actions-wrap">
-                <button class="btn btn-primary btn-lg" id="detail-add-to-cart-btn">Add to Cart</button>
-                <button class="btn btn-secondary-outline  btn-lg" id="detail-buy-now-btn">Buy Now</button>
+                <div class="detail-actions-wrap">
+                  <button class="btn btn-primary btn-lg" id="detail-add-to-cart-btn">Add to Cart</button>
+                </div>
               </div>
             </div>
 
-            
-            <div class="detail-trust-features">
-              @if ($dp = \App\Support\Delivery::text('dispatch_point'))
-              <div class="trust-feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
-                <span>{{ $dp }}</span>
-              </div>
-              @endif
-              @if ($fs = \App\Support\Delivery::text('free_shipping_short'))
-              <div class="trust-feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>{{ $fs }}</span>
-              </div>
-              @endif
-              @if ($rs = \App\Support\Delivery::text('returns_short'))
-              <div class="trust-feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-                <span>{{ $rs }}</span>
-              </div>
-              @endif
-            </div>
+            {{-- Product details: the full description (admin-authored, allowlist-sanitised by App\Support\SafeHtml in Catalog; plain text keeps its line breaks); skipped when it only repeats the short description. --}}
+            @php
+              $fullDesc = trim((string) ($product['fullDesc'] ?? ''));
+              $showFullDesc = $fullDesc !== '' && trim(strip_tags($fullDesc)) !== trim((string) ($product['desc'] ?? ''));
+            @endphp
+            @if ($showFullDesc)
+            <section class="detail-full-description" id="detail-full-description" aria-labelledby="detail-full-description-title">
+              <h2 class="detail-full-description-title" id="detail-full-description-title">Product Details</h2>
+              <div class="detail-full-description-body">{!! preg_match('/<[a-z][\s\S]*>/i', $fullDesc) ? $fullDesc : '<p>'.nl2br(e($fullDesc), false).'</p>' !!}</div>
+            </section>
+            <hr class="detail-section-divider">
+            @endif
 
+            <section class="delivery-returns-box" aria-label="Delivery, shipping and returns">
+              <div class="delivery-returns-grid">
+                <div class="delivery-info-col">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
+                  <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('timeframe_title') }}</h4>
+                  <p class="delivery-info-desc">{{ \App\Support\Delivery::text('timeframe') }}</p>
+                </div>
+
+                <div class="delivery-info-col">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-6h6m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('rates_title') }}</h4>
+                  <p class="delivery-info-desc">{{ \App\Support\Delivery::text('rates') }}</p>
+                </div>
+
+                <div class="delivery-info-col">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                  <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('returns_title') }}</h4>
+                  <p class="delivery-info-desc">{{ \App\Support\Delivery::text('returns_text') }} <a href="/returns" style="color: var(--color-brand);">Returns information</a></p>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
 
-        
-        <section class="product-accordions-container">
-          {{-- Same sections, order and markup as renderAccordions() in product-detail.js (no growth when it runs). --}}
-          @php
-            $chev = '<svg class="accordion-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>';
-            $para = fn ($t) => '<p>'.nl2br(e($t), false).'</p>';
-            $accordions = [];
-            if ($description) {
-                // allowlist-sanitised admin rich text (App\Support\SafeHtml); plain text keeps its line breaks
-                $accordions[] = ['Description & Craft Story', preg_match('/<[a-z][\s\S]*>/i', $description) ? $description : $para($description)];
-            }
-            $materials = implode(' · ', array_filter([$specs['material'] ?? null, $specs['fabric'] ?? null, ! empty($specs['pattern']) ? 'Pattern: '.$specs['pattern'] : null]));
-            if ($materials !== '') { $accordions[] = ['Materials & Fabric', $para($materials)]; }
-            $fit = implode("\n", array_filter([! empty($specs['dimensions']) ? 'Dimensions: '.$specs['dimensions'] : null, ! empty($specs['fit']) ? 'Fit: '.$specs['fit'] : null]));
-            if ($fit !== '') { $accordions[] = ['Dimensions & Fit', $para($fit)]; }
-            if (! empty($specs['care'])) { $accordions[] = ['Care Instructions', $para($specs['care'])]; }
-          @endphp
-          <div class="detail-accordion-group" id="detail-accordion-group">
-            @foreach ($accordions as $i => [$accTitle, $accHtml])
-              <div class="detail-accordion-item {{ $i === 0 ? 'open' : '' }}">
-                <button class="accordion-header-btn"><span>{{ $accTitle }}</span>{!! $chev !!}</button>
-                <div class="accordion-content-panel" style="{{ $i === 0 ? 'max-height: 500px;' : '' }}">
-                  <div class="accordion-inner-body">{!! $accHtml !!}</div>
-                </div>
-              </div>
-            @endforeach
-          </div>
-        </section>
-
-        
-        <section class="delivery-returns-box">
-          <div class="delivery-returns-grid">
-            <div class="delivery-info-col">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25h-2.25m-4.5 0H5.25m0 0a2.25 2.25 0 00-2.25 2.25v6h14.25v-6a2.25 2.25 0 00-2.25-2.25H12.75"/></svg>
-              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('timeframe_title') }}</h4>
-              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('timeframe') }}</p>
-            </div>
-
-            <div class="delivery-info-col">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-6h6m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('rates_title') }}</h4>
-              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('rates') }}</p>
-            </div>
-
-            <div class="delivery-info-col">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-              <h4 class="delivery-info-title">{{ \App\Support\Delivery::text('returns_title') }}</h4>
-              <p class="delivery-info-desc">{{ \App\Support\Delivery::text('returns_text') }} <a href="/returns" style="color: var(--color-brand);">Returns information</a></p>
-            </div>
-          </div>
-        </section>
-
-        
+        {{-- Suggestions: full width, after the whole product overview. --}}
         <section class="section" style="padding-top:0">
           <div class="section-header" style="text-align:left">
             <span class="section-eyebrow">CURATED FOR YOU</span>
@@ -307,4 +267,5 @@
 @push('scripts')
 <script src="{{ \App\Support\Assets::url('assets/js/size-guide-units.js') }}"></script>
 <script src="{{ \App\Support\Assets::url('assets/js/product-detail.js') }}"></script>
+<script src="{{ \App\Support\Assets::url('assets/js/image-lightbox.js') }}" defer></script>
 @endpush
