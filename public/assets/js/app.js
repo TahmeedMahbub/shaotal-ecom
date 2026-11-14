@@ -3055,7 +3055,7 @@
     }
 
     // Launch offer end date: October 15, 2026, 23:59:59 AEST (+10:00)
-    const offerEndDate = new Date('2026-10-15T23:59:59+10:00').getTime();
+    const offerEndDate = new Date('2027-02-15T23:59:59+10:00').getTime();
 
     function update() {
       const now = Date.now();
