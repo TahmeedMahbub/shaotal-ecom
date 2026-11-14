@@ -249,7 +249,7 @@ class SeoCrawlabilityTest extends TestCase
         $this->assertNull($this->canonical($draft));
         $this->assertSame([], $this->jsonLd($draft));
 
-        config(['storefront.approved_pages' => ['contact', 'shipping']]);
+        \App\Support\StoreConfig::fake(['approved_info_pages' => ['contact', 'shipping']]);
         $contact = $this->html('/contact');
         $this->assertSame('index, follow', $this->robots($contact));
         $this->assertSame(self::BASE.'/contact', $this->canonical($contact));
@@ -261,7 +261,7 @@ class SeoCrawlabilityTest extends TestCase
     public function test_organization_contact_point_only_from_configured_details(): void
     {
         $this->assertArrayNotHasKey('contactPoint', $this->ld($this->html('/'), 'Organization'));
-        config(['storefront.contact.email' => 'hello@shop.example']);
+        \App\Support\StoreConfig::fake(['contact_details' => ['email' => 'hello@shop.example', 'phone' => null, 'hours' => null]]);
         $point = $this->ld($this->html('/'), 'Organization')['contactPoint'];
         $this->assertSame(['@type' => 'ContactPoint', 'contactType' => 'customer service', 'email' => 'hello@shop.example', 'areaServed' => 'AU'], $point);
     }
@@ -361,7 +361,7 @@ class SeoCrawlabilityTest extends TestCase
     public function test_every_public_page_has_valid_json_ld_without_duplicate_types(): void
     {
         $this->addFashionProducts(12);
-        config(['storefront.approved_pages' => ['contact']]);
+        \App\Support\StoreConfig::fake(['approved_info_pages' => ['contact']]);
         foreach (['/', '/products', '/products?category=fashion&page=2', '/products?category=fashion&subcategory=t-shirts', '/products/essential-heavyweight-tee', '/contact'] as $uri) {
             $blocks = $this->jsonLd($this->html($uri));
             $this->assertNotEmpty($blocks, $uri);

@@ -37,7 +37,8 @@ Account order history (paginated) + order details/tracking page (`/account/order
 - **Catalog data:** pages embed only the products they render (was the whole catalog). Listing, search and lookups are server endpoints.
 - **Layout shift:** server-rendered nav, home sections, product options, account and checkout removed it (CLS ≤ 0.05 everywhere measured).
 - **Deployment:** `storefront:deploy-check`, `.env.production.example` and STOREFRONT_DEPLOYMENT_CHECKLIST.md.
-- **Delivery wording:** now in `storefront.delivery_copy` (owner decisions in plan §16).
+- **Delivery wording:** now in the admin-managed `config_data` key `delivery_copy` (owner decisions in plan §16).
+- **Admin-managed business configuration:** shipping fees, free-shipping threshold, pickup, payment methods, online discount/deposit, gift-wrap fees, cancellation/returns rules, approved policy pages, contact details and delivery wording are read from the admin's `config_data` table via `App\Support\StoreConfig` (keys and formats: docs/config-data.md). **Blocker:** the table and all 19 rows must exist before deploy, or the pages that need them fail with a clear `ConfigDataException`.
 - **Admin changes:** specified in docs/admin-order-integration.md. Not applied or verified (admin code not available).
 
 ## Security, policies & release prep (2026-11-12, Part 6)
@@ -136,3 +137,12 @@ Evidence, root causes and test results: see the audit report in the session summ
 - **Payment start failure:** Stripe idempotency key now includes a hash of the request (`idempotency_error` on retry), and a Stripe timeout (`ConnectionException`) no longer becomes a 500 after the order is saved.
 - **Cart:** unchanged rule (COD clears at commit; card only on the verified webhook), plus `storefront:reconcile-payments` (scheduled) for a webhook that never arrives, and the saved-cart sync is flushed before leaving the page.
 - **Order confirmation email:** queued job (`storefront.order_mail_queue`), sent after commit (COD) / after verified payment (card), deduplicated per order, `storefront:retry-order-emails` (scheduled). Needs the cron entry in the deployment checklist.
+
+## Shipping zones, free pickup & 30% deposit (2026-11-14)
+Owner decisions: Adelaide delivery A$5, rest of Australia A$12, Free Pickup – West Croydon A$0; every card order pays a 30% deposit now and 70% later (was 20%; 2% online discount kept), whatever the cart holds; COD unchanged (full amount on delivery/collection, no deposit).
+- **One calculation:** `App\Support\Shipping` (zone, fee, pickup, free-delivery threshold). Adelaide = state SA + suburb AND postcode in `config/adelaide_localities.php` (358 metro localities, all verified against the G-NAF `au_localities` dataset); everything else, incl. the rest of SA, is A$12. Rates/pickup in `config/storefront.php`. Deposit/balance still only in `App\Payments\OnlinePaymentPlan` (`online_payment.deposit_percent` = 30; `balance_terms` = the one wording for how the balance is collected).
+- **Checkout:** delivery/pickup choice (existing option-card component); quote and place send only the choice + address id; the server re-prices. Pickup asks for name + phone, no address; stored as `orders.fulfillment_type = pickup` with the pickup point in the shipping columns.
+- **Records:** method snapshot in the first `payments.response_data->shipping` + a timeline note; deposit plan as before. No schema change (optional columns in `sql/proposed_changes.sql` §10). Admin read guide: docs/admin-order-integration.md (last section).
+- **Pages:** new `/payments` (Payments & Pre-orders, draft until approved), Shipping, Terms, Returns updated; order page + confirmation email show the method, fee, deposit and balance terms.
+- **Tests:** `tests/Feature/ShippingDepositPolicyTest.php` (15), existing tests moved to 30%. PHPUnit 414 pass / 3 known Windows symlink errors; browser check desktop + mobile 30/30.
+- **Open business decisions:** Adelaide suburb boundary; pickup address/hours (`config_data` `pickup_location.details`); when/how the 70% is collected; deposit refund/cancellation/forfeiture; whether free delivery at A$299+ stays.

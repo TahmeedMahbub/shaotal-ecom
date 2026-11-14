@@ -26,7 +26,7 @@ Status labels used below:
 
 | Page | Robots | Canonical | Structured data | In sitemap |
 |---|---|---|---|---|
-| Home `/` | index | `/` | Organization (contactPoint only when `STOREFRONT_CONTACT_*` is set), WebSite | yes |
+| Home `/` | index | `/` | Organization (contactPoint only when `config_data` `contact_details` is set), WebSite | yes |
 | All products `/products` | index | `/products` (`?page=N` for page N) | BreadcrumbList, CollectionPage + ItemList | page 1 |
 | Category `/products?category=x` | index | Same, plus `&page=N` | BreadcrumbList, CollectionPage + ItemList | page 1, only if it lists products |
 | Subcategory `…&subcategory=y` (under its own category) | index | Same | Same | page 1, only if it lists products |
@@ -34,7 +34,7 @@ Status labels used below:
 | Search `?search=`, brand `?brand=`, pre-order view, unknown category or subcategory | **noindex, follow** | none | none | no |
 | Product `/products/{slug}` | index | Lower-case slug (other case → 301) | Product + Offer/AggregateOffer, BreadcrumbList | yes, with main image |
 | Bulk order, Request sourcing | index | self | — | yes |
-| Contact, Shipping, Returns, Terms, Privacy | **noindex** while draft. Index once listed in `STOREFRONT_APPROVED_PAGES` | Only when approved | ContactPage / WebPage, only when approved | only when approved |
+| Contact, Shipping, Returns, Terms, Privacy | **noindex** while draft. Index once listed in `config_data` `approved_info_pages` | Only when approved | ContactPage / WebPage, only when approved | only when approved |
 | Account, orders, order details, checkout | **noindex, nofollow** (meta + `X-Robots-Tag`), `private` caching, server-side access control | none | none | no |
 | Sign-in and registration | Modals on public pages, not separate URLs. `/auth/*` endpoints are JSON and disallowed. | — | — | no |
 | Cart and wishlist | Drawers, not URLs | — | — | no |
@@ -86,7 +86,7 @@ How page links look to visitors:
 
 | Type | Page | Built from | Never includes |
 |---|---|---|---|
-| Organization | Home | Brand name, logo, `https` social links in `site_settings`; `contactPoint` only from configured `STOREFRONT_CONTACT_EMAIL/PHONE` | Invented phone, address or founding details |
+| Organization | Home | Brand name, logo, `https` social links in `site_settings`; `contactPoint` only from configured `config_data contact_details EMAIL/PHONE` | Invented phone, address or founding details |
 | WebSite | Home | Brand, `en-AU` | SearchAction (Google retired the sitelinks search box in 2024) |
 | BreadcrumbList | Listings, products | The same crumbs as the visible breadcrumb | — |
 | CollectionPage + ItemList | Indexable listing pages | Exactly the products rendered on that page, positions continuing across pages, `numberOfItems` = listing total | Products not shown on the page |
@@ -239,7 +239,7 @@ Nothing below has been done. No verification token exists in this repository, an
 | # | Issue | Status | Needs |
 |---|---|---|---|
 | S1 | No About / Our Story page; footer "Our Story" goes to a home anchor (D5) | **Blocked** | Approved content from the owner |
-| S2 | Policy pages are drafts (noindex) | **Pending** | Owner approval, plus legal review of terms and privacy, then `STOREFRONT_APPROVED_PAGES` |
+| S2 | Policy pages are drafts (noindex) | **Pending** | Owner approval, plus legal review of terms and privacy, then `config_data` `approved_info_pages` |
 | S3 | No `aggregateRating` / reviews in markup (G9) | **Pending** | Decide whether to server-render real reviews first |
 | S4 | No `hasMerchantReturnPolicy`, no `deliveryTime` | **Pending** | Approved returns policy and delivery times |
 | S5 | Heading order: header overlays (mega-menu `h4`s, the search overlay's "No products found" `h3`, empty quick-view/cart `h3`s) come before the page `h1` in the DOM | Open (low) | Changing those tags changes design markup; not done. Search engines use the `h1` and content; no ranking impact is claimed. |

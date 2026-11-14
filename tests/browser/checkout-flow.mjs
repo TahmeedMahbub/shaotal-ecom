@@ -138,12 +138,16 @@ try {
   check('webhook: first delivery marks it paid', w1.body.outcome === 'paid', JSON.stringify(w1.body));
   check('webhook: duplicate delivery is a no-op', w2.body.outcome === 'duplicate', JSON.stringify(w2.body));
   check('webhook: saved cart cleared by the server although the browser never came back', dbCartItems() === 0, String(dbCartItems()));
-  check('webhook: 20% deposit does not mark the order fully paid', sql(`select payment_status from orders where order_number='${cardNumber}'`) === 'pending');
+  check('webhook: 30% deposit does not mark the order fully paid', sql(`select payment_status from orders where order_number='${cardNumber}'`) === 'pending');
   // Browser side: any page load for a signed-in customer takes the server cart, so the stale localStorage copy is replaced.
   await p.goto(BASE + '/products', 1500);
   check('webhook: next page load shows an empty browser cart (no stale copy)', (await lsCart()) === 0, String(await lsCart()));
   await p.goto(BASE + '/checkout/payment/success?session_id=' + sess, 1500);
-  check('success page after the webhook: paid state', (await p.eval(`document.getElementById('payment-result').dataset.state`)) === 'paid');
+  check('success return after the webhook: the COD success modal, with the card deposit rows',
+    (await p.eval(`location.pathname + location.search`)) === '/checkout?paid=' + cardNumber
+      && (await p.eval(`document.getElementById('success-modal-overlay').classList.contains('active')`)) === true
+      && (await p.eval(`document.getElementById('success-card-rows').hidden`)) === false
+      && (await p.eval(`document.getElementById('success-payment-status').textContent`)) === 'Partially Paid');
   check('card order: gift/cart state clean afterwards', (await lsCart()) === 0 && (await gift()) === null);
   console.log(`ORDERS ${codNumber} ${cardNumber}`);
 } catch (e) {

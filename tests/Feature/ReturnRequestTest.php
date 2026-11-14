@@ -28,7 +28,7 @@ class ReturnRequestTest extends TestCase
             $this->markTestSkipped('Apply tests/Support/proposed-schema.sql to the test database.');
         }
         $this->customer = $this->makeCustomer('returns@example.test');
-        config(['storefront.returns.enabled' => true, 'storefront.returns.window_days' => null]);
+        \App\Support\StoreConfig::fake(['returns_enabled' => true, 'returns_window_days' => null]);
     }
 
     private function order(string $status, ?string $deliveredAt = '2026-11-01 10:00:00', ?int $customer = null): string
@@ -100,7 +100,7 @@ class ReturnRequestTest extends TestCase
 
     public function test_configured_window_needs_a_recorded_delivery_time(): void
     {
-        config(['storefront.returns.window_days' => 14]);
+        \App\Support\StoreConfig::fake(['returns_window_days' => 14]);
         $this->travelTo('2026-11-10 00:00:00');
         $this->ask($this->order('delivered', '2026-11-01 10:00:00'))->assertCreated();       // 9 days after delivery
         $this->ask($this->order('delivered', '2026-10-20 10:00:00'))->assertStatus(422);     // 21 days
@@ -109,7 +109,7 @@ class ReturnRequestTest extends TestCase
 
     public function test_feature_is_off_by_default_and_hidden(): void
     {
-        config(['storefront.returns.enabled' => false]);
+        \App\Support\StoreConfig::fake(['returns_enabled' => false]);
         $number = $this->order('delivered');
         $this->ask($number)->assertStatus(422);
         $html = $this->withSession($this->signedInSession($this->customer))->get("/account/orders/{$number}")->getContent();

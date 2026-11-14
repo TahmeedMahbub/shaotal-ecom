@@ -18,7 +18,7 @@ _Updated for Part 6 (2026-11-12): `storage:link` and the PHP `gd` extension are 
 | 0.7 | Behind a load balancer/CDN that terminates TLS? | Set `TRUSTED_PROXIES` (its IPs/CIDRs, or `*` if the app is reachable only through it). Otherwise Laravel sees plain http: cookies, HSTS and URLs go wrong. |
 | 0.8 | Several app servers? | Use `CACHE_STORE=redis` and `SESSION_DRIVER=redis`. The checkout lock, rate limits and catalog cache must be shared across servers. |
 | 0.9 | Permissions | Owner = deploy user, group = web server user: `chmod -R ug+rwX storage bootstrap/cache`, everything else read-only for the web server. |
-| 0.10 | Owner decisions that change wording or behaviour | Delivery copy (`config/storefront.php` → `delivery_copy`, plan §16), policy-page approval (`STOREFRONT_APPROVED_PAGES`), contact details (`STOREFRONT_CONTACT_*`), returns policy and window, Stripe live payments (`STRIPE_*`, [docs/stripe-deployment.md](docs/stripe-deployment.md)). See §7. Never fill these in without written owner approval. |
+| 0.10 | Owner decisions that change wording or behaviour | Delivery copy, policy-page approval, contact details, returns policy and window, fees, pickup, deposit/discount (all admin-managed `config_data` keys, [docs/config-data.md](docs/config-data.md); plan §16), Stripe live payments (`STRIPE_*`, [docs/stripe-deployment.md](docs/stripe-deployment.md)). See §7. Never fill these in without written owner approval. |
 | 0.11 | PHP extensions | `gd` with JPEG, PNG and WebP support is **required**: sourcing-request photos are decoded and re-encoded with GD, and every upload is refused without it. Check: `php -r 'var_dump(function_exists("imagewebp"));'` → `true` (also reported by `storefront:deploy-check`). |
 | 0.12 | Uploaded photos are served as static files only | `storage/app/public` is exposed at `/storage` by `storage:link`. Uploads are already re-encoded images with random `.jpg/.png/.webp` names, but as defence in depth make sure the web server never executes PHP there. Nginx: `location ^~ /storage/ { try_files $uri =404; }` placed before the `\.php$` block. Apache: `php_flag engine off` (or `RemoveHandler .php`) for that directory. |
 | 0.13 | CI green on the release commit | `.github/workflows/tests.yml`: PHPUnit (MySQL) + JS, and the browser job (smoke, SEO, and since Part 8 the customer journey). Green on GitHub for `c95ec27` (run #2). The journey step runs from the next push on: check it before release. |
@@ -158,8 +158,9 @@ Check `storage/logs/laravel-*.log` for new errors.
   - Writable `storage/framework/{cache,sessions,views}`, `storage/logs`, `storage/app/public` and `bootstrap/cache`.
   - PHP `gd` loaded with JPEG, PNG and WebP functions.
   - `STOREFRONT_DISPLAY_TIMEZONE` is a valid time zone name.
-  - `STOREFRONT_APPROVED_PAGES` lists only known pages (`contact, shipping, returns, terms, privacy`).
-  - `STOREFRONT_RETURNS_WINDOW_DAYS`, when set, is a positive number.
+  - `config_data` readable and every key in docs/config-data.md present with a valid value.
+  - `config_data` `approved_info_pages` lists only known pages (`contact, shipping, returns, payments, terms, privacy`).
+  - `config_data` `returns_window_days`, when not null, is a positive number.
   - Returns switched on while the return-request tables are missing. The database is queried only when the switch is on.
 - **Warnings:**
   - Queue connection, debug log level, log/array mailer.
@@ -170,23 +171,23 @@ Check `storage/logs/laravel-*.log` for new errors.
 - **Part 8 run with simulated production settings** (`APP_ENV=production`, https `APP_URL`, secure cookie, file cache and session, smtp, warning logs): every row OK except `public/storage` FAIL (`storage:link` not run on that machine; deploy step 6). Expected WARNs: `TRUSTED_PROXIES`, policy pages not approved, no contact details.
 
 ## 7. Storefront settings added in Part 6
-All are read in `config/storefront.php`. Defaults are safe for launch. Remember `php artisan config:cache` after any change.
+`STOREFRONT_DISPLAY_TIMEZONE` is read in `config/storefront.php` (run `php artisan config:cache` after a change). The business settings that used to be `STOREFRONT_*` variables now live in the admin-managed `config_data` table and apply on the next request without a deploy: see [docs/config-data.md](docs/config-data.md).
 
 | Variable | Default (unset) | Meaning | Who decides |
 |---|---|---|---|
 | `STOREFRONT_DISPLAY_TIMEZONE` | `Australia/Sydney` | Zone for dates shown to customers (AEST/AEDT label). Storage stays UTC (`APP_TIMEZONE=UTC`, `DB_TIMEZONE=+00:00`). | Owner (decided: Sydney) |
-| `STOREFRONT_APPROVED_PAGES` | empty | Comma-separated subset of `contact,shipping,returns,terms,privacy`. Unlisted pages show "being finalised", send `noindex` and are left out of the sitemap. | Owner; `terms`/`privacy` also legal review |
-| `STOREFRONT_CONTACT_EMAIL` / `_PHONE` / `_HOURS` | empty | Public contact details on `/contact`. Empty = form only (messages go to `contact_messages`). | Owner (not provided yet) |
-| `STOREFRONT_RETURNS_ENABLED` | `false` | Shows the "Request a return" form on the customer's own delivered orders. **Keep false** (see below). | Owner + DB owner + admin team |
-| `STOREFRONT_RETURNS_WINDOW_DAYS` | unset = no limit | Days after the recorded delivery time during which a request may be sent. Do **not** write it as an empty value (`=`): that reads as 0 and deploy-check fails. | Owner (not decided) |
+| `config_data` `approved_info_pages` | `[]` | Subset of `contact,shipping,returns,payments,terms,privacy`. Unlisted pages show "being finalised", send `noindex` and are left out of the sitemap. | Owner; `terms`/`privacy` also legal review |
+| `config_data` `contact_details` | all `null` | Public contact details on `/contact`. All null = form only (messages go to `contact_messages`). | Owner (not provided yet) |
+| `config_data` `returns_enabled` | `false` | Shows the "Request a return" form on the customer's own delivered orders. **Keep false** (see below). | Owner + DB owner + admin team |
+| `config_data` `returns_window_days` | `null` = no limit | Days after the recorded delivery time during which a request may be sent. | Owner (not decided) |
 
-Unchanged code constants (not env): shipping A$12 below A$299, free at A$299 or more (`shipping_flat`, `free_shipping_over`); delivery wording (`delivery_copy`); return reasons (`returns.reasons`); payment methods (`cod` only).
+Also admin-managed in `config_data`: shipping fees and free-shipping threshold, pickup, delivery wording (`delivery_copy`), return reasons (`return_reasons`), payment methods (`payment_methods`), online discount/deposit, gift-wrap fees.
 
 **Switching on return requests: all four are required, in this order.**
-1. The owner approves a returns policy in writing, including whether there is a time limit. The `/returns` page wording is then updated to match and approved (`STOREFRONT_APPROVED_PAGES`). The storefront does not invent eligibility rules: today it only enforces "own order, delivered, once", plus the optional window.
+1. The owner approves a returns policy in writing, including whether there is a time limit. The `/returns` page wording is then updated to match and approved (`config_data` `approved_info_pages`). The storefront does not invent eligibility rules: today it only enforces "own order, delivered, once", plus the optional window.
 2. The DB owner reviews and applies `sql/proposed_changes.sql` §4 (`order_return_requests`, `order_return_request_events`) to the shared database, with a backup first. The storefront never runs DDL.
 3. The admin app can list requests and move them `requested → approved/rejected → completed`, recording each change as an event ([docs/admin-order-integration.md](docs/admin-order-integration.md) §7). Refunds and restocking stay manual, staff-side.
-4. Then set `STOREFRONT_RETURNS_ENABLED=true`, run `php artisan config:cache`, run `storefront:deploy-check` (expect the returns WARN, not FAIL), and send one test request on a staff test order.
+4. Then set `config_data` `returns_enabled` to `true` (admin app), run `storefront:deploy-check` (expect the returns WARN, not FAIL), and send one test request on a staff test order.
 
 To switch it off again: set it to `false` and run `config:cache`. Existing requests stay in the tables for staff.
 
@@ -199,4 +200,4 @@ To switch it off again: set it to `false` and run `config:cache`. Existing reque
   4. Rich Results Test on a product.
 
   Step-by-step and expected warnings: [docs/SEO_AUDIT.md](docs/SEO_AUDIT.md) §12. Don't add verification tokens to the code without the owner providing them.
-- Policy pages stay noindex until listed in `STOREFRONT_APPROVED_PAGES` (§7).
+- Policy pages stay noindex until listed in `config_data` `approved_info_pages` (§7).

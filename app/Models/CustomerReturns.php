@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StoreConfig;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ class CustomerReturns
 
     public static function enabled(): bool
     {
-        return (bool) config('storefront.returns.enabled')
+        return StoreConfig::get('returns_enabled')
             && Cache::store('array')->rememberForever('returns.tables', fn () => Schema::hasTable('order_return_requests') && Schema::hasTable('order_return_request_events'));
     }
 
@@ -45,7 +46,7 @@ class CustomerReturns
         if (DB::table('order_return_requests')->where('order_id', $order->id)->exists()) {
             return 'A return has already been requested for this order.';
         }
-        $days = config('storefront.returns.window_days');
+        $days = StoreConfig::get('returns_window_days');
         if ($days !== null) {
             $deliveredAt = DB::table('order_timeline')->where('order_id', $order->id)->where('new_status', 'delivered')->min('created_at');
             if (! $deliveredAt || now()->greaterThan(Carbon::parse($deliveredAt, 'UTC')->addDays((int) $days))) {

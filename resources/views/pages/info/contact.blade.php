@@ -1,6 +1,6 @@
 @extends('pages.info.layout')
 @section('info')
-@php($c = config('storefront.contact'))
+@php($c = \App\Support\StoreConfig::get('contact_details'))
 <p class="info-lead">Questions about an order, a product or a request? Send us a message.</p>
 @if (! empty($c['email']) || ! empty($c['phone']))
   <div class="account-card-panel info-prose">

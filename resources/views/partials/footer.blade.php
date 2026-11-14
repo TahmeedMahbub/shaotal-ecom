@@ -7,7 +7,7 @@
           'Shop' => array_merge([['All Products', '/products'], ['New Arrivals', '/products?sort=newest']],
             array_map(fn ($c) => [$c['name'], \App\Support\Seo::listingUrl($c['slug'])], $boot['categories'] ?? []),
             [['Pre-order', '/products?category=preorder']]),
-          'Customer Care' => [['My Account', '/account'], ['Contact Us', '/contact'], ['Shipping', '/shipping'], ['Returns', '/returns'], ['Request Product Sourcing', '/request'], ['Bulk & Corporate Orders', '/bulk-order']],
+          'Customer Care' => [['My Account', '/account'], ['Contact Us', '/contact'], ['Shipping', '/shipping'], ['Payments & Pre-orders', '/payments'], ['Returns', '/returns'], ['Request Product Sourcing', '/request'], ['Bulk & Corporate Orders', '/bulk-order']],
           'About' => [['Our Story', '/#bangladesh-made-section'], ['Artisan Heritage', '/#bangladesh-made-section'], ['Terms of Sale', '/terms'], ['Privacy', '/privacy']],
         ];
       @endphp

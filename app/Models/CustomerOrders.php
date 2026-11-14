@@ -7,6 +7,8 @@ use App\Payments\PaymentMethods;
 use App\Support\DisplayTime;
 use App\Support\GiftWrap;
 use App\Support\OrderStatus;
+use App\Support\Shipping;
+use App\Support\StoreConfig;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,10 +20,10 @@ class CustomerOrders
 {
     public const PER_PAGE = 10;
 
-    /** Statuses a customer may cancel themselves (config storefront.customer_cancellable_statuses). */
+    /** Statuses a customer may cancel themselves (config_data customer_cancellable_statuses; only "pending" is supported). */
     public static function cancellableStatuses(): array
     {
-        return array_values(array_intersect((array) config('storefront.customer_cancellable_statuses', []), ['pending']));
+        return array_values(array_intersect(StoreConfig::get('customer_cancellable_statuses'), ['pending']));
     }
 
     /** @return array{orders: array, page: int, perPage: int, hasMore: bool} */
@@ -75,6 +77,48 @@ class CustomerOrders
         return '/account/orders/'.rawurlencode($orderNumber);
     }
 
+    /** One-line delivery/pickup summary shown in the checkout success modal (COD response and card return alike). */
+    public static function successAddress(bool $pickup, array $a): string
+    {
+        return $pickup
+            ? "{$a['street']} (collected by {$a['fullName']}, {$a['phone']})"
+            : "{$a['fullName']}, {$a['street']}, {$a['suburb']} {$a['state']} {$a['postcode']}";
+    }
+
+    /**
+     * Data for the checkout success modal after a card payment, or null when this is not the customer's card order or
+     * Stripe has not confirmed any money for it yet (paid payment rows only, written by the webhook or by the success
+     * return after asking Stripe). Same fields as the COD place-order response, plus what was paid and what is left.
+     *
+     * @return array{orderNumber: string, orderUrl: string, pickup: bool, address: string, total: float, paid: float, balance: float, paymentStatus: string}|null
+     */
+    public static function cardSuccess(int $customerId, string $orderNumber): ?array
+    {
+        $o = DB::table('orders')->where('order_number', $orderNumber)->where('customer_id', $customerId)->where('payment_method', 'card')
+            ->first(['id', 'order_number', 'grand_total', 'payment_status', 'payment_method', 'order_status', 'fulfillment_type',
+                'shipping_recipient_name', 'shipping_phone', 'shipping_street_address', 'shipping_suburb', 'shipping_state', 'shipping_postcode']);
+        $paid = $o ? CardPayments::paidTotal($o->id) : 0.0;
+        if (! $o || $paid <= 0) {
+            return null;
+        }
+        $pickup = $o->fulfillment_type === 'pickup';
+        $total = (float) $o->grand_total;
+
+        return [
+            'orderNumber' => $o->order_number,
+            'orderUrl' => self::url($o->order_number),
+            'pickup' => $pickup,
+            'address' => self::successAddress($pickup, [
+                'fullName' => $o->shipping_recipient_name, 'phone' => $o->shipping_phone, 'street' => $o->shipping_street_address,
+                'suburb' => $o->shipping_suburb, 'state' => $o->shipping_state, 'postcode' => $o->shipping_postcode,
+            ]),
+            'total' => $total,
+            'paid' => round($paid, 2),
+            'balance' => $o->order_status === 'cancelled' ? 0.0 : round(max(0, $total - $paid), 2),
+            'paymentStatus' => OrderStatus::paymentLabel($o->payment_status, $o->payment_method, $o->order_status, $paid, $total),
+        ];
+    }
+
     /** Full order for the details page, or null when it is not this customer's order. */
     public static function find(int $customerId, string $orderNumber): ?array
     {
@@ -82,7 +126,7 @@ class CustomerOrders
             'id', 'order_number', 'order_status', 'payment_status', 'payment_method', 'subtotal', 'discount_total', 'shipping_total',
             'tax_total', 'grand_total', 'coupon_code', 'shipping_recipient_name', 'shipping_phone', 'shipping_street_address',
             'shipping_suburb', 'shipping_state', 'shipping_postcode', 'customer_note', 'gift_wrap_requested', 'gift_wrap_items_count',
-            'gift_wrap_fee', 'gift_message', 'placed_at', 'cancelled_at', 'created_at',
+            'gift_wrap_fee', 'gift_message', 'fulfillment_type', 'placed_at', 'cancelled_at', 'created_at',
         ]);
         if (! $o) {
             return null;
@@ -137,7 +181,10 @@ class CustomerOrders
                 'discount' => (float) $plan['discount'], 'discountPercent' => (float) $plan['discountPercent'], 'depositPercent' => (float) $plan['depositPercent'],
                 'balancePercent' => (float) $plan['balancePercent'], 'deposit' => (float) $plan['deposit'], 'paid' => $paid,
                 'balance' => $o->order_status === 'cancelled' ? 0.0 : $balance, 'depositPaid' => $paid > 0,
+                'balanceTerms' => OnlinePaymentPlan::balanceTerms((float) $plan['balancePercent']),
             ] : null,
+            // Delivery method as placed (Adelaide delivery / Delivery within Australia / Free Pickup – West Croydon) and its fee.
+            'delivery' => Shipping::forOrder((int) $o->id, $o->fulfillment_type, (float) $o->shipping_total),
             'timeline' => OrderStatus::timeline($o->order_status, $history, $o->placed_at ?? $o->created_at, $o->cancelled_at),
             // A paid order needs staff (refund), so it is never cancelled online (docs/payments-architecture.md P1).
             'canCancel' => in_array($o->order_status, self::cancellableStatuses(), true) && $o->payment_status !== 'paid' && $paid <= 0,

@@ -18,7 +18,7 @@
     <article class="info-page">
       <h1>{{ $heading }}</h1>
       @if (! $approved)
-        {{-- Shown until the owner (and for terms/privacy a legal adviser) approves this page: config storefront.approved_pages --}}
+        {{-- Shown until the owner (and for terms/privacy a legal adviser) approves this page: config_data approved_info_pages --}}
         <div class="info-draft-notice" role="note">
           <strong>Being finalised.</strong>
           <span>This page is a draft and has not yet been reviewed{{ in_array($slug, ['terms', 'privacy'], true) ? ' by a legal adviser' : '' }}. It describes how the store currently works; it is not a final policy.</span>

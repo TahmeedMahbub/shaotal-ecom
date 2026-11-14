@@ -5,8 +5,8 @@ namespace App\Models;
 use App\Payments\OnlinePaymentPlan;
 use App\Payments\PaymentMethod;
 use App\Payments\PaymentMethods;
-use App\Support\Delivery;
 use App\Support\GiftWrap;
+use App\Support\Shipping;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -89,9 +89,10 @@ class Checkout
     /**
      * Totals for priced lines plus an optional coupon. Returns the coupon row on success.
      *
-     * @return array{subtotal: float, shipping: float, discount: float, tax: float, total: float, coupon: ?array, couponError: ?string}
+     * @param  ?array  $delivery  ['fulfillment' => 'delivery'|'pickup', 'address' => ?['suburb','state','postcode']]; null = delivery, no address yet
+     * @return array{subtotal: float, shipping: float, discount: float, tax: float, total: float, coupon: ?array, couponError: ?string, delivery: array}
      */
-    public static function totals(array $lines, ?string $code, ?int $customerId, ?array $gift = null): array
+    public static function totals(array $lines, ?string $code, ?int $customerId, ?array $gift = null, ?array $delivery = null): array
     {
         // Gift wrapping is a service charge on top of the goods: it never counts toward the free-shipping threshold,
         // coupon minimums or coupon eligibility (those use the goods subtotal), but it is part of the order total and
@@ -100,8 +101,9 @@ class Checkout
         $gift = GiftWrap::resolve($lines, $gift);
         $giftFee = $gift['fee'] ?? 0.0;
         $subtotal = round(array_sum(array_map(fn ($l) => $l['price'] * $l['quantity'], $lines)), 2);
-        // Free at or above the threshold (exactly the threshold ships free), flat fee below it.
-        $shipping = Delivery::freeShipping($subtotal) ? 0.0 : (float) config('storefront.shipping_flat');
+        // Zone fee (Adelaide / rest of Australia / free pickup), free delivery at or above the threshold: App\Support\Shipping.
+        $ship = Shipping::quote($delivery['fulfillment'] ?? 'delivery', $delivery['address'] ?? null, $subtotal);
+        $shipping = $ship['fee'];
         $discount = 0.0;
         $coupon = null;
         $couponError = null;
@@ -110,6 +112,8 @@ class Checkout
             [$coupon, $discount, $freeShip, $couponError] = self::applyCoupon(trim($code), $lines, $subtotal, $shipping, $customerId);
             if ($coupon && $freeShip) {
                 $shipping = 0.0;
+                $ship['fee'] = 0.0;
+                $ship['free'] = true;
             }
             if ($couponError) {
                 $coupon = null;
@@ -126,6 +130,8 @@ class Checkout
             'giftFee' => $giftFee, 'gift' => $gift, 'giftError' => $giftError,
             'total' => round(max(0, $subtotal + $giftFee + $shipping + $tax - $discount), 2),
             'coupon' => $coupon, 'couponError' => $couponError,
+            // Selected delivery method (method/label/fee as charged): shown in the summary and snapshotted on the order.
+            'delivery' => $ship,
             // What the order would be if paid online (pre-booking). "total" above stays the cash-on-delivery figure.
             'online' => OnlinePaymentPlan::calculate($subtotal + $giftFee - $discount, $shipping, $tax),
         ];
@@ -273,7 +279,8 @@ class Checkout
                 'subtotal' => $totals['subtotal'], 'discount_total' => round($totals['discount'] + ($totals['onlineDiscount'] ?? 0), 2), 'shipping_total' => $totals['shipping'],
                 'tax_total' => $totals['tax'], 'grand_total' => $totals['total'], 'coupon_code' => $totals['coupon']['code'] ?? null,
                 // Never "paid" at placement: COD is collected later, a card gateway confirms server-side (webhook).
-                'payment_method' => $method->code(), 'payment_status' => 'pending', 'order_status' => 'pending', 'fulfillment_type' => 'delivery',
+                'payment_method' => $method->code(), 'payment_status' => 'pending', 'order_status' => 'pending',
+                'fulfillment_type' => ($totals['delivery']['fulfillment'] ?? 'delivery') === 'pickup' ? 'pickup' : 'delivery',
                 'customer_note' => $note, 'placed_at' => now(),
             ] + self::giftOrderColumns($totals['gift'] ?? null);
             $orderId = null;
@@ -303,17 +310,23 @@ class Checkout
             DB::table('order_items')->insert($itemRows);
 
             DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => null, 'new_status' => 'pending', 'note' => 'Order placed']);
+            // Delivery method snapshot: a timeline row staff can read, and the same data on the payment row (below) for display.
+            $ship = $totals['delivery'] ?? Shipping::quote('delivery', $address, $totals['subtotal']);
+            $shipSnap = ['fulfillment' => $ship['fulfillment'], 'method' => $ship['method'], 'label' => $ship['label'], 'fee' => $totals['shipping']];
+            DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => 'pending', 'new_status' => 'pending',
+                'note' => 'Delivery method: '.$ship['label'].' ('.($totals['shipping'] > 0 ? config('storefront.currency_symbol').number_format($totals['shipping'], 2) : 'free').')']);
             // COD: one row for the full amount (collected on delivery). Card: one row for the deposit charged now; the plan
             // (rates used, discount, deposit, balance) is snapshotted so later rate changes never alter this order.
             $plan = $totals['plan'] ?? null;
             DB::table('payments')->insert([
                 'order_id' => $orderId, 'provider' => $method->provider(), 'payment_method' => $method->code(),
                 'amount' => $plan ? $plan['deposit'] : $totals['total'], 'status' => $method->initialPaymentStatus(),
-                'response_data' => $plan ? json_encode(['plan' => $plan, 'events' => []]) : null,
+                'response_data' => json_encode($plan ? ['plan' => $plan, 'shipping' => $shipSnap, 'events' => []] : ['shipping' => $shipSnap]),
             ]);
             if ($plan) {
                 DB::table('order_timeline')->insert(['order_id' => $orderId, 'old_status' => 'pending', 'new_status' => 'pending',
-                    'note' => 'Online payment selected: '.config('storefront.currency_symbol').number_format($plan['deposit'], 2).' deposit due now, '
+                    'note' => 'Online payment selected: '.config('storefront.currency_symbol').number_format($plan['deposit'], 2).' deposit ('
+                        .rtrim(rtrim(number_format($plan['depositPercent'], 2), '0'), '.').'%) due now, '
                         .config('storefront.currency_symbol').number_format($plan['balance'], 2).' balance due later']);
             }
 
@@ -326,7 +339,7 @@ class Checkout
                 DB::table('carts')->where('customer_id', $customerId)->where('status', 'active')->update(['status' => 'converted']);
             }
 
-            return ['orderNumber' => $number, 'total' => $totals['total'], 'payNow' => $plan['deposit'] ?? 0.0, 'balance' => $plan['balance'] ?? 0.0, 'prebooked' => (bool) $plan];
+            return ['orderNumber' => $number, 'total' => $totals['total'], 'delivery' => $shipSnap, 'payNow' => $plan['deposit'] ?? 0.0, 'balance' => $plan['balance'] ?? 0.0, 'prebooked' => (bool) $plan];
         });
     }
 }

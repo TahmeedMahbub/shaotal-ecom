@@ -57,7 +57,8 @@ class CheckoutPlaceOrderTest extends TestCase
         $this->assertSame('cod', $order->payment_method);
         $this->assertSame(1, DB::table('order_items')->where('order_id', $order->id)->count());
         $this->assertSame(1, DB::table('payments')->where('order_id', $order->id)->where('status', 'pending')->count());
-        $this->assertSame(1, DB::table('order_timeline')->where('order_id', $order->id)->count());
+        $this->assertSame(2, DB::table('order_timeline')->where('order_id', $order->id)->count());   // placed + delivery method
+        $this->assertSame(1, DB::table('order_timeline')->where('order_id', $order->id)->where('note', 'Delivery method: Delivery within Australia (A$12.00)')->count());
     }
 
     public function test_repeated_identical_submission_returns_same_order_instead_of_a_duplicate(): void

@@ -55,9 +55,9 @@ function renderAccountPage() {
           <div class="account-user-email">${accountEsc(curr.email)} · Member since ${accountEsc(curr.joinedDate || '')}</div>
         </div>
       </div>
-      <button class="account-logout-btn" id="account-header-logout-btn">Log Out</button>
     `;
-    document.getElementById('account-header-logout-btn').addEventListener('click', () => window.logoutUser());
+    const headerLogout = document.getElementById('account-header-logout-btn');
+    if (headerLogout) headerLogout.addEventListener('click', () => window.logoutUser());
   }
 
   /* Profile */
@@ -191,11 +191,11 @@ function renderAccountPage() {
         ${cItems.map(item => `
           <div class="cart-item" style="border:1px solid var(--color-grey-200); border-radius:var(--radius-md); padding:var(--space-sm)">
             <img src="${accountEsc(item.image || window.PLACEHOLDER_IMG)}" style="width:50px; height:50px; border-radius:var(--radius-sm); object-fit:cover;">
-            <div style="flex:1; margin-left:var(--space-sm)">
-              <div style="font-weight:bold; font-size:var(--fs-small)">${accountEsc(item.name)}</div>
+            <div style="flex:1; min-width:0; margin-left:var(--space-sm)">
+              <div style="font-weight:bold; font-size:var(--fs-small); overflow-wrap:anywhere">${accountEsc(item.name)}</div>
               <div style="font-size:var(--fs-xs); color:var(--color-grey-600)">Variant: ${accountEsc(item.size || 'Standard')} / ${accountEsc(window.COLOR_NAMES[item.color] || item.color || 'Default')} · Qty: ${item.quantity || 1}</div>
             </div>
-            <div style="font-weight:bold; font-size:var(--fs-small); color:var(--color-brand)">$${(item.price * (item.quantity || 1)).toFixed(2)}</div>
+            <div style="font-weight:bold; font-size:var(--fs-small); color:var(--color-brand); white-space:nowrap; padding-left:var(--space-xs)">$${(item.price * (item.quantity || 1)).toFixed(2)}</div>
           </div>`).join('')}
         <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--color-grey-200); padding-top:var(--space-sm); margin-top:var(--space-sm)">
           <span style="font-weight:bold">Total Subtotal: $${totalVal.toFixed(2)} AUD</span>
@@ -214,7 +214,7 @@ function renderAccountPage() {
       requestsListEl.innerHTML = `
         <div style="text-align:center; padding:var(--space-lg) 0">
           <p style="color:var(--color-grey-600); margin-bottom:var(--space-md)">You haven't submitted any custom sourcing or bulk order requests yet.</p>
-          <div style="display:flex; gap:0.75rem; justify-content:center;">
+          <div style="display:flex; flex-wrap:wrap; gap:0.75rem; justify-content:center;">
             <a href="/request" class="btn btn-outline">Submit Custom Sourcing</a>
             <a href="/bulk-order" class="btn btn-primary">Request Bulk Order</a>
           </div>
@@ -259,6 +259,9 @@ function renderAccountPage() {
     requestsListEl.innerHTML = html;
   });
 
+  /* My Locations */
+  initAccountLocations();
+
   /* Tabs */
   document.querySelectorAll('.account-tab-item[data-account-tab]').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
@@ -284,4 +287,231 @@ function renderAccountPage() {
     window.__accountHashBound = true;
     window.addEventListener('hashchange', openTabFromHash);
   }
+}
+
+/* ── My Locations: saved delivery addresses (GET/POST/PUT/DELETE /account/addresses, PUT …/{id}/default) ── */
+const LOCATION_ICONS = {
+  home: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>',
+  office: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>',
+  other: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>',
+  edit: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>',
+  trash: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>',
+  phone: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>',
+};
+// Same rules as AccountController (PHONE_REGEX, 4-digit postcode, AU states); the server re-validates everything.
+const LOCATION_PHONE_RE = /^(?=(?:\D*\d){8,15}\D*$)\+?[0-9 ()\-]{8,24}$/;
+const LOCATION_FIELDS = {
+  fullName: 'location-name', phone: 'location-phone', line1: 'location-line1', street: 'location-line1', line2: 'location-line2',
+  suburb: 'location-suburb', state: 'location-state', postcode: 'location-postcode', customLabel: 'location-custom-label',
+};
+// The shared AddressForm component (assets/js/address-form.js) owns State → Suburb → Street → Postcode → Type.
+const locationFields = () => AddressForm.mount(document.getElementById('location-fields'));
+let accountLocations = [];
+
+function locationLabel(addr) {
+  if (addr.addressType === 'Office') return 'Work';
+  if (addr.addressType === 'Other') return addr.customLabel || 'Other';
+  return 'Home';
+}
+
+function renderLocations() {
+  const list = document.getElementById('account-locations-list');
+  if (!list) return;
+  if (accountLocations.length === 0) {
+    list.innerHTML = `
+      <div class="location-empty">
+        <p>You haven't saved any delivery locations yet.</p>
+        <button type="button" class="btn btn-primary" data-location-action="add">Add Your First Location</button>
+      </div>`;
+    return;
+  }
+  list.innerHTML = accountLocations.map(addr => {
+    const icon = addr.addressType === 'Office' ? LOCATION_ICONS.office : (addr.addressType === 'Home' ? LOCATION_ICONS.home : LOCATION_ICONS.other);
+    const id = Number(addr.id);
+    return `
+      <div class="address-card${addr.isDefault ? ' selected' : ''}" data-id="${id}">
+        <div class="address-card-header">
+          <span class="address-type-badge">${icon} ${accountEsc(locationLabel(addr))}</span>
+          ${addr.isDefault ? `<span class="address-selection-indicator">${LOCATION_ICONS.check} Default</span>` : ''}
+        </div>
+        <div class="address-name">${accountEsc(addr.fullName)}</div>
+        <div class="address-text">
+          ${accountEsc(addr.line1 || addr.street)}${addr.line2 ? `<br>${accountEsc(addr.line2)}` : ''}<br>
+          ${accountEsc(addr.suburb)}${addr.suburb ? ', ' : ''}${accountEsc(addr.state)} ${accountEsc(addr.postcode)}<br>
+          ${accountEsc(addr.country || 'Australia')}
+        </div>
+        <div class="address-phone">${LOCATION_ICONS.phone} ${accountEsc(addr.phone)}</div>
+        <div class="address-actions">
+          <button type="button" class="address-action-btn" data-location-action="edit" data-id="${id}">${LOCATION_ICONS.edit} Edit</button>
+          <button type="button" class="address-action-btn delete-btn" data-location-action="delete" data-id="${id}">${LOCATION_ICONS.trash} Delete</button>
+          ${addr.isDefault ? '' : `<button type="button" class="address-action-btn" data-location-action="default" data-id="${id}">${LOCATION_ICONS.check} Set as Default</button>`}
+        </div>
+        <div class="location-confirm" data-confirm-for="${id}" role="alertdialog" aria-label="Confirm delete" hidden>
+          <p>Delete this location?${addr.isDefault && accountLocations.length > 1 ? ' Your oldest other location will become the default.' : ''}</p>
+          <div class="location-confirm-actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-location-action="cancel-delete" data-id="${id}">Keep</button>
+            <button type="button" class="btn btn-sm location-delete-confirm" data-location-action="confirm-delete" data-id="${id}">Delete</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function setLocationError(message, fieldKeys) {
+  const box = document.getElementById('location-form-error');
+  document.querySelectorAll('#location-form [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+  if (!message) { box.hidden = true; box.textContent = ''; return; }
+  box.textContent = message;
+  box.hidden = false;
+  const first = (fieldKeys || []).map(k => (id => document.getElementById(id + '-cb') || document.getElementById(id))(LOCATION_FIELDS[k] || '')).filter(Boolean);
+  first.forEach(el => el.setAttribute('aria-invalid', 'true'));
+  if (first[0]) first[0].focus();
+}
+
+function openLocationForm(addr) {
+  const form = document.getElementById('location-form');
+  setLocationError('');
+  form.reset();
+  document.getElementById('location-id').value = addr ? addr.id : '';
+  document.getElementById('location-form-title').textContent = addr ? 'Edit Location' : 'Add a New Location';
+  document.getElementById('location-save-btn').textContent = addr ? 'Save Changes' : 'Save Location';
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  const fields = locationFields();
+  fields.reset();
+  if (addr) {
+    set('location-name', addr.fullName);
+    set('location-phone', addr.phone);
+    fields.set({ state: addr.state, suburb: addr.suburb, postcode: addr.postcode, street: addr.line1 || addr.street, line2: addr.line2, addressType: addr.addressType, customLabel: addr.customLabel });
+  } else {
+    const curr = window.getStoredCurrentUser ? window.getStoredCurrentUser() : null;
+    if (curr) {
+      set('location-name', curr.name);
+      set('location-phone', curr.phone);
+    }
+  }
+  // The first location always becomes the default, and the current default stays default (pick another to change it).
+  const def = document.getElementById('location-default');
+  def.checked = accountLocations.length === 0 || !!(addr && addr.isDefault);
+  def.disabled = def.checked;
+  form.hidden = false;
+  document.getElementById('location-add-btn').hidden = true;
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById(addr ? 'location-name' : (fields.legacy ? 'location-state' : 'location-state-cb')).focus({ preventScroll: true });
+}
+
+function closeLocationForm() {
+  document.getElementById('location-form').hidden = true;
+  document.getElementById('location-add-btn').hidden = false;
+  setLocationError('');
+}
+
+function readLocationForm() {
+  const val = id => document.getElementById(id).value.trim();
+  const a = locationFields().get();
+  return {
+    addressType: a.addressType,
+    customLabel: a.customLabel,
+    fullName: val('location-name'),
+    phone: val('location-phone'),
+    line1: a.street,
+    line2: a.line2,
+    suburb: a.suburb,
+    state: a.state,
+    postcode: a.postcode,
+    country: 'Australia',
+    isDefault: document.getElementById('location-default').checked,
+  };
+}
+
+function checkLocation(d) {
+  if (!d.fullName || !d.phone) return ['Please fill in all required fields.', [!d.fullName ? 'fullName' : 'phone']];
+  if (!LOCATION_PHONE_RE.test(d.phone)) return ['Please enter a valid phone number (8 to 15 digits).', ['phone']];
+  return locationFields().check();
+}
+
+async function locationRequest(method, url, body, okMessage) {
+  const res = await window.bongoApi(method, url, body);
+  if (!res.ok) return res;
+  if (res.data && Array.isArray(res.data.addresses)) accountLocations = res.data.addresses;
+  renderLocations();
+  if (okMessage) showToast(okMessage);
+  return res;
+}
+
+function initAccountLocations() {
+  const list = document.getElementById('account-locations-list');
+  const form = document.getElementById('location-form');
+  if (!list || !form) return;
+
+  list.innerHTML = '<p style="color:var(--color-grey-600)">Loading your locations…</p>';
+  window.bongoApi('GET', '/account/addresses').then(res => {
+    if (!res.ok) {
+      list.innerHTML = `<p style="color:var(--color-grey-600)">${accountEsc(window.bongoApiMessage(res))}</p>`;
+      return;
+    }
+    accountLocations = Array.isArray(res.data) ? res.data : [];
+    renderLocations();
+  });
+
+  if (window.__accountLocationsBound) return; // renderAccountPage() runs again after a profile save
+  window.__accountLocationsBound = true;
+
+  document.getElementById('location-add-btn').addEventListener('click', () => openLocationForm(null));
+  document.getElementById('location-cancel-btn').addEventListener('click', closeLocationForm);
+  locationFields(); // mount the shared address fields once
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const d = readLocationForm();
+    const problem = checkLocation(d);
+    if (problem) return setLocationError(problem[0], problem[1]);
+    setLocationError('');
+    const id = document.getElementById('location-id').value;
+    const btn = document.getElementById('location-save-btn');
+    btn.disabled = true;
+    const res = await locationRequest(id ? 'PUT' : 'POST', id ? `/account/addresses/${encodeURIComponent(id)}` : '/account/addresses', d,
+      id ? 'Location updated.' : 'Location saved.');
+    btn.disabled = false;
+    if (!res.ok) return setLocationError(window.bongoApiMessage(res), Object.keys((res.data && res.data.errors) || {}));
+    closeLocationForm();
+    list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  list.addEventListener('click', async e => {
+    const btn = e.target.closest('[data-location-action]');
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const confirmBox = id ? list.querySelector(`[data-confirm-for="${id}"]`) : null;
+    switch (btn.dataset.locationAction) {
+      case 'add':
+        openLocationForm(null);
+        break;
+      case 'edit':
+        openLocationForm(accountLocations.find(a => Number(a.id) === id));
+        break;
+      case 'delete':
+        list.querySelectorAll('.location-confirm').forEach(b => { b.hidden = true; });
+        confirmBox.hidden = false;
+        confirmBox.querySelector('[data-location-action="cancel-delete"]').focus();
+        break;
+      case 'cancel-delete':
+        confirmBox.hidden = true;
+        list.querySelector(`[data-location-action="delete"][data-id="${id}"]`).focus();
+        break;
+      case 'confirm-delete': {
+        btn.disabled = true;
+        const res = await locationRequest('DELETE', `/account/addresses/${id}`, undefined, 'Location deleted.');
+        if (!res.ok) { btn.disabled = false; showToast(window.bongoApiMessage(res)); break; }
+        if (document.getElementById('location-id').value === String(id)) closeLocationForm();
+        break;
+      }
+      case 'default': {
+        btn.disabled = true;
+        const res = await locationRequest('PUT', `/account/addresses/${id}/default`, undefined, 'Default location updated.');
+        if (!res.ok) { btn.disabled = false; showToast(window.bongoApiMessage(res)); }
+        break;
+      }
+    }
+  });
 }

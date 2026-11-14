@@ -277,7 +277,7 @@ class CustomerOrdersTest extends TestCase
 
     public function test_cancellation_can_be_switched_off(): void
     {
-        config(['storefront.customer_cancellable_statuses' => []]);
+        \App\Support\StoreConfig::fake(['customer_cancellable_statuses' => []]);
         $number = $this->place()->json('orderNumber');
 
         $this->assertStringNotContainsString('id="order-cancel-btn"', $this->asCustomer()->get('/account/orders/'.$number)->getContent());
@@ -316,7 +316,7 @@ class CustomerOrdersTest extends TestCase
 
     public function test_unimplemented_payment_methods_are_rejected(): void
     {
-        config(['storefront.payment_methods' => ['cod', 'paypal']]);   // configured but no gateway implementation
+        \App\Support\StoreConfig::fake(['payment_methods' => ['cod', 'paypal']]);   // configured but no gateway implementation
         $this->place(extra: ['paymentMethod' => 'paypal'])->assertStatus(422);
         $this->assertSame(0, DB::table('orders')->where('customer_id', $this->customer)->count());
     }

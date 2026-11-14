@@ -56,3 +56,8 @@ MySQL 8, InnoDB, utf8mb4. 39 tables, shared with a separate admin app. PKs are `
 
 ## Not in this schema
 Laravel's `users`, `cache`, `jobs`, `sessions` tables exist only in the default migrations, not in `sql/ecom.sql`.
+
+## Australian locations (PROPOSED, `sql/proposed_changes.sql` §9; not yet in `sql/ecom.sql` or the shared DB)
+- `au_states` (id, code U, name) · `au_localities` (state_id, source_pid U = G-NAF locality_pid, name, class_code; idx state_id+name) · `au_locality_postcodes` (PK locality_id+postcode CHAR(4), idx postcode) · `au_location_imports` (dataset version/date/sha256/counts history).
+- Loaded by `php artisan locations:import-australia` from `database/data/locations/au-localities.csv` (Geoscape G-NAF Aug 2026; licence and refresh steps in the README there). Read via `App\Models\Locations` and `/api/locations/{states,suburbs,postcodes}`. `customer_addresses` still stores suburb/state/postcode as text. Without the tables the address forms fall back to plain fields.
+

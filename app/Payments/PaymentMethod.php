@@ -9,7 +9,7 @@ namespace App\Payments;
  */
 interface PaymentMethod
 {
-    /** Code stored in orders.payment_method / payments.payment_method (and listed in config storefront.payment_methods). */
+    /** Code stored in orders.payment_method / payments.payment_method (and listed in config_data payment_methods). */
     public function code(): string;
 
     /** Customer-facing name. */

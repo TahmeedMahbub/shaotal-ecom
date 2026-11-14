@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\CardPayments;
 use App\Payments\PaymentMethods;
 use App\Payments\Stripe;
+use App\Support\StoreConfig;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Cache;
@@ -15,8 +16,8 @@ use Tests\TestCase;
 /**
  * Stripe Checkout card payments, against an in-memory fake of the Stripe API (Http::fake) and webhooks signed with a
  * test secret. Product 2 (A$55, simple) from sql/local_test_seed.sql: 2 × A$55 = A$110.00 + A$12 delivery.
- * Online payment (pre-booking): A$110.00 - 2% (A$2.20) + A$12.00 = A$119.80 order total; the 20% deposit
- * A$23.96 is all Stripe charges; A$95.84 stays outstanding. COD stays A$122.00.
+ * Online payment (pre-booking): A$110.00 - 2% (A$2.20) + A$12.00 = A$119.80 order total; the 30% deposit
+ * A$35.94 is all Stripe charges; A$83.86 stays outstanding. COD stays A$122.00.
  */
 class StripePaymentTest extends TestCase
 {
@@ -47,9 +48,9 @@ class StripePaymentTest extends TestCase
                 'enabled' => true, 'mode' => 'test', 'key' => 'pk_test_abc', 'secret' => 'sk_test_abc', 'webhook_secret' => self::WHSEC,
                 'currency' => 'aud', 'api_version' => '2024-06-20', 'session_minutes' => 60, 'webhook_tolerance' => 300,
             ],
-            'storefront.payment_methods' => ['card', 'cod'],
             'app.url' => 'https://shop.example.test',
         ]);
+        StoreConfig::fake(['payment_methods' => ['card', 'cod']]);
         Cache::store('file')->flush();
         $this->customerId = DB::table('customers')->insertGetId([
             'first_name' => 'Payer', 'email' => 'payer@example.test', 'status' => 'active', 'email_verified_at' => now(),
@@ -179,11 +180,11 @@ class StripePaymentTest extends TestCase
         $this->assertSame(['card', 'pending', 'pending'], [$order->payment_method, $order->payment_status, $order->order_status]);
         $pay = $this->payments($res['orderNumber']);
         $this->assertCount(1, $pay);
-        $this->assertSame(['stripe', 'card', 'pending', '23.96'], [$pay[0]->provider, $pay[0]->payment_method, $pay[0]->status, $pay[0]->amount]);   // deposit only
+        $this->assertSame(['stripe', 'card', 'pending', '35.94'], [$pay[0]->provider, $pay[0]->payment_method, $pay[0]->status, $pay[0]->amount]);   // deposit only
         $this->assertStringStartsWith('cs_test_', $pay[0]->provider_transaction_id);
 
         $sent = $this->created[0];
-        $this->assertSame(2396, (int) $sent['line_items'][0]['price_data']['unit_amount']);   // the 20% deposit, not the client's 0.01 nor the full total
+        $this->assertSame(3594, (int) $sent['line_items'][0]['price_data']['unit_amount']);   // the 30% deposit, not the client's 0.01 nor the full total
         $this->assertSame('aud', $sent['line_items'][0]['price_data']['currency']);
         $this->assertSame($res['orderNumber'], $sent['metadata']['order_number']);
         $this->assertSame((string) $pay[0]->id, $sent['metadata']['payment_id']);
@@ -204,14 +205,14 @@ class StripePaymentTest extends TestCase
         $this->sendWebhook($this->event('checkout.session.async_payment_succeeded', $this->completed($sid)))->assertOk()->assertJson(['outcome' => 'already_paid']);
 
         $order = $this->order($n);
-        $this->assertSame('pending', $order->payment_status, 'a 20% deposit must never make the order fully paid');
+        $this->assertSame('pending', $order->payment_status, 'a 30% deposit must never make the order fully paid');
         $this->assertSame('pending', $order->order_status);   // fulfilment stays with staff
         $pay = $this->payments($n)->last();
         $this->assertSame('paid', $pay->status);
-        $this->assertSame('23.96', $pay->amount);
+        $this->assertSame('35.94', $pay->amount);
         $this->assertNotNull($pay->paid_at);
-        $this->assertSame(23.96, CardPayments::paidTotal($order->id));
-        $this->assertSame(1, DB::table('order_timeline')->where('order_id', $order->id)->where('note', 'like', 'Pre-booking deposit of A$23.96 received%balance of A$95.84%')->count());
+        $this->assertSame(35.94, CardPayments::paidTotal($order->id));
+        $this->assertSame(1, DB::table('order_timeline')->where('order_id', $order->id)->where('note', 'like', 'Pre-booking deposit of A$35.94 received%balance of A$83.86%')->count());
         $this->assertSame(0, DB::table('carts')->where('customer_id', $this->customerId)->where('status', 'active')->count());
         $this->assertStringNotContainsString('payer@example.test', (string) $pay->response_data);
     }
@@ -265,7 +266,7 @@ class StripePaymentTest extends TestCase
 
         $this->sendWebhook($this->event('checkout.session.completed', $this->completed($pay->provider_transaction_id)))->assertJson(['outcome' => 'paid']);
         $this->assertSame('pending', $this->order($n)->payment_status, 'deposit received: pre-booked, not paid');
-        $this->assertSame(23.96, CardPayments::paidTotal($this->order($n)->id));
+        $this->assertSame(35.94, CardPayments::paidTotal($this->order($n)->id));
         $this->assertSame([0, 0], $this->bag());
     }
 
@@ -410,8 +411,9 @@ class StripePaymentTest extends TestCase
         $this->assertSame('pending', $this->order($n)->payment_status, 'the redirect must never mark the order paid');
 
         $this->sendWebhook($this->event('checkout.session.completed', $this->completed($sid)));
-        $this->get('/checkout/payment/success?session_id='.$sid)->assertOk()->assertSee('Order pre-booked')->assertSee('data-clear-cart="1"', false);
-        $this->getJson("/account/orders/{$n}/payment-status")->assertOk()->assertJson(['paymentStatus' => 'pending', 'received' => true, 'label' => 'Pre-booked (deposit paid)']);
+        // Payment recorded: the return goes to the checkout success modal (the one COD uses), on every visit.
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertRedirect('/checkout?paid='.$n);
+        $this->getJson("/account/orders/{$n}/payment-status")->assertOk()->assertJson(['paymentStatus' => 'pending', 'received' => true, 'label' => 'Partially Paid']);
         $this->get("/account/orders/{$n}")->assertOk()->assertSee('Payment history')->assertDontSee($sid);
 
         $other = DB::table('customers')->insertGetId(['first_name' => 'Other', 'email' => 'other@example.test', 'status' => 'active', 'email_verified_at' => now()]);
@@ -420,6 +422,78 @@ class StripePaymentTest extends TestCase
         $this->get('/checkout/payment/cancel?order='.$n)->assertNotFound();
         $this->getJson("/account/orders/{$n}/payment-status")->assertNotFound();
         $this->postJson("/account/orders/{$n}/pay")->assertNotFound();
+    }
+
+    /* ── Success return: verified with Stripe server-side, then the COD success modal ── */
+
+    public function test_success_return_verifies_with_stripe_and_opens_the_cod_success_modal_without_waiting_for_the_webhook(): void
+    {
+        $n = $this->placeCard()['orderNumber'];
+        $sid = $this->sessionOf($n);
+        $grand = (float) $this->order($n)->grand_total;
+        $deposit = (float) $this->payments($n)->last()->amount;
+        $this->sessions[$sid] = $this->completed($sid);   // the customer paid on Stripe; the webhook has not arrived
+
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertRedirect('/checkout?paid='.$n);
+        $order = $this->order($n);
+        $this->assertSame('pending', $order->payment_status, 'a deposit is never full payment');
+        $this->assertSame($deposit, CardPayments::paidTotal($order->id));
+        $this->assertSame([0, 0], $this->bag(), 'confirmed by Stripe: the saved bag became this order');
+
+        $page = $this->get('/checkout?paid='.$n)->assertOk();
+        $placed = json_decode((string) preg_replace('#.*<script type="application/json" id="checkout-placed">(.*?)</script>.*#s', '$1', $page->getContent()), true);
+        $this->assertSame([
+            'orderNumber' => $n, 'orderUrl' => '/account/orders/'.$n, 'pickup' => false,
+            'address' => 'Payer, 1 Test St, Carlton VIC 3053', 'total' => $grand, 'paid' => $deposit,
+            'balance' => round($grand - $deposit, 2), 'paymentStatus' => 'Partially Paid',
+        ], $placed);
+        $page->assertSee('id="success-modal-overlay"', false)->assertSee('Order Placed Successfully!')->assertDontSee('Confirming your payment');
+
+        // Refresh / repeated visit: same modal, nothing recorded twice.
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertRedirect('/checkout?paid='.$n);
+        // The real webhook arrives afterwards: idempotent, no second payment, timeline note or email.
+        $this->sendWebhook($this->event('checkout.session.completed', $this->completed($sid)))->assertJson(['outcome' => 'already_paid']);
+        $this->assertSame($deposit, CardPayments::paidTotal($order->id));
+        $this->assertSame(1, DB::table('payments')->where('order_id', $order->id)->where('status', 'paid')->count());
+        $this->assertSame(1, DB::table('order_timeline')->where('order_id', $order->id)->where('note', 'like', 'Pre-booking deposit%')->count());
+    }
+
+    public function test_success_return_never_records_payment_stripe_has_not_confirmed(): void
+    {
+        $n = $this->placeCard()['orderNumber'];
+        $sid = $this->sessionOf($n);
+
+        // Stripe unreachable: cannot verify, so nothing is recorded and the honest "confirming" page is shown.
+        $this->sessions[$sid] = $this->completed($sid);
+        $this->stripeDown = true;
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertOk()->assertSee('Confirming your payment');
+        $this->assertSame(0.0, CardPayments::paidTotal($this->order($n)->id));
+        $this->stripeDown = false;
+
+        // Stripe reports a different amount than this order asked for: not recorded (staff review).
+        $this->sessions[$sid] = $this->completed($sid, ['amount_total' => 1]);
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertOk()->assertSee('Confirming your payment');
+        $this->assertSame(0.0, CardPayments::paidTotal($this->order($n)->id));
+
+        // ?paid= on its own shows nothing: no Stripe-confirmed payment, another customer's order, or a COD order.
+        $this->get('/checkout?paid='.$n)->assertOk()->assertDontSee('id="checkout-placed"', false);
+        DB::table('orders')->where('order_number', $n)->update(['order_status' => 'cancelled']);   // free the bag for a new order
+        $n = $this->postJson('/checkout/place', [   // a different bag than the first order (not a double submit)
+            'items' => [['productId' => 2, 'quantity' => 1, 'price' => 0.01]], 'paymentMethod' => 'card', 'addressId' => $this->addressId,
+        ])->assertCreated()->json('orderNumber');
+        $sid = $this->sessionOf($n);
+        $this->sessions[$sid] = $this->completed($sid);
+        $this->get('/checkout/payment/success?session_id='.$sid)->assertRedirect('/checkout?paid='.$n);
+        $this->get('/checkout?paid='.$n)->assertOk()->assertSee('id="checkout-placed"', false);
+        $other = DB::table('customers')->insertGetId(['first_name' => 'Other', 'email' => 'other2@example.test', 'status' => 'active', 'email_verified_at' => now()]);
+        $this->withSession(['customer_id' => $other])->get('/checkout?paid='.$n)->assertOk()->assertDontSee('id="checkout-placed"', false);
+        $this->withSession(['customer_id' => $this->customerId]);
+        DB::table('carts')->where('customer_id', $this->customerId)->update(['status' => 'active']);
+        $cod = $this->postJson('/checkout/place', [
+            'items' => [['productId' => 2, 'quantity' => 3, 'price' => 0.01]], 'paymentMethod' => 'cod', 'addressId' => $this->addressId,
+        ])->assertCreated()->json();
+        $this->assertArrayNotHasKey('paid', $cod, 'COD place-order response unchanged');
+        $this->get('/checkout?paid='.$cod['orderNumber'])->assertOk()->assertDontSee('id="checkout-placed"', false);
     }
 
     public function test_cancel_page_offers_retry_for_an_unpaid_order(): void

@@ -12,7 +12,10 @@
   <ul>
     <li>Prices are shown in Australian dollars (A$).</li>
     <li>The price, shipping and any discount are calculated by our system when you place the order and are shown in your order summary.</li>
-    <li>Payment is currently cash on delivery.</li>
+    <li>Shipping: Adelaide delivery {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('adelaide')) }}, rest of Australia {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('australia')) }}{{ \App\Support\Shipping::pickupEnabled() ? ', or free pickup from '.\App\Support\Shipping::pickup()['suburb'] : '' }}. See <a href="/shipping">Shipping</a>.</li>
+    <li>Cash on delivery: the full amount is paid when the order is delivered or collected.</li>
+    <li>Online payment (card): a {{ rtrim(rtrim(number_format(\App\Payments\OnlinePaymentPlan::settings()['depositPercent'], 2), '0'), '.') }}% deposit is paid at checkout to pre-book the order. {{ \App\Payments\OnlinePaymentPlan::balanceTerms() }} See <a href="/payments">Payments &amp; Pre-orders</a>.</li>
+    <li>Cancellation, refund and deposit terms are being finalised and will be added here once approved.</li>
   </ul>
 
   <h2>Orders</h2>

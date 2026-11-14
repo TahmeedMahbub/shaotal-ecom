@@ -112,3 +112,67 @@ CREATE TABLE IF NOT EXISTS failed_jobs (
 --     KEY jobs_queue_index (queue)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 --   CREATE TABLE failed_jobs (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, uuid VARCHAR(255) NOT NULL UNIQUE, connection TEXT NOT NULL,
 --     queue TEXT NOT NULL, payload LONGTEXT NOT NULL, exception LONGTEXT NOT NULL, failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── 8. Account "My Locations": address line 2 and country (PROPOSED, NOT EXECUTED; the storefront works without it) ──
+-- customer_addresses has no address_line2/country columns. Today the optional line 2 is stored after a newline in
+-- street_address ("12 Smith St\nUnit 5"); AccountController::streetLine() joins it as "12 Smith St, Unit 5" for checkout,
+-- order snapshots (orders.shipping_street_address) and the profile view. Country is always Australia (not stored).
+-- Custom "Other" labels are stored in customer_addresses.label (VARCHAR 80); "Office" is shown to customers as "Work".
+-- If the admin app wants real columns:
+--   ALTER TABLE customer_addresses
+--     ADD COLUMN address_line2 VARCHAR(120) NULL AFTER street_address,
+--     ADD COLUMN country_code CHAR(2) NOT NULL DEFAULT 'AU' AFTER postcode;
+--   UPDATE customer_addresses SET address_line2 = TRIM(SUBSTRING_INDEX(street_address, '\n', -1)),
+--     street_address = TRIM(SUBSTRING_INDEX(street_address, '\n', 1)) WHERE street_address LIKE CONCAT('%', CHAR(10), '%');
+--   (then switch AccountController::addressRow()/addressList() to the new columns.)
+
+-- ── 9. Central Australian locations (PROPOSED, NOT EXECUTED on any shared DB) ──
+-- Reference data for every address form (checkout + account). Kept separate from customer_addresses, which still stores
+-- the chosen suburb/state/postcode as text (so existing saved addresses and order snapshots are untouched).
+-- Filled by `php artisan locations:import-australia` from database/data/locations (Geoscape G-NAF Aug 2026, see README there).
+-- Until these tables exist the storefront falls back to the old state/postcode-range validation and a plain suburb field.
+-- (Also copied to tests/Support/proposed-schema.sql for local *_test DBs.)
+CREATE TABLE IF NOT EXISTS au_states (
+ id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+ code VARCHAR(3) NOT NULL UNIQUE,
+ name VARCHAR(60) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS au_localities (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ state_id TINYINT UNSIGNED NOT NULL,
+ source_pid VARCHAR(40) NOT NULL UNIQUE,            -- G-NAF locality_pid: makes re-imports idempotent
+ name VARCHAR(120) NOT NULL,                        -- display case ("Mount Isa")
+ class_code CHAR(1) NULL,                           -- G-NAF class: G=gazetted, U=unofficial, I=indigenous, T=topo, D=distributed, H=historic
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(state_id) REFERENCES au_states(id),
+ INDEX(state_id, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS au_locality_postcodes (
+ locality_id INT UNSIGNED NOT NULL,
+ postcode CHAR(4) NOT NULL,                         -- text: keeps leading zeros (0800)
+ PRIMARY KEY(locality_id, postcode),
+ INDEX(postcode),
+ FOREIGN KEY(locality_id) REFERENCES au_localities(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS au_location_imports (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ source VARCHAR(160) NOT NULL, dataset_version VARCHAR(60) NOT NULL, release_date DATE NULL, file_sha256 CHAR(64) NOT NULL,
+ states_count SMALLINT UNSIGNED NOT NULL, localities_count INT UNSIGNED NOT NULL, postcodes_count INT UNSIGNED NOT NULL,
+ inserted INT UNSIGNED NOT NULL, updated INT UNSIGNED NOT NULL, skipped INT UNSIGNED NOT NULL, invalid INT UNSIGNED NOT NULL,
+ imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── 10. Shipping zones / pickup and partially paid deposits (PROPOSED, NOT EXECUTED; the storefront works without it) ──
+-- Since 2026-11-14 shipping is Adelaide A$5 / rest of Australia A$12 / free pickup (West Croydon) and every card order pays a
+-- 30% deposit. Today: orders.fulfillment_type = delivery|pickup (existing column), the method snapshot is JSON on the first
+-- payments row (response_data->shipping) plus an order_timeline note, the deposit plan is response_data->plan, and a paid
+-- deposit leaves orders.payment_status 'pending' (amount received = SUM(payments.amount WHERE status='paid')).
+-- For first-class admin filtering, the admin/DB owner may add (then the storefront would set them in Checkout::place and
+-- CardPayments::markPaid):
+--   ALTER TABLE orders
+--     MODIFY payment_status ENUM('pending','partially_paid','paid','failed','partially_refunded','refunded') NOT NULL DEFAULT 'pending',
+--     ADD COLUMN shipping_method VARCHAR(40) NULL AFTER fulfillment_type,          -- adelaide | australia | pickup
+--     ADD COLUMN deposit_required DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER grand_total,
+--     ADD COLUMN amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER deposit_required;
+--   (keep CHECK(deposit_required >= 0 AND amount_paid >= 0); balance due = grand_total - amount_paid.)

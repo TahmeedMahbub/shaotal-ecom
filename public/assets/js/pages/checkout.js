@@ -60,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const placeOrderBtn = document.getElementById('place-order-btn');
   const successModalOverlay = document.getElementById('success-modal-overlay');
 
+  const addrFields = AddressForm.mount(document.getElementById('addr-fields'));
+
   function renderAddresses() {
     if (addresses.length === 0) {
       addressCardsGrid.innerHTML = `
@@ -77,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return `
         <div class="address-card ${isSelected ? 'selected' : ''}" data-id="${esc(addr.id)}">
           <div class="address-card-header">
-            <span class="address-type-badge">${typeIcon} ${esc(type)}</span>
+            <span class="address-type-badge">${typeIcon} ${esc(addr.customLabel || (type === 'Office' ? 'Work' : type))}</span>
             ${isSelected ? `<span class="address-selection-indicator">${SVG_ICONS.check} Selected</span>` : ''}
           </div>
           <div class="address-name">${esc(addr.fullName)}</div>
@@ -97,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAddresses();
       });
     });
+    requoteIfDeliveryChanged();
 
     addressCardsGrid.querySelectorAll('.edit-btn').forEach(btn => {
       btn.addEventListener('click', e => {
@@ -107,11 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editAddressIdInput.value = target.id;
         document.getElementById('addr-fullname').value = target.fullName;
         document.getElementById('addr-phone').value = target.phone;
-        document.getElementById('addr-street').value = target.street;
-        document.getElementById('addr-suburb').value = target.suburb;
-        document.getElementById('addr-state').value = target.state;
-        document.getElementById('addr-postcode').value = target.postcode;
-        document.querySelectorAll('input[name="addr-type"]').forEach(r => { r.checked = (r.value === target.addressType); });
+        addrFields.set({ state: target.state, suburb: target.suburb, postcode: target.postcode, street: target.street, addressType: target.addressType });
         showAddressForm();
       });
     });
@@ -138,14 +137,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // data-id attributes are strings; saved addresses use numeric ids, guest ones use "addr-…" strings
   const idFromString = s => (/^\d+$/.test(s) ? parseInt(s, 10) : s);
 
+  // Optional phone check: digits with an optional leading +, spaces/dashes/brackets allowed, 8–15 digits.
+  const validPhone = s => /^\+?[\d\s\-()]+$/.test(s) && (s.match(/\d/g) || []).length >= 8 && (s.match(/\d/g) || []).length <= 15;
+
   function showAddressForm() {
+    // New address: prefill name/mobile from the profile when blank. Both stay editable; edits keep their own values.
+    if (user && !editAddressIdInput.value) {
+      const n = document.getElementById('addr-fullname'), p = document.getElementById('addr-phone');
+      if (!n.value) n.value = user.name || '';
+      if (!p.value) p.value = user.phone || '';
+    }
     addressFormPanel.style.display = 'block';
+    addAddressBtn.style.display = 'none'; // trigger is hidden whenever the form is open
     addressFormPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function hideAddressForm() {
     addressFormPanel.style.display = 'none';
+    addAddressBtn.style.display = ''; // form closed: trigger available again
     newAddressForm.reset();
+    addrFields.reset();
     editAddressIdInput.value = '';
     formPanelTitle.textContent = 'Add New Delivery Address';
   }
@@ -159,15 +170,25 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const editingRaw = editAddressIdInput.value;
     const editingId = editingRaw ? idFromString(editingRaw) : null;
+    const a = addrFields.get();
     const data = {
       fullName: document.getElementById('addr-fullname').value.trim(),
       phone: document.getElementById('addr-phone').value.trim(),
-      street: document.getElementById('addr-street').value.trim(),
-      suburb: document.getElementById('addr-suburb').value.trim(),
-      state: document.getElementById('addr-state').value,
-      postcode: document.getElementById('addr-postcode').value.trim(),
-      addressType: document.querySelector('input[name="addr-type"]:checked').value,
+      street: a.street,
+      suburb: a.suburb,
+      state: a.state,
+      postcode: a.postcode,
+      addressType: a.addressType,
     };
+    if (!data.fullName || !data.phone) return toast('Please enter your name and mobile number.');
+    if (!validPhone(data.phone)) return toast('Please enter a valid mobile number.');
+    const problem = addrFields.check();
+    if (problem) {
+      toast(problem[0]);
+      const el = (id => document.getElementById(id + '-cb') || document.getElementById(id))('addr-' + (problem[1][0] === 'street' ? 'street' : problem[1][0]));
+      if (el) el.focus();
+      return;
+    }
 
     if (user) {
       const res = editingId ? await api('PUT', `/account/addresses/${editingId}`, data) : await api('POST', '/account/addresses', data);
@@ -191,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ── Payment selection (methods are rendered by the server) ── */
-  const paymentCards = document.querySelectorAll('.payment-option-card');
+  const paymentCards = document.querySelectorAll('#payment-options-list .payment-option-card');
   const currentMethod = () => (document.querySelector('input[name="payment-method"]:checked') || {}).value || null;
   function selectPayment(card) {
     paymentCards.forEach(c => {
@@ -208,6 +229,25 @@ document.addEventListener('DOMContentLoaded', () => {
   paymentCards.forEach(card => card.querySelector('input[type="radio"]').addEventListener('change', () => selectPayment(card)));
   if (paymentCards.length) selectPayment(paymentCards[0]);
 
+  /* ── Delivery or free pickup (the server decides the zone and fee from the selected address) ── */
+  const fulfillmentCards = document.querySelectorAll('#fulfillment-options .payment-option-card');
+  const currentFulfillment = () => (document.querySelector('input[name="fulfillment"]:checked') || {}).value || 'delivery';
+  const pickupPanel = document.getElementById('pickup-panel');
+  const deliverySection = document.getElementById('delivery-address-section');
+  const pickupName = document.getElementById('pickup-fullname');
+  const pickupPhone = document.getElementById('pickup-phone');
+  if (pickupName && user && !pickupName.value) pickupName.value = user.name || '';
+  if (pickupPhone && user && !pickupPhone.value) pickupPhone.value = user.phone || '';
+  function applyFulfillment() {
+    const pickup = currentFulfillment() === 'pickup';
+    fulfillmentCards.forEach(c => c.classList.toggle('selected', c.querySelector('input').checked));
+    if (pickupPanel) pickupPanel.style.display = pickup ? 'block' : 'none';
+    if (deliverySection) deliverySection.style.display = pickup ? 'none' : '';
+    document.querySelectorAll('[data-pickup-text]').forEach(el => { el.textContent = pickup ? el.dataset.pickupText : el.dataset.deliveryText; });
+    requoteIfDeliveryChanged();
+  }
+  fulfillmentCards.forEach(card => card.querySelector('input[type="radio"]').addEventListener('change', applyFulfillment));
+
   /* ── Cart & totals (prices always come from the server) ── */
   function getCart() {
     try {
@@ -219,7 +259,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const cartPayload = () => getCart().map(i => ({ productId: i.productId, color: i.color || null, size: i.size || null, quantity: i.quantity || 1 }));
   // Gift wrapping chosen in the cart (null when off). Only the selection is sent; the server prices it.
   const giftPayload = () => (typeof window.bongoGiftPayload === 'function' ? window.bongoGiftPayload() : null);
-  const quoteBody = extra => Object.assign({ items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null, gift: giftPayload() }, extra);
+  // Delivery choice + which address (the server looks up the saved address itself and picks Adelaide / rest of Australia).
+  const deliveryPayload = () => {
+    if (currentFulfillment() === 'pickup') return { fulfillment: 'pickup' };
+    const sel = addresses.find(a => a.id === selectedAddressId);
+    if (!sel) return { fulfillment: 'delivery' };
+    return user ? { fulfillment: 'delivery', addressId: sel.id }
+      : { fulfillment: 'delivery', address: { suburb: sel.suburb, state: sel.state, postcode: sel.postcode } };
+  };
+  const quoteBody = extra => Object.assign({ items: cartPayload(), coupon: appliedCoupon ? appliedCoupon.code : null, gift: giftPayload() }, deliveryPayload(), extra);
+  // Re-quote when the delivery method or address changes (not before the first quote).
+  let quotedKey = null;
+  let quoteSeq = 0;
+  const deliveryKey = () => (currentFulfillment() === 'pickup' ? 'pickup' : 'delivery:' + selectedAddressId);
+  function requoteIfDeliveryChanged() {
+    if (quotedKey !== null && deliveryKey() !== quotedKey) renderOrderSummary();
+  }
 
   // The cart drawer is also available on this page: re-quote when the bag or the gift selection changes there.
   let requoteTimer = null;
@@ -233,6 +288,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cart.length === 0) {
       document.getElementById('checkout-gift').style.display = 'none';
       document.getElementById('gift-row').style.display = 'none';
+      document.getElementById('items-total-row').style.display = 'none';
+      document.getElementById('product-discount-row').style.display = 'none';
       summaryItemsCount.textContent = '0 Items';
       summaryItemsList.innerHTML = '<p style="font-size: var(--fs-small); color: var(--color-grey-500);">Your cart is empty.</p>';
       summarySubtotal.textContent = money(0);
@@ -255,7 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`).join('');
     }
 
+    quotedKey = deliveryKey();
+    const seq = ++quoteSeq;
     const res = await api('POST', '/checkout/quote', quoteBody());
+    if (seq !== quoteSeq) return;   // a newer quote (address / method change) is on its way
     if (!res.ok) {
       toast(window.bongoApiMessage(res));
       return;
@@ -281,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="summary-item-title">${esc(l.name)}</div>
             <div class="summary-item-meta">${variantText ? `${variantText} • ` : ''}Qty: ${l.quantity}</div>
           </div>
-          <div class="summary-item-price">${money(l.price * l.quantity)}</div>
+          <div class="summary-item-price">${l.listPrice > l.price ? `<span class="summary-item-original-price">${money(l.listPrice * l.quantity)}</span>` : ''}${money(l.price * l.quantity)}</div>
         </div>`;
     }).join('') + (q.errors || []).map(m => `<p style="font-size: var(--fs-small); color: var(--color-danger); margin-top: 0.5rem;">${esc(m)}</p>`).join('');
 
@@ -336,8 +396,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const online = currentMethod() === 'card' && q.online;
     const onlineDiscountRow = document.getElementById('online-discount-row');
     const breakdown = document.getElementById('online-breakdown');
+    // Product discount = (original - selling) x qty per line, in cents; display only. Subtotal stays the server's figure
+    // (sum of selling prices), and Total is Subtotal + Product Discount, so the rows always add up.
+    const productDiscount = q.lines.reduce((a, l) => a + Math.max(0, Math.round(l.listPrice * 100) - Math.round(l.price * 100)) * l.quantity, 0) / 100;
+    document.getElementById('items-total-row').style.display = productDiscount > 0 ? 'flex' : 'none';
+    document.getElementById('product-discount-row').style.display = productDiscount > 0 ? 'flex' : 'none';
+    document.getElementById('summary-items-total').textContent = money((Math.round(q.subtotal * 100) + Math.round(productDiscount * 100)) / 100);
+    document.getElementById('summary-product-discount').textContent = `-${money(productDiscount)}`;
     summarySubtotal.textContent = money(q.subtotal);
     summaryShipping.textContent = q.shipping === 0 ? 'FREE' : money(q.shipping);
+    const d = q.delivery || {};
+    document.getElementById('summary-shipping-label').textContent = d.label
+      ? 'Shipping (' + (d.fulfillment === 'delivery' && d.addressNeeded ? 'choose an address' : d.label) + ')' : 'Shipping';
     if (q.discount > 0) {
       discountRow.style.display = 'flex';
       summaryDiscount.textContent = `-${money(q.discount)}`;
@@ -351,15 +421,15 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('summary-total-label').textContent = 'Final order total';
       summaryTotal.textContent = `${money(q.online.total)} AUD`;
       breakdown.style.display = 'block';
-      document.getElementById('pay-now-label').textContent = `Pay now (${pctText(q.online.depositPercent)}%)`;
+      document.getElementById('pay-now-label').textContent = `Deposit payable now (${pctText(q.online.depositPercent)}%)`;
       document.getElementById('summary-pay-now').textContent = money(q.online.deposit);
-      document.getElementById('balance-label').textContent = `Remaining balance (${pctText(q.online.balancePercent)}%)`;
+      document.getElementById('balance-label').textContent = `Payable later (${pctText(q.online.balancePercent)}%)`;
       document.getElementById('summary-balance').textContent = money(q.online.balance);
       placeOrderBtn.textContent = `Pay ${money(q.online.deposit)} deposit & pre-book`;
     } else {
       onlineDiscountRow.style.display = 'none';
       breakdown.style.display = 'none';
-      document.getElementById('summary-total-label').textContent = 'Total';
+      document.getElementById('summary-total-label').textContent = 'Total payable';   // "Total" is the pre-discount row above
       summaryTotal.textContent = `${money(q.total)} AUD`;
       placeOrderBtn.textContent = `Place Order • ${money(q.total)} AUD`;
     }
@@ -414,9 +484,19 @@ document.addEventListener('DOMContentLoaded', () => {
   placeOrderBtn.addEventListener('click', async () => {
     if (placing) return;
     if (getCart().length === 0) return toast('Your cart is empty');
-    if (!selectedAddressId) return toast('Please select a delivery address');
-    const selected = addresses.find(a => a.id === selectedAddressId);
-    if (!selected) return toast('Please choose a valid delivery address');
+    const pickup = currentFulfillment() === 'pickup';
+    const contact = pickup ? { fullName: pickupName.value.trim(), phone: pickupPhone.value.trim() } : null;
+    if (pickup && (!contact.fullName || !contact.phone)) {
+      (contact.fullName ? pickupPhone : pickupName).focus();
+      return toast('Please enter the name and mobile number of the person collecting the order');
+    }
+    if (pickup && !validPhone(contact.phone)) {
+      pickupPhone.focus();
+      return toast('Please enter a valid mobile number');
+    }
+    const selected = pickup ? null : addresses.find(a => a.id === selectedAddressId);
+    if (!pickup && !selectedAddressId) return toast('Please select a delivery address');
+    if (!pickup && !selected) return toast('Please choose a valid delivery address');
     const method = (document.querySelector('input[name="payment-method"]:checked') || {}).value;
     if (!method) return toast('Please choose a payment method');
 
@@ -428,7 +508,10 @@ document.addEventListener('DOMContentLoaded', () => {
     placeOrderBtn.innerHTML = '<svg class="icon-svg" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity: 0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity: 0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> ' + placeOrderBtn.dataset.busyText;
 
     const body = quoteBody({ paymentMethod: method });
-    if (user) body.addressId = selected.id; else body.address = selected;
+    delete body.address;
+    delete body.addressId;
+    if (pickup) body.contact = contact;
+    else if (user) body.addressId = selected.id; else body.address = selected;
     const res = await api('POST', '/checkout/place', body);
 
     if (!res.ok) {
@@ -457,17 +540,45 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // COD: the order exists, so the bag is now spent (in-memory, localStorage and the saved server bag).
-    if (typeof window.bongoClearCart === 'function') window.bongoClearCart();
-    else { try { localStorage.setItem('bongo_cart', JSON.stringify([])); } catch (e) { /* storage unavailable */ } }
-    document.getElementById('success-order-ref').textContent = `#${res.data.orderNumber}`;
-    document.getElementById('success-address-summary').textContent = res.data.address;
-    document.getElementById('success-paid-amount').textContent = `${money(res.data.total)} AUD`;
+    // COD: the order exists, so the bag is now spent.
+    showOrderSuccess(res.data);
+  });
+
+  /* The order success modal: COD right after placing, and card orders on return from Stripe once the server has a
+     Stripe-confirmed payment (#checkout-placed, rendered by the server for /checkout?paid=<order>). */
+  function showOrderSuccess(data) {
+    // The bag became this order: clear it (in-memory, localStorage and the saved server bag), once per order. This modal is
+    // also rendered on every refresh/revisit of /checkout?paid=<order>, which must not wipe a bag built after that order.
+    let alreadyCleared = false;
+    try { alreadyCleared = localStorage.getItem('bongo_cleared_order') === String(data.orderNumber); } catch (e) { /* storage unavailable */ }
+    if (!alreadyCleared) {
+      if (typeof window.bongoClearCart === 'function') window.bongoClearCart();
+      else { try { localStorage.setItem('bongo_cart', JSON.stringify([])); } catch (e) { /* storage unavailable */ } }
+      try { localStorage.setItem('bongo_cleared_order', String(data.orderNumber)); } catch (e) { /* storage unavailable */ }
+    }
+    document.getElementById('success-order-ref').textContent = `#${data.orderNumber}`;
+    document.getElementById('success-address-label').textContent = data.pickup ? 'Pickup:' : 'Delivering to:';
+    document.getElementById('success-address-summary').textContent = data.address;
+    document.getElementById('success-paid-amount').textContent = `${money(data.total)} AUD`;
+    const cardRows = document.getElementById('success-card-rows');
+    if (cardRows && data.paid > 0) {
+      document.getElementById('success-payment-status').textContent = data.paymentStatus;
+      document.getElementById('success-card-paid').textContent = `${money(data.paid)} AUD`;
+      document.getElementById('success-balance-label').textContent = data.pickup ? 'Remaining (due on collection):' : 'Remaining (due on delivery):';
+      document.getElementById('success-balance-amount').textContent = `${money(data.balance)} AUD`;
+      document.getElementById('success-balance-row').hidden = !(data.balance > 0);
+      cardRows.hidden = false;
+    }
     const viewOrder = document.getElementById('success-view-order');
-    if (viewOrder && res.data.orderNumber) viewOrder.href = `/account/orders/${encodeURIComponent(res.data.orderNumber)}`;
+    if (viewOrder && data.orderNumber) viewOrder.href = `/account/orders/${encodeURIComponent(data.orderNumber)}`;
     successModalOverlay.classList.add('active');
     toast('Order placed successfully!');
-  });
+  }
+
+  const placedEl = document.getElementById('checkout-placed');
+  if (placedEl) {
+    try { showOrderSuccess(JSON.parse(placedEl.textContent)); } catch (e) { /* malformed: plain checkout */ }
+  }
 
   const breadcrumbCartLink = document.getElementById('breadcrumb-cart-link');
   if (breadcrumbCartLink) {

@@ -17,7 +17,7 @@
   @php($selected = $defaultAddress && $addr['id'] === $defaultAddress['id'])
   <div class="address-card {{ $selected ? 'selected' : '' }}" data-id="{{ $addr['id'] }}">
     <div class="address-card-header">
-      <span class="address-type-badge">{!! $type === 'Office' ? $icons['office'] : ($type === 'Home' ? $icons['home'] : $icons['other']) !!} {{ $type }}</span>
+      <span class="address-type-badge">{!! $type === 'Office' ? $icons['office'] : ($type === 'Home' ? $icons['home'] : $icons['other']) !!} {{ ($addr['customLabel'] ?? '') ?: $type }}</span>
       @if ($selected)<span class="address-selection-indicator">{!! $icons['check'] !!} Selected</span>@endif
     </div>
     <div class="address-name">{{ $addr['fullName'] }}</div>

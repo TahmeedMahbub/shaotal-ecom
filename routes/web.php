@@ -6,6 +6,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\LocationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\PaymentController;
@@ -37,6 +38,11 @@ Route::withoutMiddleware($sessionless)->group(function () {
     Route::get('/catalog/products', [CatalogController::class, 'products'])->middleware('throttle:120,1,catalog');
     Route::get('/catalog/search', [CatalogController::class, 'search'])->middleware('throttle:120,1,catalog');
     Route::get('/catalog/feed', [CatalogController::class, 'feed'])->middleware('throttle:120,1,catalog');
+
+    // Australian states / suburbs / postcodes for every address form (reference data, no customer data)
+    Route::get('/api/locations/states', [LocationController::class, 'states'])->middleware('throttle:120,1,locations');
+    Route::get('/api/locations/suburbs', [LocationController::class, 'suburbs'])->middleware('throttle:240,1,locations');
+    Route::get('/api/locations/postcodes', [LocationController::class, 'postcodes'])->middleware('throttle:120,1,locations');
 
     // Stripe webhook: no session/cookies/CSRF (Stripe can't send a token); authenticated by the Stripe-Signature HMAC.
     Route::post('/webhooks/stripe', [PaymentController::class, 'webhook'])->middleware('throttle:600,1,stripe-webhook');
@@ -89,6 +95,7 @@ Route::middleware('customer')->group(function () {
     Route::post('/account/addresses', [AccountController::class, 'storeAddress']);
     Route::put('/account/addresses/{id}', [AccountController::class, 'updateAddress'])->whereNumber('id');
     Route::delete('/account/addresses/{id}', [AccountController::class, 'deleteAddress'])->whereNumber('id');
+    Route::put('/account/addresses/{id}/default', [AccountController::class, 'defaultAddress'])->whereNumber('id');
 
     // Checkout
     Route::post('/checkout/quote', [CheckoutController::class, 'quote']);

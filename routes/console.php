@@ -4,8 +4,10 @@ use App\Http\Controllers\PageController;
 use App\Models\CardPayments;
 use App\Models\Storefront;
 use App\Payments\Stripe;
+use App\Support\ConfigDataException;
 use App\Support\OrderEmails;
 use App\Support\OrderStatus;
+use App\Support\StoreConfig;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -95,16 +97,33 @@ Artisan::command('storefront:deploy-check', function () {
     $add(! $tzValid ? 'FAIL' : ($tz === 'Australia/Sydney' ? 'OK' : 'WARN'), 'STOREFRONT_DISPLAY_TIMEZONE', ! $tzValid ? "not a valid time zone: {$tz}" : ($tz === 'Australia/Sydney' ? $tz : "{$tz} (owner decision is Australia/Sydney; unset it to use the default)"));
     $add(config('storefront.trusted_proxies') ? 'OK' : 'WARN', 'TRUSTED_PROXIES', config('storefront.trusted_proxies') ? 'set' : 'empty: set it if a load balancer/CDN terminates TLS');
 
-    // Policy pages stay "being finalised" (noindex, not in the sitemap) until the owner approves their wording.
-    $pages = array_keys(PageController::INFO_PAGES);
-    $listed = (array) config('storefront.approved_pages');
-    $unknown = array_diff($listed, $pages);
-    $pending = array_diff($pages, $listed);
-    $add($unknown ? 'FAIL' : ($pending ? 'WARN' : 'OK'), 'STOREFRONT_APPROVED_PAGES', $unknown
-        ? 'unknown page(s): '.implode(', ', $unknown).' (allowed: '.implode(', ', $pages).')'
-        : ($pending ? 'not approved yet (shown as drafts, noindex): '.implode(', ', $pending) : 'all policy pages approved'));
-    $contact = array_filter((array) config('storefront.contact'));
-    $add($contact ? 'OK' : 'WARN', 'STOREFRONT_CONTACT_*', $contact ? 'set: '.implode(', ', array_keys($contact)) : 'none set: /contact shows only the form (owner to provide email/phone/hours)');
+    // Admin-managed business configuration (config_data, App\Support\StoreConfig): every key must exist and be valid,
+    // or the pages that need it fail. The checks below that read it are skipped while it is unreadable.
+    try {
+        $configProblems = StoreConfig::problems();
+        $add($configProblems ? 'FAIL' : 'OK', 'config_data', $configProblems
+            ? implode(' | ', $configProblems)
+            : 'all '.count(StoreConfig::KEYS).' keys present and valid');
+        $configOk = $configProblems === [];
+    } catch (ConfigDataException $e) {
+        $add('FAIL', 'config_data', $e->getMessage());
+        $configOk = false;
+    }
+    $cfg = fn (string $key) => StoreConfig::get($key);
+
+    if ($configOk) {
+        // Policy pages stay "being finalised" (noindex, not in the sitemap) until the owner approves their wording.
+        $pages = array_keys(PageController::INFO_PAGES);
+        $listed = (array) $cfg('approved_info_pages');
+        $unknown = array_diff($listed, $pages);
+        $pending = array_diff($pages, $listed);
+        $add($unknown ? 'FAIL' : ($pending ? 'WARN' : 'OK'), 'config_data approved_info_pages', $unknown
+            ? 'unknown page(s): '.implode(', ', $unknown).' (allowed: '.implode(', ', $pages).')'
+            : ($pending ? 'not approved yet (shown as drafts, noindex): '.implode(', ', $pending) : 'all policy pages approved'));
+        $contact = array_filter((array) $cfg('contact_details'));
+        $add($contact ? 'OK' : 'WARN', 'config_data contact_details', $contact ? 'set: '.implode(', ', array_keys($contact)) : 'none set: /contact shows only the form (owner to provide email/phone/hours)');
+
+    }
 
     // Admin order contract: dedicated gift columns and the 11-value order_status enum must exist before orders are placed
     // (the storefront writes gift_wrap_* on every order). Verdict only; run the Admin's SQL, never ALTER from here.
@@ -123,22 +142,24 @@ Artisan::command('storefront:deploy-check', function () {
         ? 'missing: '.implode(', ', array_merge($missing, $enumMissing)).' (apply the Admin SQL: GIFT WRAPPING and ORDER STATUS PROGRESSION blocks)'
         : 'gift columns and all 11 order_status values present');
 
-    // Return requests: off by default. Turning them on needs an approved policy, the tables in sql/proposed_changes.sql §4
-    // and the admin review screens. The database is only queried when the switch is on.
-    if (config('storefront.returns.enabled')) {
-        try {
-            $tables = Schema::hasTable('order_return_requests') && Schema::hasTable('order_return_request_events');
-        } catch (Throwable) {
-            $tables = false;
+    if ($configOk) {
+        // Return requests: off by default. Turning them on needs an approved policy, the tables in sql/proposed_changes.sql §4
+        // and the admin review screens. The database is only queried when the switch is on.
+        if ($cfg('returns_enabled')) {
+            try {
+                $tables = Schema::hasTable('order_return_requests') && Schema::hasTable('order_return_request_events');
+            } catch (Throwable) {
+                $tables = false;
+            }
+            $add($tables ? 'WARN' : 'FAIL', 'config_data returns_enabled', $tables
+                ? 'ON: confirm the owner approved the returns policy and the admin app can review requests'
+                : 'ON but the return-request tables are missing (sql/proposed_changes.sql §4): the form stays hidden');
+        } else {
+            $add('OK', 'config_data returns_enabled', 'off (default; returns policy, tables and admin review still pending)');
         }
-        $add($tables ? 'WARN' : 'FAIL', 'STOREFRONT_RETURNS_ENABLED', $tables
-            ? 'ON: confirm the owner approved the returns policy and the admin app can review requests'
-            : 'ON but the return-request tables are missing (sql/proposed_changes.sql §4): the form stays hidden');
-    } else {
-        $add('OK', 'STOREFRONT_RETURNS_ENABLED', 'off (default; returns policy, tables and admin review still pending)');
+        $window = $cfg('returns_window_days');
+        $add($window === null || $window > 0 ? 'OK' : 'FAIL', 'config_data returns_window_days', $window === null ? 'not set (no limit; owner decision pending)' : ($window > 0 ? "{$window} days after delivery" : 'must be a positive number of days, or unset'));
     }
-    $window = config('storefront.returns.window_days');
-    $add($window === null || $window > 0 ? 'OK' : 'FAIL', 'STOREFRONT_RETURNS_WINDOW_DAYS', $window === null ? 'not set (no limit; owner decision pending)' : ($window > 0 ? "{$window} days after delivery" : 'must be a positive number of days, or unset'));
 
     // Stripe card payments (docs/stripe-deployment.md). Verdicts only: key values are never printed.
     if (config('services.stripe.enabled')) {

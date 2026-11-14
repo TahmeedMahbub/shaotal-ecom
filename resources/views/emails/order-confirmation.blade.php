@@ -107,12 +107,12 @@
           {{-- Delivery --}}
           <tr>
             <td class="pad" style="padding:24px 40px 0; font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:1.6; color:#4A4440;">
-              <div style="font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#8A837D; font-weight:bold; padding-bottom:8px; border-bottom:1px solid #E5DED6; margin-bottom:8px;">Delivering to</div>
+              <div style="font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#8A837D; font-weight:bold; padding-bottom:8px; border-bottom:1px solid #E5DED6; margin-bottom:8px;">{{ $deliveryHeading }}</div>
               @foreach ($address as $line)
                 <div>{{ $line }}</div>
               @endforeach
               @if ($phone)<div>{{ $phone }}</div>@endif
-              <div style="margin-top:8px; color:#6C6560;">We deliver within Australia. You can follow this order at any time from My Orders.</div>
+              <div style="margin-top:8px; color:#6C6560;">{{ $deliveryNote }}</div>
             </td>
           </tr>
 

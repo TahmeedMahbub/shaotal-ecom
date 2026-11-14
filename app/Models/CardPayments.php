@@ -22,10 +22,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * Rules (docs/payments-architecture.md):
  *  - Online payment is a pre-booking (App\Payments\OnlinePaymentPlan): the Stripe session charges the DEPOSIT only
  *    (payments.amount of the attempt row). A paid deposit leaves orders.payment_status "pending" (the shared enum has no
- *    partial value) and is shown as "Pre-booked" from the paid payment rows; the order becomes "paid" only when the
+ *    partial value) and is shown as "Partially Paid" from the paid payment rows; the order becomes "paid" only when the
  *    sum of paid payment rows reaches grand_total. A deposit is never treated as full payment.
- *  - Nothing becomes paid except in applyEvent(), from a signature-verified webhook whose amount, currency,
- *    order number and live/test mode match. The success redirect only displays state.
+ *  - Nothing becomes paid except in applyEvent(), from a signature-verified webhook, or from the session as returned by
+ *    Stripe's own API (applySession: reconcile job and the success return page), whose amount, currency, order number
+ *    and live/test mode match. The success URL / session id alone never marks anything paid.
  *  - Webhooks are idempotent: each is applied under row locks and transitions only move forward (paid is final here;
  *    refunds are done by staff). Processed event ids are also kept in payments.response_data and skipped on repeat.
  *  - At most one open session per order: a retry reuses the open session, or closes the old one (Stripe "expire")
@@ -135,11 +136,13 @@ class CardPayments
             // second session); different request → fresh key.
             $params = self::sessionParams($order, $paymentId);
             $session = Stripe::createCheckoutSession($params, 'shaotal-pay-'.$paymentId.'-'.substr(hash('sha256', json_encode($params)), 0, 16));
+            // The placement row also holds the delivery-method snapshot (App\Support\Shipping::forOrder): keep it.
+            $previous = json_decode((string) DB::table('payments')->where('id', $paymentId)->value('response_data'), true) ?: [];
             DB::table('payments')->where('id', $paymentId)->whereNull('provider_transaction_id')->update([
                 'provider_transaction_id' => $session['id'],
                 // The plan snapshot (rates, discount, deposit, balance) stays with the order's payment rows.
                 'response_data' => json_encode(array_filter(['mode' => Stripe::mode(), 'session_status' => $session['status'] ?? null, 'events' => [],
-                    'plan' => OnlinePaymentPlan::forOrder($order->id)], fn ($v) => $v !== null)),
+                    'plan' => OnlinePaymentPlan::forOrder($order->id), 'shipping' => $previous['shipping'] ?? null], fn ($v) => $v !== null)),
                 'updated_at' => now(),
             ]);
 
@@ -356,20 +359,12 @@ class CardPayments
         $outcomes = [];
         foreach ($rows as $sessionId) {
             try {
-                $session = Stripe::retrieveCheckoutSession($sessionId);
-                $type = match (true) {
-                    ($session['status'] ?? null) === 'complete' && ($session['payment_status'] ?? null) === 'paid' => 'checkout.session.completed',
-                    ($session['status'] ?? null) === 'expired' => 'checkout.session.expired',
-                    default => null,
-                };
-                if (! $type) {
+                $result = self::applySession(Stripe::retrieveCheckoutSession($sessionId), 'recon');
+                if ($result === null) {
                     $outcomes['still_open'] = ($outcomes['still_open'] ?? 0) + 1;
 
                     continue;
                 }
-                $result = self::applyEvent([
-                    'id' => 'recon_'.$type.'_'.$sessionId, 'type' => $type, 'livemode' => Stripe::mode() === 'live', 'data' => ['object' => $session],
-                ]);
             } catch (\Throwable $e) {
                 Log::warning('Stripe reconcile failed for a session', ['error' => $e->getMessage()]);
                 $result = 'error';
@@ -378,6 +373,26 @@ class CardPayments
         }
 
         return $outcomes;
+    }
+
+    /**
+     * Apply a Checkout Session fetched from Stripe's API (server to server, secret key) exactly like its webhook: a
+     * completed-and-paid session as checkout.session.completed, an expired one as checkout.session.expired. Used by
+     * reconcilePending() and by the success return page, so the customer is not left waiting for the webhook. Same
+     * idempotent applyEvent(): amount/currency/order/mode checks, row locks, forward-only transitions, one email. Returns
+     * the outcome, or null when the session is neither (still open, or completed with an unsettled async payment).
+     */
+    public static function applySession(array $session, string $source): ?string
+    {
+        $type = match (true) {
+            ($session['status'] ?? null) === 'complete' && ($session['payment_status'] ?? null) === 'paid' => 'checkout.session.completed',
+            ($session['status'] ?? null) === 'expired' => 'checkout.session.expired',
+            default => null,
+        };
+
+        return $type ? self::applyEvent([
+            'id' => $source.'_'.$type.'_'.($session['id'] ?? ''), 'type' => $type, 'livemode' => Stripe::mode() === 'live', 'data' => ['object' => $session],
+        ]) : null;
     }
 
     private static function markPaid(object $payment, object $order, array $session, callable $save): string

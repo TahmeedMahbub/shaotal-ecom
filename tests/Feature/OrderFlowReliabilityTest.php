@@ -57,10 +57,10 @@ class OrderFlowReliabilityTest extends TestCase
                 'enabled' => true, 'mode' => 'test', 'key' => 'pk_test_abc', 'secret' => 'sk_test_abc', 'webhook_secret' => self::WHSEC,
                 'currency' => 'aud', 'api_version' => '2024-06-20', 'session_minutes' => 60, 'webhook_tolerance' => 300,
             ],
-            'storefront.payment_methods' => ['card', 'cod'],
             'storefront.order_mail_queue' => 'sync',
             'app.url' => 'https://shop.example.test',
         ]);
+        \App\Support\StoreConfig::fake(['payment_methods' => ['card', 'cod']]);
         Cache::store('file')->flush();
         $this->customerId = DB::table('customers')->insertGetId(['first_name' => 'Payer', 'email' => 'payer@example.test', 'status' => 'active', 'email_verified_at' => now()]);
         $this->addressId = DB::table('customer_addresses')->insertGetId([
@@ -214,7 +214,7 @@ class OrderFlowReliabilityTest extends TestCase
         $this->assertSame(['paid' => 1], CardPayments::reconcilePending());
         $this->assertSame(0, $this->bagCount(), 'cleared only after the verified payment');
         $this->assertSame('converted', DB::table('carts')->where('id', $cart)->value('status'));
-        $this->assertSame('pending', $this->orderRow($number)->payment_status, 'a 20% deposit never marks the order fully paid');
+        $this->assertSame('pending', $this->orderRow($number)->payment_status, 'a 30% deposit never marks the order fully paid');
         $this->assertSame([], CardPayments::reconcilePending(), 'a paid payment is not asked about again');
         Mail::assertSent(OrderConfirmationMail::class, 1);
         Carbon::setTestNow();

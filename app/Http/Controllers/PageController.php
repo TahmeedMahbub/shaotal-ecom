@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Catalog;
+use App\Models\CustomerOrders;
 use App\Models\Listing;
 use App\Models\Storefront;
 use App\Payments\PaymentMethods;
 use App\Support\EmailVerification;
 use App\Support\Img;
 use App\Support\Seo;
+use App\Support\StoreConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -294,8 +296,13 @@ class PageController extends Controller
             return redirect('/?signin=/checkout');
         }
 
+        // After a card payment (/checkout/payment/success redirects here with ?paid=<order>): open the same success modal
+        // as COD, from the order's stored, Stripe-confirmed payments only. Anything else in ?paid= is ignored.
+        $paid = request()->query('paid');
+        $placed = is_string($paid) && preg_match('/^[A-Za-z0-9\-]{1,40}$/', $paid) ? CustomerOrders::cardSuccess((int) session('customer_id'), $paid) : null;
+
         // Saved addresses are embedded so the address step renders without a second round trip (no layout shift).
-        return response()->view('pages.checkout', ['methods' => PaymentMethods::enabled(), 'addresses' => AccountController::addressList((int) session('customer_id'))])
+        return response()->view('pages.checkout', ['methods' => PaymentMethods::enabled(), 'addresses' => AccountController::addressList((int) session('customer_id')), 'placedOrder' => $placed])
             ->header('X-Robots-Tag', 'noindex, nofollow')->header('Cache-Control', 'private, no-store');
     }
 
@@ -314,6 +321,7 @@ class PageController extends Controller
         'contact' => ['Contact Us', 'Send a message to the Shaotal team about an order, a product or a request.'],
         'shipping' => ['Shipping', 'Where Shaotal delivers, shipping costs and how to follow your order.'],
         'returns' => ['Returns', 'What to do if something is not right with your Shaotal order.'],
+        'payments' => ['Payments & Pre-orders', 'How paying for a Shaotal order works: cash on delivery, the online payment deposit and pre-orders.'],
         'terms' => ['Terms of Sale', 'How buying from Shaotal works: accounts, prices, payment and orders.'],
         'privacy' => ['Privacy', 'What personal information the Shaotal website collects and how it is used.'],
     ];
@@ -321,7 +329,7 @@ class PageController extends Controller
     /** Pages whose wording the owner has approved (indexable, in the sitemap). */
     public static function approvedInfoPages(): array
     {
-        return array_values(array_intersect(array_keys(self::INFO_PAGES), (array) config('storefront.approved_pages')));
+        return array_values(array_intersect(array_keys(self::INFO_PAGES), StoreConfig::get('approved_info_pages')));
     }
 
     public function info(string $slug)

@@ -12,7 +12,7 @@
   @endif
 
   <h2>Cancelling before dispatch</h2>
-  <p>You can cancel an order yourself from <a href="/account#orders">My Orders</a> until our team confirms it. Orders are paid by cash on delivery, so a cancelled order has nothing to refund.</p>
+  <p>You can cancel an order yourself from <a href="/account#orders">My Orders</a> until our team confirms it, as long as no payment has been received (a cash-on-delivery order has nothing to refund). If you paid an online deposit, please <a href="/contact">contact us</a>; our cancellation and refund terms for deposits are being finalised.</p>
 
   <h2>Your rights</h2>
   <p>Nothing on this page limits any rights you have under the Australian Consumer Law.</p>

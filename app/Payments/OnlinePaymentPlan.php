@@ -2,6 +2,7 @@
 
 namespace App\Payments;
 
+use App\Support\StoreConfig;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,8 +16,8 @@ use Illuminate\Support\Facades\DB;
  *   deposit (pay now)    = order total x deposit%
  *   balance (pay later)  = order total - deposit                 (so deposit + balance == total, to the cent)
  *
- * The rates come from settings() only. They are static config today (config/storefront.php "online_payment"); to manage
- * them from the admin later, change settings() alone (e.g. read site_settings): nothing else needs to change. Each
+ * The rates come from settings() only, which reads the admin-managed config_data keys online_payment_discount_percent and
+ * online_payment_deposit_percent (App\Support\StoreConfig). Each
  * order stores a snapshot of the rates it was priced with (plan()['…Percent']) in payments.response_data, so changing
  * the rates never alters existing orders.
  */
@@ -25,9 +26,8 @@ final class OnlinePaymentPlan
     /** @return array{discountPercent: float, depositPercent: float, balancePercent: float} */
     public static function settings(): array
     {
-        $cfg = (array) config('storefront.online_payment', []);
-        $discount = max(0.0, min(100.0, (float) ($cfg['discount_percent'] ?? 0)));
-        $deposit = max(0.0, min(100.0, (float) ($cfg['deposit_percent'] ?? 100)));
+        $discount = StoreConfig::get('online_payment_discount_percent');   // validated 0-100
+        $deposit = StoreConfig::get('online_payment_deposit_percent');
 
         return ['discountPercent' => $discount, 'depositPercent' => $deposit, 'balancePercent' => round(100 - $deposit, 4)];
     }
@@ -61,6 +61,14 @@ final class OnlinePaymentPlan
         $plan = (json_decode((string) $json, true) ?: [])['plan'] ?? null;
 
         return is_array($plan) && isset($plan['deposit'], $plan['total']) ? $plan : null;
+    }
+
+    /** How the balance is collected (config_data online_payment_balance_terms), e.g. "The remaining 70% is payable later ...". */
+    public static function balanceTerms(?float $balancePercent = null): string
+    {
+        $pct = rtrim(rtrim(number_format($balancePercent ?? self::settings()['balancePercent'], 2), '0'), '.');
+
+        return strtr(StoreConfig::get('online_payment_balance_terms'), [':balance' => $pct.'%']);
     }
 
     public static function cents(float|int|string $amount): int

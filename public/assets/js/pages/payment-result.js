@@ -6,9 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const order = box.dataset.order;
   const enc = encodeURIComponent(order);
 
-  // Only a payment confirmed by the verified webhook renders data-clear-cart=1: the browser-persisted bag (and, through
-  // it, the saved server bag) is emptied now. Failed / cancelled / still-confirming pages never clear it.
-  if (box.dataset.clearCart === '1' && typeof window.bongoClearCart === 'function') window.bongoClearCart();
+  // This page never clears the bag: a verified payment redirects to /checkout?paid=<order>, whose success modal clears it
+  // (checkout.js, once per order). Failed / cancelled / still-confirming pages keep the bag.
 
   if (box.dataset.state === 'confirming') {
     let tries = 0;

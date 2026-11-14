@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Storefront;
+use App\Support\StoreConfig;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
@@ -15,7 +16,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Admin-managed config_data values: read once per request / queue job (scoped), never across them.
+        $this->app->scoped(StoreConfig::class);
     }
 
     /**

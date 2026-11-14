@@ -31,9 +31,9 @@ class GiftWrapCheckoutTest extends TestCase
                 'enabled' => true, 'mode' => 'test', 'key' => 'pk_test_abc', 'secret' => 'sk_test_abc', 'webhook_secret' => 'whsec_test',
                 'currency' => 'aud', 'api_version' => '2024-06-20', 'session_minutes' => 60, 'webhook_tolerance' => 300,
             ],
-            'storefront.payment_methods' => ['card', 'cod'],
             'app.url' => 'https://shop.example.test',
         ]);
+        \App\Support\StoreConfig::fake(['payment_methods' => ['card', 'cod']]);
         $this->customerId = DB::table('customers')->insertGetId(['first_name' => 'Buyer', 'email' => 'gift@example.test', 'status' => 'active', 'email_verified_at' => now()]);
         $this->addressId = DB::table('customer_addresses')->insertGetId([
             'customer_id' => $this->customerId, 'label' => 'Home', 'recipient_name' => 'Buyer', 'phone' => '0400000000',
@@ -175,10 +175,10 @@ class GiftWrapCheckoutTest extends TestCase
 
     public function test_online_discount_and_deposit_include_the_fee_and_add_up(): void
     {
-        // 3 x 55 = 165 + 2.99 wrapping = 167.99 eligible; 2% = 3.36 (half-up); + 12 shipping => 176.63; 20% deposit = 35.33.
+        // 3 x 55 = 165 + 2.99 wrapping = 167.99 eligible; 2% = 3.36 (half-up); + 12 shipping => 176.63; 30% deposit = 52.99.
         $q = $this->postJson('/checkout/quote', $this->body(3, $this->gift(3)))->assertOk();
         $online = $q->json('online');
-        $this->assertEquals([167.99, 3.36, 12, 176.63, 35.33, 141.30], [$online['merchandise'], $online['discount'], $online['shipping'], $online['total'], $online['deposit'], $online['balance']]);
+        $this->assertEquals([167.99, 3.36, 12, 176.63, 52.99, 123.64], [$online['merchandise'], $online['discount'], $online['shipping'], $online['total'], $online['deposit'], $online['balance']]);
         $this->assertEquals(179.99, $q->json('total'), 'COD figure: no online discount');
         $this->assertEquals($online['total'], round($online['deposit'] + $online['balance'], 2));
     }
@@ -200,14 +200,14 @@ class GiftWrapCheckoutTest extends TestCase
         $this->assertSame(['card', 'pending', 'pending'], [$o->payment_method, $o->payment_status, $o->order_status]);
         $this->assertSame('165.00', $o->subtotal);            // goods only
         $this->assertSame(['1', '3', '2.99', 'For you'], [(string) $o->gift_wrap_requested, (string) $o->gift_wrap_items_count, $o->gift_wrap_fee, $o->gift_message]);
-        $this->assertSame(3533, $charged, 'Stripe is asked for the 20% deposit, in cents');
+        $this->assertSame(5299, $charged, 'Stripe is asked for the 30% deposit, in cents');
         $this->assertSame('3.36', $o->discount_total);        // the online discount, on goods + wrapping
         $this->assertSame('176.63', $o->grand_total);
         $this->assertEquals($o->grand_total, $o->subtotal - $o->discount_total + $o->shipping_total + $o->tax_total + $o->gift_wrap_fee);
         $pay = DB::table('payments')->where('order_id', $o->id)->first();
-        $this->assertSame('35.33', $pay->amount);             // 20% deposit of the fee-inclusive total
+        $this->assertSame('52.99', $pay->amount);             // 30% deposit of the fee-inclusive total
         $plan = json_decode($pay->response_data, true)['plan'];
-        $this->assertEquals([167.99, 35.33, 141.30], [$plan['merchandise'], $plan['deposit'], $plan['balance']]);
+        $this->assertEquals([167.99, 52.99, 123.64], [$plan['merchandise'], $plan['deposit'], $plan['balance']]);
         $this->assertNull($o->customer_note);
         $this->assertSame(2.99, CustomerOrders::find($this->customerId, $o->order_number)['gift']['fee']);
     }

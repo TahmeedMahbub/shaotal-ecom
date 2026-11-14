@@ -171,7 +171,7 @@ class OrderStatusTest extends TestCase
         $this->assertSame('No payment due', OrderStatus::paymentLabel('pending', 'cod', 'cancelled'));
         $this->assertSame('Paid', OrderStatus::paymentLabel('paid', 'cod', 'delivered'));
         // A deposit is never "Paid": money received but less than the total reads as pre-booked.
-        $this->assertSame('Pre-booked (deposit paid)', OrderStatus::paymentLabel('pending', 'card', 'pending', 23.96, 119.80));
+        $this->assertSame('Partially Paid', OrderStatus::paymentLabel('pending', 'card', 'pending', 35.94, 119.80));
         $this->assertSame('Payment Pending', OrderStatus::paymentLabel('pending', 'card', 'pending', 0.0, 119.80));
         $this->assertSame('Paid', OrderStatus::paymentLabel('paid', 'card', 'pending', 119.80, 119.80));
         $this->assertSame('Refunded', OrderStatus::paymentLabel('refunded', 'card', 'returned'));

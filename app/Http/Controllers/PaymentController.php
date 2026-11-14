@@ -16,7 +16,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Stripe card payments: the customer-facing return pages, "Pay now" retry, a status endpoint the return page polls,
- * and the webhook. Only the webhook (signature-verified) changes a payment to paid; the return pages only read.
+ * and the webhook. A payment becomes paid only from Stripe itself: the signature-verified webhook, or the session read
+ * from Stripe's API on the success return (never from the URL).
  */
 class PaymentController extends Controller
 {
@@ -51,7 +52,15 @@ class PaymentController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
-    /** GET /checkout/payment/success?session_id=cs_… — Stripe's return URL after the hosted page. */
+    /**
+     * GET /checkout/payment/success?session_id=cs_… — Stripe's return URL after the hosted page.
+     *
+     * The URL proves nothing: the session id only picks the customer's own payment row. If our webhook hasn't recorded
+     * the payment yet, ask Stripe (server-side, secret key) for the session and apply it through the same idempotent
+     * path as the webhook (CardPayments::applySession). Once a paid payment row exists the customer goes to the checkout
+     * success modal (the same one COD uses), also on refresh or a repeated visit. Only when Stripe cannot confirm it
+     * (unsettled async payment, Stripe unreachable) is the "confirming" page shown.
+     */
     public function success(Request $request): Response
     {
         $sessionId = (string) $request->query('session_id', '');
@@ -59,16 +68,18 @@ class PaymentController extends Controller
         $row = CardPayments::forSession($this->require(), $sessionId);
         abort_unless($row, 404);
 
-        // Display only. If our webhook hasn't arrived yet, ask Stripe (server-side, with the secret key) whether the
-        // customer actually completed payment, so the page says "confirming" rather than "not paid". Nothing is written.
         $state = ($row->payment_status === 'paid' || CardPayments::paidTotal($row->id) > 0) ? 'paid' : 'pending';
         if ($state !== 'paid') {
             try {
-                $s = Stripe::retrieveCheckoutSession($sessionId);
-                $state = ($s['status'] ?? null) === 'complete' ? 'confirming' : 'incomplete';
+                $session = Stripe::retrieveCheckoutSession($sessionId);
+                CardPayments::applySession($session, 'return');
+                $state = CardPayments::paidTotal($row->id) > 0 ? 'paid' : (($session['status'] ?? null) === 'complete' ? 'confirming' : 'incomplete');
             } catch (StripeException) {
                 $state = 'confirming';
             }
+        }
+        if ($state === 'paid') {
+            return redirect('/checkout?paid='.rawurlencode($row->order_number))->header('Cache-Control', 'private, no-store');
         }
 
         return $this->page('success', $row, $state);

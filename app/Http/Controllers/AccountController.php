@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Locations;
 use App\Models\Storefront;
 use App\Support\DisplayTime;
 use Illuminate\Http\JsonResponse;
@@ -160,15 +161,35 @@ class AccountController extends Controller
         return response()->json(self::addressList($this->require()));
     }
 
+    /** Built-in location labels ("Office" is shown as "Work"); any other stored label is a customer's custom "Other" label. */
+    public const ADDRESS_TYPES = ['Home', 'Office', 'Other'];
+
+    /**
+     * customer_addresses has no address-line-2 column, so the optional second line is kept after a newline in
+     * street_address (see sql/proposed_changes.sql). Outside the My Locations form it is shown as one line.
+     */
+    public static function streetLine(?string $street): string
+    {
+        return implode(', ', array_filter(array_map('trim', explode("\n", (string) $street)), 'strlen'));
+    }
+
     public static function addressList(int $customerId): array
     {
         return DB::table('customer_addresses')->where('customer_id', $customerId)->orderByDesc('is_default')->orderBy('id')
             ->get(['id', 'label', 'recipient_name', 'phone', 'street_address', 'suburb', 'state', 'postcode', 'is_default'])
-            ->map(fn ($a) => [
-                'id' => (int) $a->id, 'addressType' => $a->label ?: 'Home', 'fullName' => $a->recipient_name, 'phone' => $a->phone,
-                'street' => $a->street_address, 'suburb' => $a->suburb ?? '', 'state' => $a->state ?? '', 'postcode' => $a->postcode ?? '',
-                'isDefault' => (bool) $a->is_default,
-            ])->all();
+            ->map(function ($a) {
+                $label = trim((string) $a->label) ?: 'Home';
+                $type = in_array($label, self::ADDRESS_TYPES, true) ? $label : 'Other';
+                [$line1, $line2] = array_pad(explode("\n", (string) $a->street_address, 2), 2, '');
+
+                return [
+                    'id' => (int) $a->id, 'addressType' => $type, 'customLabel' => $type === 'Other' && $label !== 'Other' ? $label : '',
+                    'fullName' => $a->recipient_name, 'phone' => $a->phone,
+                    'street' => self::streetLine($a->street_address), 'line1' => trim($line1), 'line2' => trim($line2),
+                    'suburb' => $a->suburb ?? '', 'state' => $a->state ?? '', 'postcode' => $a->postcode ?? '', 'country' => 'Australia',
+                    'isDefault' => (bool) $a->is_default,
+                ];
+            })->all();
     }
 
     private function addressRules(): array
@@ -176,28 +197,114 @@ class AccountController extends Controller
         return [
             'fullName' => ['required', 'string', 'max:180'],
             'phone' => ['required', 'string', 'max:40', 'regex:'.self::PHONE_REGEX],
-            'street' => ['required', 'string', 'max:255'],
+            // Checkout sends one "street" line; My Locations sends line1 (+ optional line2).
+            'street' => ['required_without:line1', 'nullable', 'string', 'max:255'],
+            'line1' => ['required_without:street', 'nullable', 'string', 'max:160', 'not_regex:/[\r\n]/'],
+            'line2' => ['nullable', 'string', 'max:90', 'not_regex:/[\r\n]/'],
             'suburb' => ['required', 'string', 'max:120'],
             'state' => ['required', Rule::in(self::STATES)],
-            'postcode' => ['required', 'digits:4'],
-            'addressType' => ['required', Rule::in(['Home', 'Office', 'Other'])],
+            'postcode' => ['required', 'digits:4', 'regex:/^(0[289]\d{2}|[1-9]\d{3})$/'],
+            'country' => ['nullable', Rule::in(['Australia', 'AU'])],
+            'addressType' => ['required', Rule::in(self::ADDRESS_TYPES)],
+            'customLabel' => ['nullable', 'string', 'max:40', 'not_regex:/[\r\n]/'],
+            'isDefault' => ['nullable', 'boolean'],
         ];
     }
 
-    private function addressRow(array $d): array
+    /** Australia Post postcode ranges per state/territory (inclusive). */
+    public const STATE_POSTCODES = [
+        'NSW' => [[1000, 2599], [2619, 2899], [2921, 2999]],
+        'ACT' => [[200, 299], [2600, 2618], [2900, 2920]],
+        'VIC' => [[3000, 3999], [8000, 8999]],
+        'QLD' => [[4000, 4999], [9000, 9999]],
+        'SA' => [[5000, 5999]],
+        'WA' => [[6000, 6999]],
+        'TAS' => [[7000, 7999]],
+        'NT' => [[800, 999]],
+    ];
+
+    public static function postcodeMatchesState(string $postcode, string $state): bool
     {
+        $n = (int) $postcode;
+        foreach (self::STATE_POSTCODES[$state] ?? [] as [$from, $to]) {
+            if ($n >= $from && $n <= $to) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function validateAddress(Request $request): array
+    {
+        $rules = $this->addressRules();
+        $rules['postcode'][] = function (string $attr, mixed $value, \Closure $fail) use ($request) {
+            $state = (string) $request->input('state');
+            if (! in_array($state, self::STATES, true) || ! preg_match('/^\d{4}$/', (string) $value)) {
+                return;
+            }
+            // The central location dataset decides when it is loaded; otherwise the old state/postcode ranges apply.
+            if (! self::postcodeMatchesState((string) $value, $state)) {
+                $fail("This postcode is not in {$state}. Please check the postcode and state.");
+            } elseif ($problem = Locations::problem($state, (string) $request->input('suburb'), (string) $value)) {
+                $fail($problem);
+            }
+        };
+
+        return $request->validate($rules, [
+            'phone.regex' => self::PHONE_MESSAGE,
+            'postcode.digits' => 'Please enter a valid 4-digit Australian postcode.',
+            'postcode.regex' => 'Please enter a valid 4-digit Australian postcode.',
+            'state.in' => 'Please choose an Australian state or territory.',
+            'country.in' => 'We currently deliver within Australia only.',
+            'line1.required_without' => 'Please enter the street address.',
+            'street.required_without' => 'Please enter the street address.',
+        ]);
+    }
+
+    /** @param  string|null  $currentLabel  stored label, kept when a form without a custom-label field (checkout) saves an "Other" address */
+    private function addressRow(array $d, ?string $currentLabel = null): array
+    {
+        $street = isset($d['line1']) && trim((string) $d['line1']) !== ''
+            ? trim(trim($d['line1'])."\n".trim((string) ($d['line2'] ?? '')))
+            : trim((string) $d['street']);
+        $label = $d['addressType'];
+        if ($label === 'Other') {
+            $custom = trim((string) ($d['customLabel'] ?? ''));
+            if (! array_key_exists('customLabel', $d) && $currentLabel !== null && ! in_array($currentLabel, ['Home', 'Office'], true)) {
+                $custom = $currentLabel;
+            }
+            // A custom label equal to a built-in one is stored as that type.
+            $label = ['home' => 'Home', 'work' => 'Office', 'office' => 'Office'][strtolower($custom)] ?? ($custom !== '' ? $custom : 'Other');
+        }
+
         return [
-            'label' => $d['addressType'], 'recipient_name' => $d['fullName'], 'phone' => $d['phone'], 'street_address' => $d['street'],
-            'suburb' => $d['suburb'], 'state' => $d['state'], 'postcode' => $d['postcode'],
+            'label' => $label, 'recipient_name' => trim($d['fullName']), 'phone' => trim($d['phone']), 'street_address' => $street,
+            'suburb' => trim($d['suburb']), 'state' => $d['state'], 'postcode' => $d['postcode'],
         ];
+    }
+
+    /** Make one of the customer's addresses the only default (caller holds a transaction). */
+    private static function makeDefault(int $customerId, int $addressId): void
+    {
+        DB::table('customer_addresses')->where('customer_id', $customerId)->where('id', '!=', $addressId)->where('is_default', 1)->update(['is_default' => 0]);
+        DB::table('customer_addresses')->where('customer_id', $customerId)->where('id', $addressId)->update(['is_default' => 1]);
     }
 
     public function storeAddress(Request $request): JsonResponse
     {
         $id = $this->require();
-        $d = $request->validate($this->addressRules(), ['phone.regex' => self::PHONE_MESSAGE]);
-        $isFirst = ! DB::table('customer_addresses')->where('customer_id', $id)->exists();
-        $newId = DB::table('customer_addresses')->insertGetId($this->addressRow($d) + ['customer_id' => $id, 'is_default' => $isFirst ? 1 : 0]);
+        $d = $this->validateAddress($request);
+        $newId = DB::transaction(function () use ($id, $d) {
+            // Lock the customer's rows so two concurrent saves cannot both become the default.
+            $hasAny = DB::table('customer_addresses')->where('customer_id', $id)->lockForUpdate()->exists();
+            $newId = DB::table('customer_addresses')->insertGetId($this->addressRow($d) + ['customer_id' => $id, 'is_default' => 0]);
+            if (! $hasAny || ! empty($d['isDefault'])) {
+                self::makeDefault($id, $newId);
+            }
+
+            return $newId;
+        });
 
         return response()->json(['id' => $newId, 'addresses' => self::addressList($id)]);
     }
@@ -205,9 +312,27 @@ class AccountController extends Controller
     public function updateAddress(Request $request, int $addressId): JsonResponse
     {
         $id = $this->require();
-        $d = $request->validate($this->addressRules(), ['phone.regex' => self::PHONE_MESSAGE]);
-        $n = DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $id)->update($this->addressRow($d));
-        abort_unless($n || DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $id)->exists(), 404);
+        $d = $this->validateAddress($request);
+        DB::transaction(function () use ($id, $addressId, $d) {
+            $current = DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $id)->lockForUpdate()->first(['label']);
+            abort_unless($current, 404);
+            DB::table('customer_addresses')->where('id', $addressId)->update($this->addressRow($d, $current->label));
+            if (! empty($d['isDefault'])) {
+                self::makeDefault($id, $addressId);
+            }
+        });
+
+        return response()->json(['id' => $addressId, 'addresses' => self::addressList($id)]);
+    }
+
+    public function defaultAddress(int $addressId): JsonResponse
+    {
+        $id = $this->require();
+        DB::transaction(function () use ($id, $addressId) {
+            $exists = DB::table('customer_addresses')->where('customer_id', $id)->lockForUpdate()->pluck('id')->contains($addressId);
+            abort_unless($exists, 404);
+            self::makeDefault($id, $addressId);
+        });
 
         return response()->json(['id' => $addressId, 'addresses' => self::addressList($id)]);
     }

@@ -6,8 +6,8 @@ namespace App\Support;
  * Optional gift wrapping. THE single place that knows the price rule and how a gift selection is validated, stored
  * and read back (Blade/JS only display the numbers the server returns).
  *
- * Fee (config storefront.gift_wrap), in cents so it is exact: the first 2 wrapped items cost A$1.99 in total, each
- * further wrapped item adds A$1.00. It depends only on the number of items selected to wrap, never on the cart size.
+ * Fee (config_data gift_wrap_base_fee / gift_wrap_base_items / gift_wrap_extra_fee), in cents so it is exact: the first
+ * base_items wrapped items cost base_fee in total, each further wrapped item adds extra_fee. It depends only on the number of items selected to wrap, never on the cart size.
  *
  * Storage (the admin's dedicated columns; no extra order line, nothing in customer_note):
  *   - orders.gift_wrap_requested / gift_wrap_items_count / gift_wrap_fee / gift_message;
@@ -35,10 +35,9 @@ final class GiftWrap
     /** @return array{baseFee: float, baseItems: int, extraFee: float} */
     public static function rules(): array
     {
-        $c = (array) config('storefront.gift_wrap', []);
-
         return [
-            'baseFee' => (float) ($c['base_fee'] ?? 1.99), 'baseItems' => (int) ($c['base_items'] ?? 2), 'extraFee' => (float) ($c['extra_fee'] ?? 1.00),
+            'baseFee' => StoreConfig::get('gift_wrap_base_fee'), 'baseItems' => StoreConfig::get('gift_wrap_base_items'),
+            'extraFee' => StoreConfig::get('gift_wrap_extra_fee'),
         ];
     }
 

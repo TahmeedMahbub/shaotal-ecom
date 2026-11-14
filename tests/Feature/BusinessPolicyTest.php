@@ -57,7 +57,7 @@ class BusinessPolicyTest extends TestCase
         }
         foreach ($pages as $uri => $html) {
             $text = html_entity_decode(strip_tags(preg_replace('#<script\b.*?</script>#is', '', $html)));
-            foreach (['/Express (Delivery|Shipping)/i', '/Australia Post/i', '/\bNZ\b|New Zealand/i', '/30-Day/i', '/Free Returns/i', '/door-to-door tracking/i', '/customs clearance/i', '/Sydney hub|West Croydon|dispatch from Sydney/i', '/Business Days/i', '/customer guarantee/i'] as $claim) {
+            foreach (['/Express (Delivery|Shipping)/i', '/Australia Post/i', '/\bNZ\b|New Zealand/i', '/30-Day/i', '/Free Returns/i', '/door-to-door tracking/i', '/customs clearance/i', '/Sydney hub|dispatch from Sydney|dispatch(ed)? from West Croydon/i', '/Business Days/i', '/customer guarantee/i'] as $claim) {
                 $this->assertDoesNotMatchRegularExpression($claim, $text, "{$claim} on {$uri}");
             }
         }
@@ -110,7 +110,7 @@ class BusinessPolicyTest extends TestCase
         $this->assertStringContainsString('reviewed by a legal adviser', $this->get('/terms')->getContent());
         $this->assertStringNotContainsString('/shipping', $this->get('/sitemap-pages.xml')->getContent());
 
-        config(['storefront.approved_pages' => ['shipping']]);
+        \App\Support\StoreConfig::fake(['approved_info_pages' => ['shipping']]);
         Cache::store('file')->flush();
         $ship = $this->get('/shipping')->getContent();
         $this->assertStringContainsString('<meta name="robots" content="index, follow">', $ship);
@@ -122,8 +122,11 @@ class BusinessPolicyTest extends TestCase
     {
         $html = $this->get('/shipping')->getContent();
         $this->assertStringContainsString('within Australia only', $html);
-        $this->assertStringContainsString('Orders of A$299 or more: free shipping.', $html);
-        $this->assertStringContainsString('a flat A$12 shipping fee', $html);
+        $this->assertStringContainsString('Adelaide delivery: A$5.', $html);
+        $this->assertStringContainsString('not every South Australian address is in this zone', $html);
+        $this->assertStringContainsString('Rest of Australia: A$12, for every other Australian delivery address', $html);
+        $this->assertStringContainsString('Free Pickup – West Croydon: free (A$0).', $html);
+        $this->assertStringContainsString('Delivery orders of A$299 or more: free shipping.', $html);
         $this->assertStringContainsString('Live courier tracking is not available', $html);
     }
 
@@ -134,7 +137,7 @@ class BusinessPolicyTest extends TestCase
         $this->assertStringNotContainsString('tel:', $html);
         $this->assertStringContainsString('id="contact-form"', $html);
 
-        config(['storefront.contact.email' => 'hello@shop.example', 'storefront.contact.phone' => '+61 2 9000 0000']);
+        \App\Support\StoreConfig::fake(['contact_details' => ['email' => 'hello@shop.example', 'phone' => '+61 2 9000 0000', 'hours' => null]]);
         $html = $this->get('/contact')->getContent();
         $this->assertStringContainsString('href="mailto:hello@shop.example"', $html);
         $this->assertStringContainsString('href="tel:+61290000000"', $html);

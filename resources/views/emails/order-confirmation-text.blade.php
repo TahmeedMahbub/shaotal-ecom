@@ -27,14 +27,14 @@ YOUR ITEMS
 {!! $label !!}: {!! $value !!}
 @endforeach
 
-DELIVERING TO
+{!! strtoupper($deliveryHeading) !!}
 @foreach ($address as $line)
 {!! $line !!}
 @endforeach
 @if ($phone)
 {!! $phone !!}
 @endif
-We deliver within Australia. You can follow this order at any time from My Orders.
+{!! $deliveryNote !!}
 
 View your order (sign in required): {!! $orderUrl !!}
 

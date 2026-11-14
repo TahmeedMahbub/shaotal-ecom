@@ -2,7 +2,9 @@
 
 namespace App\Payments;
 
-/** Payment methods the storefront knows how to process. Enabled ones are listed in config storefront.payment_methods. */
+use App\Support\StoreConfig;
+
+/** Payment methods the storefront knows how to process. Enabled ones are listed in config_data payment_methods (StoreConfig). */
 final class PaymentMethods
 {
     /** @var array<string, class-string<PaymentMethod>> */
@@ -14,7 +16,7 @@ final class PaymentMethods
     /** Enabled method codes (configured AND implemented AND, for card, Stripe keys complete and matching the mode). */
     public static function enabled(): array
     {
-        return array_values(array_filter((array) config('storefront.payment_methods'),
+        return array_values(array_filter(StoreConfig::get('payment_methods'),
             fn ($c) => isset(self::KNOWN[$c]) && ($c !== 'card' || Stripe::ready())));
     }
 

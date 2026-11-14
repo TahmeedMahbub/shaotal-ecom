@@ -35,6 +35,9 @@ if (($conn['driver'] ?? '') !== 'mysql' || ! in_array($conn['host'] ?? '', ['127
 [, $customerId, $productId, $code] = $argv;
 $address = ['fullName' => 'Concurrency', 'phone' => '0400000000', 'street' => '1 Race St', 'suburb' => 'Carlton', 'state' => 'VIC', 'postcode' => '3053'];
 
+// Same config_data values as the parent test (the test database has no config_data table).
+\App\Support\StoreConfig::fake(require __DIR__.'/config-data.php');
+
 $priced = Checkout::priceLines([['productId' => (int) $productId, 'quantity' => 1]]);
 $totals = Checkout::totals($priced['lines'], $code, (int) $customerId);
 if ($totals['couponError']) {

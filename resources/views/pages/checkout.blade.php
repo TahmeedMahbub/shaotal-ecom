@@ -107,124 +107,6 @@
       font-weight: var(--fw-bold);
     }
 
-    /* Saved Addresses Grid */
-    .address-cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: var(--space-md);
-      margin-bottom: var(--space-md);
-    }
-
-    .address-card {
-      border: 2px solid var(--color-grey-200);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      cursor: pointer;
-      position: relative;
-      transition: all var(--transition-fast);
-      background-color: var(--color-surface-card);
-    }
-
-    .address-card:hover {
-      border-color: var(--color-grey-400);
-    }
-
-    .address-card.selected {
-      border-color: var(--color-brand);
-      background-color: var(--color-brand-light);
-      box-shadow: var(--shadow-xs);
-    }
-
-    .address-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.5rem;
-    }
-
-    .address-type-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-semibold);
-      text-transform: uppercase;
-      padding: 0.2rem 0.55rem;
-      border-radius: var(--radius-sm);
-      background-color: var(--color-grey-200);
-      color: var(--color-dark);
-    }
-
-    .address-card.selected .address-type-badge {
-      background-color: var(--color-brand);
-      color: var(--color-white);
-    }
-
-    .address-selection-indicator {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-semibold);
-      color: var(--color-brand);
-    }
-
-    .address-name {
-      font-weight: var(--fw-bold);
-      color: var(--color-black);
-      font-size: var(--fs-body);
-      margin-bottom: 0.25rem;
-    }
-
-    .address-text {
-      font-size: var(--fs-small);
-      color: var(--color-grey-700);
-      line-height: var(--lh-normal);
-      margin-bottom: 0.5rem;
-    }
-
-    .address-phone {
-      font-size: var(--fs-xs);
-      color: var(--color-grey-500);
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-    }
-
-    .address-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 0.75rem;
-      padding-top: 0.5rem;
-      border-top: 1px dashed var(--color-grey-200);
-    }
-
-    .address-action-btn {
-      background: none;
-      border: none;
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-medium);
-      color: var(--color-grey-700);
-      cursor: pointer;
-      padding: 0.2rem 0.4rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      border-radius: var(--radius-sm);
-      transition: all var(--transition-fast);
-    }
-
-    .address-action-btn:hover {
-      color: var(--color-brand);
-      background-color: rgba(204, 122, 63, 0.08);
-    }
-
-    .address-action-btn.delete-btn:hover {
-      color: var(--color-danger);
-      background-color: rgba(220, 53, 69, 0.08);
-    }
-
     .btn-add-address-trigger {
       width: 100%;
       border: 2px dashed var(--color-grey-300);
@@ -250,6 +132,7 @@
     /* Address Form Panel */
     .address-form-panel {
       margin-top: var(--space-md);
+      margin-bottom: var(--space-md);
       padding: var(--space-md);
       background-color: var(--color-surface);
       border-radius: var(--radius-md);
@@ -303,20 +186,6 @@
       box-shadow: 0 0 0 3px rgba(204, 122, 63, 0.15);
     }
 
-    .type-radio-group {
-      display: flex;
-      gap: 1rem;
-      margin-top: 0.25rem;
-    }
-
-    .type-radio-label {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: var(--fs-small);
-      cursor: pointer;
-    }
-
     /* Payment Methods: two equal selectable cards (stacked on narrow screens) */
     .payment-options-list {
       display: grid;
@@ -327,12 +196,6 @@
 
     .payment-options-list .payment-option-card:only-child {
       grid-column: 1 / -1;
-    }
-
-    @media (max-width: 575px) {
-      .payment-options-list {
-        grid-template-columns: 1fr;
-      }
     }
 
     .payment-option-card {
@@ -446,6 +309,90 @@
       line-height: 1.5;
     }
 
+    /* Mobile (<=575px): the two options of "Delivery or Pickup" and "Payment Method" sit side by side at 50% each as compact,
+       near-square cards: icon top-left, selection check top-right, then title, badge, price/description, note. Equal height per
+       row (grid stretch). Must stay AFTER the base .payment-option-* rules above so it wins; desktop rules are untouched.
+       The whole card is the <label> of its radio, so any tap on it selects it. */
+    @media (max-width: 575px) {
+      .payment-options-list {
+        gap: 0.5rem;
+      }
+      .payment-option-card {
+        min-width: 0;
+        min-height: 44px;
+        padding: 0.6rem;
+        gap: 0.25rem;
+        border-width: 2px;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      .payment-option-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+      }
+      .payment-option-icon .icon-svg {
+        width: 16px;
+        height: 16px;
+      }
+      .payment-option-check {
+        width: 20px;
+        height: 20px;
+      }
+      .payment-option-check .icon-svg {
+        width: 11px;
+        height: 11px;
+      }
+      .payment-option-title,
+      .payment-option-desc,
+      .payment-option-note {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+      }
+      .payment-option-title {
+        font-size: 0.8125rem;
+        line-height: 1.25;
+        margin-top: 0.1rem;
+      }
+      .payment-option-desc {
+        font-size: 0.6875rem;
+        line-height: 1.3;
+      }
+      .payment-option-note {
+        font-size: 0.625rem;
+        line-height: 1.3;
+      }
+      .payment-option-badge {
+        max-width: 100%;
+        white-space: normal;
+        font-size: 0.625rem;
+        letter-spacing: 0.02em;
+        line-height: 1.2;
+        padding: 0.12rem 0.4rem;
+      }
+    }
+
+    /* Mobile-only short copy (.opt-m) sits beside the desktop copy (.opt-d); each is shown at its own breakpoint. */
+    .opt-m { display: none; }
+    .opt-nb { white-space: nowrap; }
+    @media (max-width: 575px) {
+      .opt-d { display: none; }
+      .opt-m { display: block; }
+      .payment-option-title,
+      .payment-option-desc,
+      .payment-option-note {
+        overflow-wrap: break-word;
+        word-break: normal;
+        hyphens: none;
+        text-wrap: balance;
+      }
+      .payment-option-title { font-size: 0.9375rem; line-height: 1.25; }
+      .payment-option-badge { font-size: 0.6875rem; line-height: 1.2; padding: 0.15rem 0.5rem; align-self: flex-start; }
+      .payment-option-desc { font-size: 0.8125rem; line-height: 1.35; }
+      .payment-option-note { font-size: 0.75rem; line-height: 1.4; }
+    }
+
     /* Online payment breakdown rows in the summary */
     .online-breakdown {
       margin-top: var(--space-sm);
@@ -510,6 +457,14 @@
       font-weight: var(--fw-bold);
       color: var(--color-black);
       text-align: right;
+    }
+
+    .summary-item-original-price {
+      display: block;
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-regular);
+      color: var(--color-grey-400);
+      text-decoration: line-through;
     }
 
     /* Expandable Coupon Box */
@@ -698,15 +653,59 @@
             <div class="checkout-card-header">
               <div class="checkout-step-title">
                 <span class="step-number">1</span>
-                <span>Delivery Address</span>
+                <span>{{ \App\Support\Shipping::pickupEnabled() ? 'Delivery or Pickup' : 'Delivery Address' }}</span>
               </div>
-              <span class="badge" style="background: var(--color-brand-light); color: var(--color-brand); font-size: var(--fs-xs); display: inline-flex; align-items: center; gap: 0.25rem;">
+              {{-- <span class="badge" style="background: var(--color-brand-light); color: var(--color-brand); font-size: var(--fs-xs); display: inline-flex; align-items: center; gap: 0.25rem;">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0C.68 5.58.25 6.06.25 6.628v8.872c0 .621.504 1.125 1.125 1.125h.375m16.5-7.5h-3.75" /></svg>
                 {{ \App\Support\Delivery::text('checkout_badge') }}
-              </span>
+              </span> --}}
             </div>
 
-            
+            @if (\App\Support\Shipping::pickupEnabled())
+            {{-- Delivery or free pickup: the browser sends only the choice; App\Support\Shipping decides the fee. --}}
+            <div class="payment-options-list" id="fulfillment-options" role="radiogroup" aria-label="Delivery method" style="margin-bottom: var(--space-md);">
+              <label class="payment-option-card selected" data-fulfillment="delivery" for="fulfil-delivery">
+                <input type="radio" name="fulfillment" id="fulfil-delivery" value="delivery" class="payment-radio" checked>
+                <span class="payment-option-top">
+                  <span class="payment-option-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0C.68 5.58.25 6.06.25 6.628v8.872c0 .621.504 1.125 1.125 1.125h.375m16.5-7.5h-3.75" /></svg></span>
+                  <span class="payment-option-check" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+                </span>
+                <span class="payment-option-title">Delivery</span>
+                <span class="payment-option-desc opt-d">Adelaide {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('adelaide')) }} · Rest of Australia {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('australia')) }}</span>
+                <span class="payment-option-note opt-d">The rate is set by your delivery suburb.</span>
+                <span class="payment-option-desc opt-m"><span class="opt-nb">Adelaide {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('adelaide')) }}</span> · <span class="opt-nb">Rest of Australia {{ \App\Support\Delivery::money(\App\Support\Shipping::fee('australia')) }}</span></span>
+                <span class="payment-option-note opt-m">Delivery fee depends on your suburb.</span>
+              </label>
+              <label class="payment-option-card" data-fulfillment="pickup" for="fulfil-pickup">
+                <input type="radio" name="fulfillment" id="fulfil-pickup" value="pickup" class="payment-radio">
+                <span class="payment-option-top">
+                  <span class="payment-option-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" /></svg></span>
+                  <span class="payment-option-check" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="icon-svg"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+                </span>
+                <span class="payment-option-title">{{ \App\Support\Shipping::pickup()['label'] }}</span>
+                <span class="payment-option-badge">FREE</span>
+                <span class="payment-option-desc opt-d">No shipping fee. Collect your order yourself.</span>
+                <span class="payment-option-note opt-d">{{ \App\Support\Shipping::pickup()['details'] ?: 'We will contact you to confirm when and where to collect.' }}</span>
+                <span class="payment-option-desc opt-m">Collect your order for free. We'll confirm pickup details.</span>
+              </label>
+            </div>
+
+            <div class="address-form-panel" id="pickup-panel" style="display: none;">
+              <h4 style="font-family: var(--font-heading); font-size: var(--fs-h4); font-weight: var(--fw-bold); margin-bottom: var(--space-md); color: var(--color-black);">Who is collecting?</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="pickup-fullname">Full Name *</label>
+                  <input type="text" id="pickup-fullname" class="form-input" placeholder="Your Name Here" maxlength="180" autocomplete="name" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="pickup-phone">Mobile Number *</label>
+                  <input type="tel" id="pickup-phone" class="form-input" placeholder="e.g. +61 412 345 678" maxlength="40" autocomplete="tel" required>
+                </div>
+              </div>
+            </div>
+            @endif
+
+            <div id="delivery-address-section">
             <div class="address-cards-grid" id="address-cards-grid">
               @include('partials.checkout-address-cards', ['addresses' => $addresses ?? []])
             </div>
@@ -733,53 +732,11 @@
                   </div>
 
                   <div class="form-group">
-                    <label class="form-label" for="addr-phone">Phone Number *</label>
+                    <label class="form-label" for="addr-phone">Mobile Number *</label>
                     <input type="tel" id="addr-phone" class="form-input" placeholder="e.g. +61 412 345 678" required>
                   </div>
 
-                  <div class="form-group form-grid-full">
-                    <label class="form-label" for="addr-street">Street Address *</label>
-                    <input type="text" id="addr-street" class="form-input" placeholder="House/Apartment no, street name" required>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label" for="addr-suburb">Suburb / City *</label>
-                    <input type="text" id="addr-suburb" class="form-input" placeholder="e.g. Adelaide" required>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label" for="addr-state">State *</label>
-                    <select id="addr-state" class="form-select" required>
-                      <option value="VIC">Victoria (VIC)</option>
-                      <option value="NSW">New South Wales (NSW)</option>
-                      <option value="QLD">Queensland (QLD)</option>
-                      <option value="WA">Western Australia (WA)</option>
-                      <option value="SA">South Australia (SA)</option>
-                      <option value="TAS">Tasmania (TAS)</option>
-                      <option value="ACT">ACT</option>
-                      <option value="NT">Northern Territory (NT)</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label" for="addr-postcode">Postcode *</label>
-                    <input type="text" id="addr-postcode" class="form-input" placeholder="e.g. 3000" maxlength="4" pattern="[0-9]{4}" required>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label">Address Type</label>
-                    <div class="type-radio-group">
-                      <label class="type-radio-label">
-                        <input type="radio" name="addr-type" value="Home" checked> Home
-                      </label>
-                      <label class="type-radio-label">
-                        <input type="radio" name="addr-type" value="Office"> Office
-                      </label>
-                      <label class="type-radio-label">
-                        <input type="radio" name="addr-type" value="Other"> Other
-                      </label>
-                    </div>
-                  </div>
+                  <x-address-fields prefix="addr" street-id="addr-street" class="checkout-addr-fields" />
                 </div>
 
                 <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-md); justify-content: flex-end;">
@@ -787,6 +744,7 @@
                   <button type="submit" class="btn btn-primary" id="save-address-btn">Save & Use Address</button>
                 </div>
               </form>
+            </div>
             </div>
 
           </div>
@@ -814,8 +772,10 @@
                 </span>
                 <span class="payment-option-title">Online Payment</span>
                 <span class="payment-option-badge is-offer">EXTRA {{ $pct($op['discountPercent']) }}% OFF</span>
-                <span class="payment-option-desc">Pay just {{ $pct($op['depositPercent']) }}% now to pre-book your order.</span>
-                <span class="payment-option-note">Secure payment via Credit / Debit Card. Remaining {{ $pct($op['balancePercent']) }}% payable later.</span>
+                <span class="payment-option-desc opt-d">Pay just {{ $pct($op['depositPercent']) }}% now to pre-book your order.</span>
+                <span class="payment-option-note opt-d">Secure payment via Credit / Debit Card. Remaining {{ $pct($op['balancePercent']) }}% payable later.</span>
+                <span class="payment-option-desc opt-m">Pay {{ $pct($op['depositPercent']) }}% now to pre-book.</span>
+                <span class="payment-option-note opt-m">Pay the remaining {{ $pct($op['balancePercent']) }}% later by card.</span>
               </label>
               @endif
 
@@ -828,8 +788,9 @@
                 </span>
                 <span class="payment-option-title">Cash on Delivery</span>
                 <span class="payment-option-badge">PAY ON DELIVERY</span>
-                <span class="payment-option-desc">Pay the full amount when your order arrives.</span>
-                <span class="payment-option-note">No advance payment required.</span>
+                <span class="payment-option-desc opt-d" data-delivery-text="Pay the full amount when your order arrives." data-pickup-text="Pay the full amount when you collect your order.">Pay the full amount when your order arrives.</span>
+                <span class="payment-option-note opt-d">No advance payment required.</span>
+                <span class="payment-option-desc opt-m" data-delivery-text="Pay the full amount when your order arrives." data-pickup-text="Pay the full amount when you collect your order.">Pay the full amount when your order arrives.</span>
               </label>
               @endif
             </div>
@@ -888,29 +849,40 @@
 
               
               <div style="border-top: 1px solid var(--color-grey-200); padding-top: var(--space-md);">
+                {{-- Total / Product Discount: shown only when a line is sold below its original price. --}}
+                <div class="breakdown-row" id="items-total-row" style="display: none;">
+                  <span>Total</span>
+                  <span id="summary-items-total" class="fw-semibold text-dark">$0.00</span>
+                </div>
+
+                <div class="breakdown-row" id="product-discount-row" style="display: none; color: var(--color-success);">
+                  <span>Product Discount</span>
+                  <span id="summary-product-discount" class="fw-bold">-$0.00</span>
+                </div>
+
                 <div class="breakdown-row">
                   <span>Subtotal</span>
                   <span id="summary-subtotal" class="fw-semibold text-dark">$0.00</span>
                 </div>
-                
-                <div class="breakdown-row" id="gift-row" style="display: none;">
-                  <span id="gift-row-label">Gift wrapping</span>
-                  <span id="summary-gift" class="fw-semibold text-dark">$0.00</span>
-                </div>
 
                 <div class="breakdown-row">
-                  <span>Shipping</span>
-                  <span id="summary-shipping" class="fw-semibold text-dark">{{ \App\Support\Delivery::money((float) config('storefront.shipping_flat')) }}</span>
-                </div>
-
-                <div class="breakdown-row" id="discount-row" style="display: none; color: var(--color-success);">
-                  <span>Discount</span>
-                  <span id="summary-discount" class="fw-bold">-$0.00</span>
+                  <span id="summary-shipping-label">Shipping</span>
+                  <span id="summary-shipping" class="fw-semibold text-dark">{{ \App\Support\Delivery::money(\App\Support\Shipping::fee('australia')) }}</span>
                 </div>
 
                 <div class="breakdown-row" id="online-discount-row" style="display: none; color: var(--color-success);">
                   <span id="online-discount-label">Online payment discount</span>
                   <span id="summary-online-discount" class="fw-bold">-$0.00</span>
+                </div>
+
+                <div class="breakdown-row" id="gift-row" style="display: none;">
+                  <span id="gift-row-label">Gift wrapping</span>
+                  <span id="summary-gift" class="fw-semibold text-dark">$0.00</span>
+                </div>
+
+                <div class="breakdown-row" id="discount-row" style="display: none; color: var(--color-success);">
+                  <span>Discount</span>
+                  <span id="summary-discount" class="fw-bold">-$0.00</span>
                 </div>
 
                 <div class="breakdown-row total-row">
@@ -921,6 +893,7 @@
                 <div class="online-breakdown" id="online-breakdown" style="display: none;">
                   <div class="breakdown-row"><span id="pay-now-label">Pay now</span><span id="summary-pay-now" class="fw-bold text-dark">$0.00</span></div>
                   <div class="breakdown-row" style="margin-bottom: 0;"><span id="balance-label">Remaining balance</span><span id="summary-balance" class="fw-semibold text-dark">$0.00</span></div>
+                  <p id="balance-terms" style="font-size: var(--fs-xs); color: var(--color-grey-500); margin-top: 0.4rem;">{{ \App\Payments\OnlinePaymentPlan::balanceTerms() }}</p>
                 </div>
               </div>
 
@@ -956,7 +929,7 @@
 
       <div style="background-color: var(--color-surface); border-radius: var(--radius-md); padding: var(--space-md); text-align: left; font-size: var(--fs-small); margin-bottom: var(--space-lg);">
         <div style="margin-bottom: 0.5rem;">
-          <span style="color: var(--color-grey-500);">Delivering to:</span>
+          <span style="color: var(--color-grey-500);" id="success-address-label">Delivering to:</span>
           <div id="success-address-summary" style="font-weight: var(--fw-bold); color: var(--color-black);">--</div>
         </div>
         @if ($eta = \App\Support\Delivery::text('estimate'))
@@ -969,6 +942,21 @@
           <span style="color: var(--color-grey-500);">Order Total:</span>
           <div id="success-paid-amount" style="font-weight: var(--fw-bold); color: var(--color-brand); font-size: var(--fs-body);">--</div>
         </div>
+        {{-- Card (deposit) orders only, filled by checkout.js from the Stripe-confirmed payment; hidden for COD. --}}
+        <div id="success-card-rows" hidden>
+          <div style="margin-top: 0.5rem;">
+            <span style="color: var(--color-grey-500);">Payment Status:</span>
+            <div id="success-payment-status" style="font-weight: var(--fw-bold); color: var(--color-black);">--</div>
+          </div>
+          <div style="margin-top: 0.5rem;">
+            <span style="color: var(--color-grey-500);">Paid by Card:</span>
+            <div id="success-card-paid" style="font-weight: var(--fw-bold); color: var(--color-black);">--</div>
+          </div>
+          <div style="margin-top: 0.5rem;" id="success-balance-row">
+            <span style="color: var(--color-grey-500);" id="success-balance-label">Remaining (due on delivery):</span>
+            <div id="success-balance-amount" style="font-weight: var(--fw-bold); color: var(--color-black);">--</div>
+          </div>
+        </div>
       </div>
 
       <div style="display: flex; gap: var(--space-sm); justify-content: center;">
@@ -979,6 +967,10 @@
   </div>
 @endsection
 @push('scripts')
+<script src="{{ \App\Support\Assets::url('assets/js/address-form.js') }}"></script>
+@if ($placedOrder ?? null)
+<script type="application/json" id="checkout-placed">{!! json_encode($placedOrder, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) !!}</script>
+@endif
 <script type="application/json" id="checkout-addresses">{!! json_encode($addresses ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) !!}</script>
 <script src="{{ \App\Support\Assets::url('assets/js/pages/checkout.js') }}"></script>
 @endpush

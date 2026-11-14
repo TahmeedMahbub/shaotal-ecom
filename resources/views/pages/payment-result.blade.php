@@ -4,7 +4,7 @@
   // state: paid | confirming (Stripe says complete, webhook not in yet) | incomplete | cancelled
   [$title, $badge, $badgeClass, $text] = match ($state) {
       'paid' => $prebooked
-          ? ['Order pre-booked', 'Pre-booked', 'processing', 'Thank you! Your deposit of '.$money($paid).' was received and your order is pre-booked. The remaining balance of '.$money($balance).' is payable later.']
+          ? ['Order pre-booked', 'Partially Paid', 'processing', 'Thank you! Your deposit of '.$money($paid).' was received and your order is pre-booked. The remaining balance of '.$money($balance).' is payable later.']
           : ['Payment received', 'Paid', 'delivered', 'Thank you! Your card payment was received and your order is now with our team.'],
       'confirming' => ['Confirming your payment', 'Confirming', 'processing', 'Your payment went through on the secure payment page. We are confirming it with the bank. This usually takes a few seconds.'],
       'incomplete' => ['Payment not completed', 'Not paid', 'pending', 'Your payment was not completed, so you have not been charged. Your order is saved: you can try again with the same or another card.'],

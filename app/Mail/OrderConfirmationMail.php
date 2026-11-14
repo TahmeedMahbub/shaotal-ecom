@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Support\DisplayTime;
+use App\Support\Shipping;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -42,6 +43,8 @@ class OrderConfirmationMail extends Mailable
         $pre = $o['prebooking'];
         $card = $pre !== null;
         $a = $o['address'];
+        $delivery = $o['delivery'] ?? ['fulfillment' => 'delivery', 'label' => 'Delivery'];
+        $pickup = $delivery['fulfillment'] === 'pickup';
 
         $rows = [['Subtotal', $money($t['subtotal']), false]];
         if ($t['giftFee'] > 0) {
@@ -53,7 +56,7 @@ class OrderConfirmationMail extends Mailable
         if ($card && $pre['discount'] > 0) {
             $rows[] = ['Online payment discount ('.rtrim(rtrim(number_format($pre['discountPercent'], 2), '0'), '.').'%)', '-'.$money($pre['discount']), false];
         }
-        $rows[] = ['Shipping', $t['shipping'] > 0 ? $money($t['shipping']) : 'Free', false];
+        $rows[] = ['Shipping ('.$delivery['label'].')', $t['shipping'] > 0 ? $money($t['shipping']) : 'Free', false];
         if ($t['tax'] > 0) {
             $rows[] = ['Tax', $money($t['tax']), false];
         }
@@ -65,11 +68,14 @@ class OrderConfirmationMail extends Mailable
                 'status' => $pre['paid'] >= $t['total'] ? 'Paid in full' : 'Deposit received',
                 'lines' => $pre['paid'] >= $t['total']
                     ? ['We have received your card payment of '.$money($pre['paid']).'.']
-                    : ['We have received your '.$money($pre['paid']).' pre-booking deposit by card.',
-                        'The remaining '.$money($pre['balance']).' is still outstanding on this order; it has not been charged.'],
+                    : ['We have received your '.$money($pre['paid']).' pre-booking deposit ('.rtrim(rtrim(number_format($pre['depositPercent'], 2), '0'), '.').'%) by card.',
+                        'Remaining balance: '.$money($pre['balance']).'. It is still outstanding on this order and has not been charged.',
+                        $pre['balanceTerms']],
             ];
         } else {
-            $payment = ['status' => 'Pay on delivery', 'lines' => ['Nothing is due today. The '.$money($t['total']).' total is payable when your order is delivered.']];
+            $payment = $pickup
+                ? ['status' => 'Pay on pickup', 'lines' => ['Nothing is due today. The '.$money($t['total']).' total is payable when you collect your order.']]
+                : ['status' => 'Pay on delivery', 'lines' => ['Nothing is due today. The '.$money($t['total']).' total is payable when your order is delivered.']];
         }
 
         $gift = null;
@@ -100,7 +106,13 @@ class OrderConfirmationMail extends Mailable
             'payment' => $payment,
             'paymentMethod' => $o['paymentMethod'],
             'gift' => $gift,
-            'address' => array_filter([$a['name'], $a['street'], trim(($a['suburb'] ?? '').' '.($a['state'] ?? '').' '.($a['postcode'] ?? '')), 'Australia']),
+            'deliveryHeading' => $pickup ? 'Pickup' : 'Delivering to',
+            'deliveryNote' => $pickup
+                ? (Shipping::pickup()['details'] ?: 'We will contact you to confirm when and where to collect your order.').' You can follow this order at any time from My Orders.'
+                : 'We deliver within Australia. You can follow this order at any time from My Orders.',
+            'address' => $pickup
+                ? array_filter([$delivery['label'], 'Collected by '.$a['name']])
+                : array_filter([$a['name'], $a['street'], trim(($a['suburb'] ?? '').' '.($a['state'] ?? '').' '.($a['postcode'] ?? '')), 'Australia']),
             'phone' => $a['phone'],
             'orderUrl' => $base.'/account/orders/'.rawurlencode($o['number']),
             'year' => date('Y'),

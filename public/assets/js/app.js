@@ -151,7 +151,7 @@
   function giftLineKey(item) { return `${item.productId || item.id}|${item.color || ''}|${item.size || ''}`; }
   function giftFee(qty) {
     if (qty <= 0) return 0;
-    const r = (window.SITE && window.SITE.giftWrap) || { baseFee: 1.99, baseItems: 2, extraFee: 1 };
+    const r = SITE.giftWrap;   // server rule (config_data gift_wrap_*), always in the page boot
     return (Math.round(r.baseFee * 100) + Math.max(0, qty - r.baseItems) * Math.round(r.extraFee * 100)) / 100;
   }
   // Selection for the current cart: quantities clamped to what the cart holds, lines no longer in the cart dropped.
@@ -2281,7 +2281,7 @@
   function renderGiftBox() {
     const g = readGift();
     const sel = giftSelection();
-    const r = (window.SITE && window.SITE.giftWrap) || { baseFee: 1.99, baseItems: 2, extraFee: 1 };
+    const r = SITE.giftWrap;   // server rule (config_data gift_wrap_*), always in the page boot
     const cur = SITE.currency;
     const lineQty = {};
     sel.items.forEach(i => { lineQty[giftLineKey(i)] = i.quantity; });

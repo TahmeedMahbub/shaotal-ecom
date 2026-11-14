@@ -120,7 +120,7 @@ DB::table('site_settings')->updateOrInsert(
 
 ## 7. Return-request review (proposed; NOT active)
 **Status:**
-- The storefront code exists, is tested, and is **off** (`STOREFRONT_RETURNS_ENABLED=false`).
+- The storefront code exists, is tested, and is **off** (`config_data` `returns_enabled` = `false`).
 - It stays off until:
   - (a) the owner approves a returns policy;
   - (b) the DB owner applies `sql/proposed_changes.sql` §4 to the shared database;
@@ -130,8 +130,8 @@ DB::table('site_settings')->updateOrInsert(
 
 **What the storefront does (when on)** (`App\Models\CustomerReturns`, `POST /account/orders/{number}/return`):
 - A signed-in customer can request a return for **their own** order whose `order_status` is `delivered`, **once** per order (`UNIQUE order_id`).
-- The customer picks one of the reasons in `config('storefront.returns.reasons')` and can add up to 2,000 characters of details.
-- If `STOREFRONT_RETURNS_WINDOW_DAYS` is set, the request must arrive within that many days of the `order_timeline` row that moved the order to `delivered`. Without that row it is refused. The window is not set (owner decision pending).
+- The customer picks one of the reasons in `config_data` key `return_reasons` and can add up to 2,000 characters of details.
+- If `config_data` `returns_window_days` is not null, the request must arrive within that many days of the `order_timeline` row that moved the order to `delivered`. Without that row it is refused. The window is not set (owner decision pending).
 - It inserts one `order_return_requests` row (`status='requested'`) and one `order_return_request_events` row (`old_status NULL → requested`, `changed_by_admin_id NULL`), in one transaction.
 - It changes **nothing else**: not `orders.order_status`, `payment_status`, `stock_qty`, or any payment row.
 - The customer's order page then shows the request's status label:
@@ -165,7 +165,7 @@ DB::table('site_settings')->updateOrInsert(
 5. **Communicate:** today the customer only sees the label on their order page. There are no emails, because none were approved. Any customer message (email, `admin_note` shown to the customer) needs approved wording first.
 
 **Verification (manual, local `*_test` DB only, after (b) and (c)):**
-1. With `STOREFRONT_RETURNS_ENABLED=true` on a local storefront, request a return on a delivered test order.
+1. With `config_data` `returns_enabled` = `true` on a local storefront, request a return on a delivered test order.
 2. Admin: the request appears. Approve it, then complete it. The storefront shows each label, and there are three event rows.
 3. A second request on the same order is refused.
 4. Admin: try `rejected → approved`. It is refused.
@@ -193,7 +193,7 @@ The storefront writes gift data into the columns the Admin added (`sql/proposed_
 - `orders.gift_wrap_requested` (0/1), `gift_wrap_items_count` (= `SUM(order_items.gift_wrap_qty)`), `gift_wrap_fee` (computed once at checkout, stored), `gift_message` (VARCHAR 500, max 300 accepted; separate from `customer_note`).
 - `order_items.gift_wrap_qty`: wrapped units of that line (0..quantity). No `GIFT-WRAP` order line is written any more.
 - **Totals:** `orders.subtotal` is goods only; `grand_total = subtotal - discount_total + shipping_total + tax_total + gift_wrap_fee` (the fee is in `grand_total` exactly once). Online (Stripe) discount/deposit are computed on goods + fee − coupon, as before.
-- **Pricing rule** (`storefront.gift_wrap`): A$1.99 for 1-2 wrapped items, +A$1.00 per further item; never counts toward free shipping or coupon eligibility.
+- **Pricing rule** (`config_data` `gift_wrap_base_fee` / `gift_wrap_base_items` / `gift_wrap_extra_fee`): A$1.99 for 1-2 wrapped items, +A$1.00 per further item; never counts toward free shipping or coupon eligibility.
 - **Historical orders** (before the columns): fee as a `GIFT-WRAP` order line inside `subtotal`, items + message as a block in `customer_note` (marker `--- GIFT WRAPPING ---`), gift columns at their defaults. The storefront still displays them correctly.
 - **Order status:** `orders.order_status` has 11 values (pending, confirmed, processing, ready_for_dispatch, shipped, in_transit, arrived_at_hub, out_for_delivery, delivered, cancelled, returned); the storefront labels/timeline use the same table as the Admin's `OrderStatus`. Payment status is independent. Older orders that recorded the four finer stages only in `order_timeline` are still refined from there.
 
@@ -203,7 +203,42 @@ The storefront writes gift data into the columns the Admin added (`sql/proposed_
 No schema change. For `payment_method = 'card'` orders placed through the storefront:
 
 - `orders.grand_total` is the **discounted** total (merchandise − coupon − online discount + shipping). `orders.discount_total` = coupon discount + online-payment discount (so `subtotal − discount_total + shipping_total + tax_total = grand_total` still holds). The online part is itemised in `payments.response_data` → `plan` (`discountPercent`, `depositPercent`, `discount`, `deposit`, `balance`, `total`, rates frozen at placement).
-- The Stripe payment row has `amount` = the **deposit** (20% of `grand_total`), `provider = 'stripe'`, `status = 'paid'` after the verified webhook. **`orders.payment_status` stays `pending`**: the shared enum has no partial value, so a deposit is never shown as paid. Amount received = `SUM(payments.amount WHERE status = 'paid')`; balance due = `grand_total − received`. The order is set to `paid` only when received ≥ `grand_total` (e.g. when the balance is recorded as a paid Stripe payment row for the rest).
+- The Stripe payment row has `amount` = the **deposit** (**30%** of `grand_total` since 2026-11-14; older orders keep the rate stored in their own `plan.depositPercent`), `provider = 'stripe'`, `status = 'paid'` after the verified webhook. **`orders.payment_status` stays `pending`**: the shared enum has no partial value, so a deposit is never shown as paid. Amount received = `SUM(payments.amount WHERE status = 'paid')`; balance due = `grand_total − received`. The order is set to `paid` only when received ≥ `grand_total` (e.g. when the balance is recorded as a paid Stripe payment row for the rest).
 - Admin should therefore show a card order with `payment_status = 'pending'` and a paid payment row as **Pre-booked / deposit paid, balance due**, and must not mark it paid until the balance is collected. Collecting the balance (and any refund of a deposit) is a staff action; the storefront does not cancel an order online once a deposit is received.
 - COD orders are unchanged (one `pending` payment row for the full total; admin records the cash).
 - A proposed optional `partially_paid` status / `amount_paid` column is in `sql/proposed_changes.sql` §7. No Admin code was changed in this work.
+
+## Shipping zones, pickup and the 30% deposit (2026-11-14) — what the admin app must show
+
+Owner decisions: Adelaide delivery A$5, rest of Australia A$12, free pickup from West Croydon (A$0); every card order pays a
+30% deposit now and 70% later (2% online discount kept); COD unchanged (full amount on delivery or collection). Delivery
+stays free at or above A$299 (`config_data` `free_shipping_threshold`, existing rule). No schema change was needed.
+
+Where each figure lives (all written by the storefront at placement, never recalculated):
+
+| Admin field | Source |
+|---|---|
+| Total order amount | `orders.grand_total` |
+| Shipping fee | `orders.shipping_total` |
+| Shipping method | `orders.fulfillment_type` (`delivery` / `pickup`) + `payments.response_data->shipping` on the order's FIRST payment row: `{fulfillment, method: adelaide\|australia\|pickup, label, fee}`. Also a timeline row `Delivery method: Adelaide delivery (A$5.00)`. Orders placed before this change have no snapshot (show "Delivery"). |
+| Pickup contact | pickup orders store the collector in `shipping_recipient_name` / `shipping_phone`, and the pickup point (`Free Pickup – West Croydon`, West Croydon SA 5008) in the address columns. |
+| Deposit required (30%) | card orders: `payments.response_data->plan.deposit` (+ `depositPercent`, `balancePercent`, `balance`); COD: none. |
+| Deposit paid | `SUM(payments.amount) WHERE order_id = ? AND status = 'paid'` |
+| Remaining balance | `grand_total - deposit paid` |
+| Payment status | `orders.payment_status` stays `pending` while only the deposit is paid (the shared enum has no partial value). Show **"Partially paid (deposit received)"** when `payment_status = 'pending'` AND deposit paid > 0. It becomes `paid` only when the paid rows reach `grand_total`. |
+
+Example query for an order list:
+
+```sql
+SELECT o.order_number, o.grand_total, o.shipping_total, o.fulfillment_type,
+       JSON_UNQUOTE(JSON_EXTRACT(fp.response_data, '$.shipping.label')) AS shipping_method,
+       CAST(JSON_EXTRACT(fp.response_data, '$.plan.deposit') AS DECIMAL(12,2)) AS deposit_required,
+       COALESCE(pp.paid, 0) AS deposit_paid, o.grand_total - COALESCE(pp.paid, 0) AS balance_due, o.payment_status
+FROM orders o
+JOIN payments fp ON fp.id = (SELECT MIN(id) FROM payments WHERE order_id = o.id)
+LEFT JOIN (SELECT order_id, SUM(amount) AS paid FROM payments WHERE status = 'paid' GROUP BY order_id) pp ON pp.order_id = o.id;
+```
+
+Rules for staff actions: record the balance as a **new** `payments` row (never edit or overwrite the deposit row); a
+deposit is never refunded or forfeited automatically (no policy yet). A first-class `partially_paid` status and
+`shipping_method` / `amount_paid` columns are proposed in `sql/proposed_changes.sql` §10 (not executed).

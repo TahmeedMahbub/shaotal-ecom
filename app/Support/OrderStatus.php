@@ -141,7 +141,7 @@ class OrderStatus
     {
         // Money received but less than the order total (a pre-booking deposit): never "Paid".
         if ($paymentStatus === 'pending' && $paid > 0 && $paid < $total) {
-            return 'Pre-booked (deposit paid)';
+            return 'Partially Paid';
         }
         if ($paymentStatus === 'pending' && $orderStatus === 'cancelled') {
             return 'No payment due';

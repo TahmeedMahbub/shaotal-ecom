@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\CardPayments;
 use App\Models\Checkout;
 use App\Models\CustomerOrders;
+use App\Models\Locations;
 use App\Payments\PaymentMethods;
 use App\Payments\Stripe;
 use App\Support\GiftWrap;
 use App\Support\OrderEmails;
+use App\Support\Shipping;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\JsonResponse;
@@ -42,28 +44,58 @@ class CheckoutController extends Controller
             'gift.items.*.color' => ['nullable', 'string', 'max:80'],
             'gift.items.*.size' => ['nullable', 'string', 'max:80'],
             'gift.items.*.quantity' => ['required_with:gift.items', 'integer', 'min:1', 'max:99'],
+            // Delivery or free pickup. Only the choice (and which address) is sent; the fee is decided by App\Support\Shipping.
+            'fulfillment' => ['nullable', Rule::in(Shipping::pickupEnabled() ? ['delivery', 'pickup'] : ['delivery'])],
         ];
     }
 
-    /** Gift wrapping adds the fee to every total; "on but nothing selected" is refused when placing (quote just shows no fee). */
-    private function giftTotals(array $data, array $lines): array
+    /** The delivery choice for Checkout::totals: pickup, or delivery to the selected (server-side resolved) address. */
+    private function delivery(array $data, ?array $address): array
     {
-        return Checkout::totals($lines, $data['coupon'] ?? null, $this->customerId(), $data['gift'] ?? null);
+        return ['fulfillment' => ($data['fulfillment'] ?? 'delivery') === 'pickup' ? 'pickup' : 'delivery', 'address' => $address];
+    }
+
+    /** A saved address of this customer as an order address, or null. */
+    private function savedAddress(int $customerId, int $addressId): ?array
+    {
+        $row = DB::table('customer_addresses')->where('id', $addressId)->where('customer_id', $customerId)
+            ->first(['recipient_name', 'phone', 'street_address', 'suburb', 'state', 'postcode']);
+
+        return $row ? [
+            'fullName' => $row->recipient_name, 'phone' => $row->phone, 'street' => AccountController::streetLine($row->street_address),
+            'suburb' => $row->suburb, 'state' => $row->state, 'postcode' => $row->postcode,
+        ] : null;
+    }
+
+    /** Gift wrapping adds the fee to every total; "on but nothing selected" is refused when placing (quote just shows no fee). */
+    private function giftTotals(array $data, array $lines, ?array $address = null): array
+    {
+        return Checkout::totals($lines, $data['coupon'] ?? null, $this->customerId(), $data['gift'] ?? null, $this->delivery($data, $address));
     }
 
     /** Authoritative prices and totals for the checkout summary. */
     public function quote(Request $request): JsonResponse
     {
-        abort_unless($this->customerId(), 401, 'Please sign in to checkout.');
-        $data = $request->validate($this->itemRules());
+        $customerId = $this->customerId();
+        abort_unless($customerId, 401, 'Please sign in to checkout.');
+        $data = $request->validate($this->itemRules() + [
+            // The selected delivery address decides the zone (Adelaide or rest of Australia); only its location is used.
+            'addressId' => ['nullable', 'integer'],
+            'address' => ['nullable', 'array'],
+            'address.suburb' => ['nullable', 'string', 'max:120'],
+            'address.state' => ['nullable', 'string', 'max:10'],
+            'address.postcode' => ['nullable', 'string', 'max:10'],
+        ]);
+        $address = ! empty($data['addressId']) ? $this->savedAddress($customerId, (int) $data['addressId']) : ($data['address'] ?? null);
         $priced = Checkout::priceLines($data['items']);
-        $totals = $this->giftTotals($data, $priced['lines']);
+        $totals = $this->giftTotals($data, $priced['lines'], $address);
 
         // "total" = cash-on-delivery figure; "online" = the pre-booking breakdown (all numbers computed by OnlinePaymentPlan).
         return response()->json($totals + [
             'lines' => array_map(fn ($l) => [
                 'productId' => $l['productId'], 'name' => $l['name'], 'image' => $l['image'], 'size' => $l['size'], 'color' => $l['color'],
-                'price' => $l['price'], 'quantity' => $l['quantity'],
+                // listPrice (original) is display-only: the strikethrough and the product-discount rows of the summary.
+                'listPrice' => $l['listPrice'], 'price' => $l['price'], 'quantity' => $l['quantity'],
             ], $priced['lines']),
             'errors' => $priced['errors'],
         ]);
@@ -75,22 +107,32 @@ class CheckoutController extends Controller
         abort_unless($customerId, 401, 'Please sign in to checkout.');
         $rules = $this->itemRules() + [
             'paymentMethod' => ['required', Rule::in(PaymentMethods::enabled())],
-            'addressId' => ['nullable', 'integer'],
-            'address' => ['nullable', 'array'],
-            'address.fullName' => ['required_without:addressId', 'string', 'max:180'],
-            'address.phone' => ['required_without:addressId', 'string', 'max:40', 'regex:'.AccountController::PHONE_REGEX],
-            'address.street' => ['required_without:addressId', 'string', 'max:255'],
-            'address.suburb' => ['required_without:addressId', 'string', 'max:120'],
-            'address.state' => ['required_without:addressId', Rule::in(AccountController::STATES)],
-            'address.postcode' => ['required_without:addressId', 'digits:4'],
+            // Delivery: a saved address (addressId) or a full address. Pickup: no address, just who collects it.
+            'addressId' => ['exclude_if:fulfillment,pickup', 'nullable', 'integer'],
+            'address' => ['exclude_if:fulfillment,pickup', 'nullable', 'array'],
+            'address.fullName' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', 'string', 'max:180'],
+            'address.phone' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', 'string', 'max:40', 'regex:'.AccountController::PHONE_REGEX],
+            'address.street' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', 'string', 'max:255'],
+            'address.suburb' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', 'string', 'max:120'],
+            'address.state' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', Rule::in(AccountController::STATES)],
+            'address.postcode' => ['exclude_if:fulfillment,pickup', 'required_without:addressId', 'digits:4'],
+            'contact' => ['exclude_unless:fulfillment,pickup', 'required', 'array'],
+            'contact.fullName' => ['exclude_unless:fulfillment,pickup', 'required', 'string', 'max:180'],
+            'contact.phone' => ['exclude_unless:fulfillment,pickup', 'required', 'string', 'max:40', 'regex:'.AccountController::PHONE_REGEX],
         ];
-        $data = $request->validate($rules, ['address.phone.regex' => AccountController::PHONE_MESSAGE]);
+        $data = $request->validate($rules, [
+            'address.phone.regex' => AccountController::PHONE_MESSAGE, 'contact.phone.regex' => AccountController::PHONE_MESSAGE,
+            'contact.required' => 'Please enter the name and phone number for pickup.',
+            'contact.fullName.required' => 'Please enter the name of the person collecting the order.',
+            'contact.phone.required' => 'Please enter a contact phone number for pickup.',
+        ]);
 
         // Duplicate-submission guard: one placement per customer at a time, and the same request repeated within
         // REPLAY_SECONDS (double click, network retry, second tab) gets the order already created, not a second one.
         $cache = Cache::store('file');
         $replayKey = 'checkout:placed:'.hash('sha256', json_encode([
             $customerId, $data['items'], $data['addressId'] ?? null, $data['address'] ?? null, $data['coupon'] ?? null, $data['paymentMethod'], $data['gift'] ?? null,
+            $data['fulfillment'] ?? 'delivery', $data['contact'] ?? null,
         ]));
         $lock = $cache->lock('checkout:place:'.$customerId, 30);
         try {
@@ -112,26 +154,33 @@ class CheckoutController extends Controller
 
     private function createOrder(array $data, int $customerId, Repository $cache, string $replayKey): JsonResponse
     {
-        $address = $data['address'] ?? null;
-        if (! empty($data['addressId'])) {
-            abort_unless($customerId, 401, 'Please sign in to use saved addresses.');
-            $row = DB::table('customer_addresses')->where('id', $data['addressId'])->where('customer_id', $customerId)->first();
-            abort_unless($row, 422, 'Please choose a valid delivery address.');
-            $address = [
-                'fullName' => $row->recipient_name, 'phone' => $row->phone, 'street' => $row->street_address,
-                'suburb' => $row->suburb, 'state' => $row->state, 'postcode' => $row->postcode,
-            ];
+        $pickup = ($data['fulfillment'] ?? 'delivery') === 'pickup';
+        if ($pickup) {
+            // No delivery address: the pickup point fills the (NOT NULL) shipping columns, with the collector's name/phone.
+            $address = Shipping::pickupAddress(trim($data['contact']['fullName']), trim($data['contact']['phone']));
+        } else {
+            $address = $data['address'] ?? null;
+            if (! empty($data['addressId'])) {
+                $address = $this->savedAddress($customerId, (int) $data['addressId']);
+                abort_unless($address, 422, 'Please choose a valid delivery address.');
+            }
+            // Saved addresses can be incomplete (e.g. created from the Profile form, which has no suburb/state fields).
+            if ($problem = AccountController::addressProblem((array) $address)) {
+                return response()->json(['message' => $problem, 'errors' => ['addressId' => [$problem]]], 422);
+            }
         }
-        // Saved addresses can be incomplete (e.g. created from the Profile form, which has no suburb/state fields).
-        if ($problem = AccountController::addressProblem((array) $address)) {
-            return response()->json(['message' => $problem, 'errors' => ['addressId' => [$problem]]], 422);
+        // A typed-in address (guest checkout / new address) must be a real state + suburb + postcode. Saved addresses are
+        // used as stored so customers whose older free-text addresses predate the location list are not locked out.
+        if (empty($data['addressId']) && ($problem = Locations::problem($address['state'], $address['suburb'], $address['postcode']))) {
+            return response()->json(['message' => $problem, 'errors' => ['address' => [$problem]]], 422);
         }
 
         $priced = Checkout::priceLines($data['items']);
         if ($priced['errors'] || ! $priced['lines']) {
             return response()->json(['message' => $priced['errors'][0] ?? 'Your cart is empty.', 'errors' => ['items' => $priced['errors']]], 422);
         }
-        $totals = $this->giftTotals($data, $priced['lines']);
+        // Shipping is recalculated here from the stored/validated address; nothing the browser showed is trusted.
+        $totals = $this->giftTotals($data, $priced['lines'], $pickup ? null : $address);
         if ($totals['couponError']) {
             return response()->json(['message' => $totals['couponError']], 422);
         }
@@ -151,7 +200,8 @@ class CheckoutController extends Controller
 
         $order = Checkout::place($priced['lines'], $totals, $address, PaymentMethods::get($data['paymentMethod']), $customerId, null, request()->attributes->get('customer.email'));
         $payload = $order + [
-            'address' => "{$address['fullName']}, {$address['street']}, {$address['suburb']} {$address['state']} {$address['postcode']}",
+            'address' => CustomerOrders::successAddress($pickup, $address),
+            'pickup' => $pickup,
         ];
 
         // COD: the order is committed, so queue its confirmation email (after the response; see OrderEmails). A card order is

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CardPayments;
 use App\Models\CustomerOrders;
 use App\Models\CustomerReturns;
+use App\Support\StoreConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -45,7 +46,7 @@ class OrderController extends Controller
     {
         $id = $this->require();
         $d = $request->validate([
-            'reason' => ['required', 'string', Rule::in(config('storefront.returns.reasons'))],
+            'reason' => ['required', 'string', Rule::in(StoreConfig::get('return_reasons'))],
             'details' => ['nullable', 'string', 'max:2000'],
         ]);
         $result = CustomerReturns::request($id, $number, $d['reason'], isset($d['details']) ? trim($d['details']) : null);

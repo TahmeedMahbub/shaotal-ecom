@@ -125,7 +125,7 @@
                 <span>Low Stock — Only {{ $product['stockQty'] }} left</span>
               @else
                 <span class="availability-status-dot instock"></span>
-                <span>{{ \App\Support\Delivery::text('dispatch_status') ?? 'In Stock' }}</span>
+                <span>{{ \App\Support\Delivery::text('dispatch_status') }}</span>
               @endif
             </div>
 

@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Support\StoreConfig;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
@@ -46,5 +47,10 @@ abstract class TestCase extends BaseTestCase
         config(['cache.stores.file.path' => storage_path('framework/testing/cache')]);
         Cache::forgetDriver('file');
         Cache::store('file')->flush();
+
+        // Test databases have no config_data table (admin-owned): serve the documented values instead. Tests change
+        // single keys with StoreConfig::fake(['key' => value]) (merged); StoreConfig::fake(null) reads the database.
+        StoreConfig::fake(null);
+        StoreConfig::fake(require __DIR__.'/Support/config-data.php');
     }
 }

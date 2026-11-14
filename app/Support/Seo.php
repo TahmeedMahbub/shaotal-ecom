@@ -82,10 +82,11 @@ class Seo
         if ($same) {
             $org['sameAs'] = $same;
         }
-        // Only details the owner configured (STOREFRONT_CONTACT_*); nothing is emitted while they are empty.
+        // Only details the owner configured (config_data contact_details); nothing is emitted while they are empty.
+        $c = StoreConfig::get('contact_details');
         $contact = array_filter([
-            'email' => trim((string) config('storefront.contact.email')),
-            'telephone' => trim((string) config('storefront.contact.phone')),
+            'email' => trim((string) $c['email']),
+            'telephone' => trim((string) $c['phone']),
         ]);
         if ($contact) {
             $org['contactPoint'] = ['@type' => 'ContactPoint', 'contactType' => 'customer service'] + $contact + ['areaServed' => config('storefront.country_code')];
@@ -141,7 +142,7 @@ class Seo
     {
         return [
             '@type' => 'OfferShippingDetails',
-            'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => self::money(Delivery::freeShipping($price) ? 0.0 : (float) config('storefront.shipping_flat')), 'currency' => 'AUD'],
+            'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => self::money(Delivery::freeShipping($price) ? 0.0 : Shipping::fee(Shipping::AUSTRALIA)), 'currency' => 'AUD'],
             'shippingDestination' => ['@type' => 'DefinedRegion', 'addressCountry' => config('storefront.country_code')],
         ];
     }

@@ -87,16 +87,18 @@ class ProductionReadinessTest extends TestCase
     {
         $this->productionConfig();
         $this->webRoot(storage_path('app/public'));
-        config(['storefront.approved_pages' => ['shipping', 'refunds']]);
+        \App\Support\StoreConfig::fake(['approved_info_pages' => ['shipping', 'refunds']]);
         $this->artisan('storefront:deploy-check')->expectsOutputToContain('unknown page(s): refunds')->assertFailed();
 
-        config(['storefront.approved_pages' => [], 'storefront.display_timezone' => 'Mars/Olympus']);
+        \App\Support\StoreConfig::fake(['approved_info_pages' => []]);
+        config(['storefront.display_timezone' => 'Mars/Olympus']);
         $this->artisan('storefront:deploy-check')->expectsOutputToContain('not a valid time zone')->assertFailed();
 
-        config(['storefront.display_timezone' => 'Australia/Sydney', 'storefront.returns.window_days' => 0]);
+        config(['storefront.display_timezone' => 'Australia/Sydney']);
+        \App\Support\StoreConfig::fake(['returns_window_days' => 0]);
         $this->artisan('storefront:deploy-check')->assertFailed();
 
-        config(['storefront.returns.window_days' => null]);
+        \App\Support\StoreConfig::fake(['returns_window_days' => null]);
         $this->artisan('storefront:deploy-check')->expectsOutputToContain('off (default')->assertSuccessful();
     }
 
@@ -154,18 +156,18 @@ class ProductionReadinessTest extends TestCase
     {
         $html = $this->get('/products/nakshi-kantha-cushion')->assertOk()->getContent();
         $this->assertStringContainsString('Free shipping on orders of A$299 or more', $html);
-        $this->assertStringContainsString('A flat A$12 shipping fee applies to orders under A$299.', $html);
+        $this->assertStringContainsString('Adelaide delivery A$5, rest of Australia A$12, free pickup from West Croydon. Free delivery on orders of A$299 or more.', $html);
 
-        config(['storefront.free_shipping_over' => 150, 'storefront.shipping_flat' => 12.5]);
+        \App\Support\StoreConfig::fake(['free_shipping_threshold' => 150, 'shipping_fee_australia' => 12.5, 'shipping_fee_adelaide' => 6]);
         $html = $this->get('/products/nakshi-kantha-cushion')->getContent();
         $this->assertStringContainsString('Free shipping on orders of A$150 or more', $html);
-        $this->assertStringContainsString('A flat A$12.5 shipping fee', $html);
+        $this->assertStringContainsString('Adelaide delivery A$6, rest of Australia A$12.5', $html);
     }
 
     public function test_delivery_copy_is_configurable_and_used_consistently(): void
     {
-        config(['storefront.delivery_copy.estimate' => 'Owner-approved estimate', 'storefront.delivery_copy.checkout_badge' => 'Owner badge',
-            'storefront.delivery_copy.dispatch_status' => 'Ships soon', 'storefront.delivery_copy.returns_text' => 'Owner returns']);
+        \App\Support\StoreConfig::fake(['delivery_copy' => array_merge(\App\Support\StoreConfig::get('delivery_copy'), ['estimate' => 'Owner-approved estimate',
+            'checkout_badge' => 'Owner badge', 'dispatch_status' => 'Ships soon', 'returns_text' => 'Owner returns'])]);
         $id = $this->makeCustomer('copy@example.test');
         $this->makeAddress($id);
 

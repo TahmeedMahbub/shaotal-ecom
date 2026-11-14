@@ -99,7 +99,7 @@
             @if ($pb && $pb['discount'] > 0)
               <div class="order-summary-row is-discount"><span>Online payment discount ({{ rtrim(rtrim(number_format($pb['discountPercent'], 2), '0'), '.') }}%)</span><span>&minus;{{ $money($pb['discount']) }}</span></div>
             @endif
-            <div class="order-summary-row"><span>Delivery</span><span>{{ $t['shipping'] > 0 ? $money($t['shipping']) : 'Free' }}</span></div>
+            <div class="order-summary-row"><span>Shipping ({{ $order['delivery']['label'] }})</span><span>{{ $t['shipping'] > 0 ? $money($t['shipping']) : 'Free' }}</span></div>
             @if ($t['tax'] > 0)
               <div class="order-summary-row"><span>Tax</span><span>{{ $money($t['tax']) }}</span></div>
             @endif
@@ -107,6 +107,9 @@
             @if ($pb)
               <div class="order-summary-row"><span>{{ $pb['depositPaid'] ? 'Deposit paid' : 'Pay now ('.rtrim(rtrim(number_format($pb['depositPercent'], 2), '0'), '.').'%)' }}</span><span>{{ $money($pb['depositPaid'] ? $pb['paid'] : $pb['deposit']) }}</span></div>
               <div class="order-summary-row"><span>{{ $pb['depositPaid'] ? 'Remaining balance' : 'Remaining balance ('.rtrim(rtrim(number_format($pb['balancePercent'], 2), '0'), '.').'%)' }}</span><span>{{ $money($pb['depositPaid'] ? $pb['balance'] : $t['total'] - $pb['deposit']) }}</span></div>
+              @if ($pb['balance'] > 0)
+                <p class="order-track-note" id="order-balance-terms">{{ $pb['balanceTerms'] }}</p>
+              @endif
             @endif
           </div>
         </div>
@@ -133,6 +136,15 @@
         </div>
 
         <div class="account-card-panel">
+          @if ($order['delivery']['fulfillment'] === 'pickup')
+            <div class="account-panel-header"><h2 class="account-panel-title">Pickup</h2></div>
+            <div class="order-info-block">
+              <strong>{{ $order['delivery']['label'] }}</strong>
+              <span class="order-info-label" style="margin-top: var(--space-sm);">Collected by</span>
+              <span>{{ $a['name'] }} &middot; {{ $a['phone'] }}</span>
+              <span style="margin-top: var(--space-sm);">{{ \App\Support\Shipping::pickup()['details'] ?: 'We will contact you to confirm when and where to collect your order.' }}</span>
+            </div>
+          @else
           <div class="account-panel-header"><h2 class="account-panel-title">Delivery Address</h2></div>
           <address class="order-info-block" style="font-style: normal;">
             <strong>{{ $a['name'] }}</strong><br>
@@ -140,6 +152,7 @@
             {{ trim(($a['suburb'] ?? '').' '.($a['state'] ?? '').' '.($a['postcode'] ?? '')) }}<br>
             {{ $a['phone'] }}
           </address>
+          @endif
           @if ($order['note'])
             <div class="order-info-block" style="margin-top: var(--space-sm);">
               <span class="order-info-label">Your note</span>
@@ -180,7 +193,7 @@
             <form id="order-return-form" data-order="{{ $order['number'] }}" class="contact-form">
               <div class="auth-form-group"><label class="auth-label" for="return-reason">Reason</label>
                 <select id="return-reason" name="reason" class="auth-input" required>
-                  @foreach (config('storefront.returns.reasons') as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
+                  @foreach (\App\Support\StoreConfig::get('return_reasons') as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
                 </select>
               </div>
               <div class="auth-form-group"><label class="auth-label" for="return-details">Details (optional)</label><textarea id="return-details" name="details" class="auth-input" maxlength="2000" rows="3"></textarea></div>

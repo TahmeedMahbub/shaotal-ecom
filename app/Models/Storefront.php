@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Payments\PaymentMethods;
 use App\Support\Delivery;
 use App\Support\DisplayTime;
 use App\Support\GiftWrap;
@@ -155,14 +157,14 @@ class Storefront
                 'tagline' => config('storefront.tagline'),
                 'currency' => config('storefront.currency_symbol'),
                 'countryCode' => config('storefront.country_code'),
-                'dispatchStatus' => Delivery::text('dispatch_status') ?? 'In Stock',
+                'dispatchStatus' => Delivery::text('dispatch_status'),
                 // Preview only (cart drawer); the server prices gift wrapping itself (App\Support\GiftWrap).
                 'giftWrap' => GiftWrap::rules(),
             ],
             'user' => $user,
             'cart' => $cart,
             'wishlist' => $wishlist,
-            'payments' => config('storefront.payment_methods'),
+            'payments' => PaymentMethods::enabled(),
             'googleLogin' => GoogleAuthController::enabled(),
             'flash' => ['error' => session('auth_error'), 'notice' => session('auth_notice')],
         ];
@@ -187,7 +189,7 @@ class Storefront
             'emailVerified' => $c->email_verified_at !== null,
             'phone' => $c->phone ?? '',
             'joinedDate' => DisplayTime::date($c->created_at),
-            'address' => $addr ? trim(implode(', ', array_filter([$addr->street_address, $addr->suburb, $addr->state]))) : '',
+            'address' => $addr ? trim(implode(', ', array_filter([AccountController::streetLine($addr->street_address), $addr->suburb, $addr->state]))) : '',
             'postcode' => $addr->postcode ?? '',
         ];
     }
