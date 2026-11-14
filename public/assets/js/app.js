@@ -1221,12 +1221,18 @@
     const curr = state.currentUser;
     const accountLabel = curr ? escHtml((curr.name || '').split(' ')[0]) : 'Account';
 
+    const path = (location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+    const onPath = (base) => path === base || path.startsWith(base + '/');
+    const homeActive = path === '/' || path === '/index.php' || path === '/index.html';
+    const productsActive = onPath('/products');
+    const accountActive = onPath('/account');
+
     el.innerHTML = `
-      <a href="/" class="bottom-nav-item active">${ICONS.home}<span>Home</span></a>
-      <a href="/products" class="bottom-nav-item">${ICONS.grid}<span>Shop</span></a>
+      <a href="/" class="bottom-nav-item${homeActive ? ' active' : ''}">${ICONS.home}<span>Home</span></a>
+      <a href="/products" class="bottom-nav-item${productsActive ? ' active' : ''}">${ICONS.grid}<span>Products</span></a>
       <a href="#" class="bottom-nav-item" id="bottom-wishlist-toggle">${ICONS.heart}<span>Wishlist</span></a>
       <a href="#" class="bottom-nav-item" id="bottom-cart-toggle">${ICONS.bag}<span>Bag</span></a>
-      <a href="/account" class="bottom-nav-item" id="bottom-account-toggle">${ICONS.user}<span>${accountLabel}</span></a>
+      <a href="/account" class="bottom-nav-item${accountActive ? ' active' : ''}" id="bottom-account-toggle">${ICONS.user}<span>${accountLabel}</span></a>
     `;
 
     document.getElementById('bottom-cart-toggle').addEventListener('click', (e) => {
