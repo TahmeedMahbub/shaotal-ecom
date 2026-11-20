@@ -2141,22 +2141,16 @@
           renderWishlistDrawer();
         }
 
-        // Add to Cart without closing Wishlist or auto-opening Cart Drawer
-        addToCart(product.id, variantModalState.selectedColor, variantModalState.selectedSize, variantModalState.quantity, false);
+        addToCart(product.id, variantModalState.selectedColor, variantModalState.selectedSize, variantModalState.quantity);
 
         // Close Variant Modal
         closeVariantModal();
 
-        // Show toast with "Go to Cart" link/action
-        showToast('Added to cart', 'Go to Cart', () => {
-          closeWishlist();
-          openCart();
-        });
       });
     }
   }
 
-  function addToCart(productId, colorOrSize, size, quantity = 1, autoOpenCart = true) {
+  function addToCart(productId, colorOrSize, size, quantity = 1) {
     const targetProduct = (typeof productId === 'object' && productId !== null) ? productId : PRODUCTS.find(p => p.id === productId);
     if (!targetProduct) return;
 
@@ -2216,10 +2210,7 @@
     saveCart();
     updateCartCount();
     if (typeof closeQuickView === 'function') closeQuickView();
-    if (autoOpenCart) {
-      showToast(`${escHtml(targetProduct.name)} added to cart`);
-      openCart();
-    }
+    showToast(`${escHtml(targetProduct.name)} added to cart.`, 'View Cart', openCart, ' ');
   }
 
   function updateCartQuantity(index, newQty) {
@@ -3000,7 +2991,7 @@
     }
   }
 
-  function showToast(message, actionText, actionCallback) {
+  function showToast(message, actionText, actionCallback, actionSeparator = ' · ') {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const toast = document.createElement('div');
@@ -3008,7 +2999,7 @@
 
     let actionHtml = '';
     if (typeof actionText === 'string' && actionText.length > 0) {
-      actionHtml = ` · <button class="toast-action-btn" type="button">${actionText}</button>`;
+      actionHtml = `${actionSeparator}<button class="toast-action-btn" type="button">${actionText}</button>`;
     }
 
     toast.innerHTML = `

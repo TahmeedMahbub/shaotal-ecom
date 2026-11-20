@@ -1071,13 +1071,14 @@ body.search-modal-open {
 }
 
 .toast-action-btn {
+  display: inline;
   background: transparent;
   border: none;
   color: #D4A373;
   font-weight: var(--fw-bold);
   text-decoration: underline;
   cursor: pointer;
-  margin-left: 0.5rem;
+  margin-left: 0;
   font-size: var(--fs-small);
   padding: 0;
   transition: color var(--transition-fast);
